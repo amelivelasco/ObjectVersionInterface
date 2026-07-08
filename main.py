@@ -23,17 +23,21 @@ def main():
     # 4) Parser CDL
     # -------------------------------
     parser = CDLParser()
+    base_dir = os.path.dirname(os.path.abspath(__file__))
 
 
     # -------------------------------
     # 5) Parsing du fichier CDL
     # -------------------------------
-    circuit = parser.parse(r"DC_to_SFQ\Netlist.sp")
+    netlist_path = os.path.join(base_dir, "DC_to_SFQ", "Netlist.sp")
+    layout_path = os.path.join(base_dir, "DC_to_SFQ", "Layout.gds")
+
+    circuit = parser.parse(netlist_path)
     circuit.folder_to_write()
     TOP_CEL = circuit.TOP
     circuit.list_top_nodes(TOP_CEL)
     # --- Charger le layout ---
-    circuit.define_klayout(r"DC_to_SFQ\Layout.gds")
+    circuit.define_klayout(layout_path)
     circuit.integrating_layout()
     circuit.renum_top()
     circuit.assign_cell_ids()
@@ -43,7 +47,10 @@ def main():
 
     circuit.write_cell_names()
     
-    circuit.write_inductex_file()
+    lines = circuit.read_inductex_file()
+    elem_connections = circuit.read_elem_connections(lines)
+    circuit.write_inductex_file(elem_connections)
+    
     circuit.attach_elements_to_nodes()
     circuit.mark_single_connection_nodes_in_layout()
     circuit.cover_cell_with_layer()

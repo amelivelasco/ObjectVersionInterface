@@ -1,13 +1,13 @@
-from Hierarchy import cell
 import matplotlib.pyplot as plt
 import networkx as nx
 import klayout.db as pya
-from Hierarchy.node import Node
 import re
 from collections import defaultdict
 from math import sqrt
 import os
 from datetime import datetime
+
+from Hierarchy.node import Node
 
 # Class description:
 # This class represents a circuit in the hierarchy of the design. It contains instances of 
@@ -156,10 +156,10 @@ class Circuit:
                 return klayout_inst
         return None
     
-    def define_klayout(self, pPathGDS):
+    def define_klayout(self, p_path_gds):
 
         self.layout = pya.Layout() # pya is the KLayout Python API. 
-        self.layout.read(pPathGDS) # The KLayout is used to read and manipulate GDSII files, which are standard file formats for representing integrated circuit layouts.
+        self.layout.read(p_path_gds) # The KLayout is used to read and manipulate GDSII files, which are standard file formats for representing integrated circuit layouts.
         self.layout_top = self.layout.top_cell() # is this reassignment necessary?
 
     
@@ -406,9 +406,9 @@ class Circuit:
 
         self.layout.write(os.path.join(self.output_dir,"BIG_Cellname.gds"))
 
-    def write_inductex_file(self):
+    def read_inductex_file(self):
         """
-        Écrit une netlist compatible InductEx à partir de self.TOP.
+        Lit un fichier InductEx et construit la structure du circuit.
 
         Gère :
         - L
@@ -612,6 +612,13 @@ class Circuit:
                 f"{elem.net_out.GlobalName:<{W_NET}} "
                 f"{elem.R}"
             )
+            
+        emitters = {
+            "L": emit_l,
+            "JJ": emit_jj,
+            "IB": emit_ib,
+            "R": emit_r,
+                }
 
         def recursive_walk(cell):
             """
@@ -621,31 +628,25 @@ class Circuit:
             for elem in cell.instances:
 
                 elem_type = getattr(elem, "type", None)
+                emitter = emitters.get(elem_type)
 
-                if elem_type == "L":
-                    emit_l(elem)
-
-                elif elem_type == "JJ":
-                    emit_jj(elem)
-
-                elif elem_type == "IB":
-                    emit_ib(elem)
-
-                elif elem_type == "R":
-                    emit_r(elem)
-
-                else:
-                    # Élément hiérarchique : on descend
-                    if hasattr(elem, "instances"):
-                        recursive_walk(elem)
+                if emitter is not None:
+                    emitter(elem)
+                    continue
+                
+                if hasattr(elem, "instances"):
+                    recursive_walk(elem)
 
         # Parcours depuis TOP
         recursive_walk(self.TOP)
+        return lines
 
         
         # =================================================
         # === ICI : TRI DES LIGNES PAR CATÉGORIE ==========
         # =================================================
+    
+    def read_elem_connections(self, lines):
 
         ports = []
         resistances = []
@@ -661,64 +662,48 @@ class Circuit:
             head_low = head.lower()  # can you do it above in one step
 
             # Ports : J*, IB*, P*, Pr*, Prb*
-            if (
-                head_low.startswith("j")
-                or head_low.startswith("ib")
-                or head_low.startswith("p")
-            ):
-                ports.append(line) 
-
-            # Résistances : R*
-            elif head_low.startswith("r"):
-                resistances.append(line)
-
-            # Inductances : L*
-            elif head_low.startswith("l"):
-                inductances.append(line)
-
-            else:
-                others.append(line)
+            elem_connections = {
+                "j": ports,
+                "ib": ports,
+                "p": ports,
+                "r": resistances,
+                "l": inductances,
+                "others": others
+            }
+            
+            for key in elem_connections.keys():
+                if head_low.startswith(key):
+                    elem_connections[key].append(line)
+                    break
+            return elem_connections
 
         # =================================================
         # === ICI : ÉCRITURE FINALE DU FICHIER ============
         # =================================================
+    def write_inductex_file(self, relations):
+        
         output_path = os.path.join(self.output_dir, "BIG_Cell_inductex.cir")
 
+        mydict = {
+            "INDUCTANCES": relations["l"],
+            "PORTS": relations["p"],
+            "RESISTANCES": relations["r"],
+            "OTHERS": relations["others"]
+        }
+        
         with open(output_path, "w") as f:
-
-            if inductances:
-                f.write("* === INDUCTANCES ===\n")
-                for line in inductances:
-                    f.write(line + "\n")
-                f.write("\n")
-
-            if ports:
-                f.write("* === PORTS / J / IB ===\n")
-                for line in ports:
-                    f.write(line + "\n")
-                f.write("\n")
-
-            if resistances:
-                f.write("* === RESISTANCES ===\n")
-                for line in resistances:
-                    f.write(line + "\n")
-                f.write("\n")
-
-            if others:
-                f.write("* === OTHERS ===\n")
-                for line in others:
-                    f.write(line + "\n")
-
-
-                # Écriture du fichier
-                with open(output_path, "w") as f:
-                    for line in lines:
+            
+            for section, section_lines in mydict.items():
+                if not section_lines:
+                    continue
+                f.write(f"* === {section} ===\n")
+                for line in section_lines:
                         f.write(line + "\n")
 
                 print(f"Fichier InductEx écrit : {output_path}")
                 print("Nœuds internes créés :")
                 for node in self.list_nodes_top:
-                    print(" ", node)
+                    print(" ", node.name)
 
 
 
