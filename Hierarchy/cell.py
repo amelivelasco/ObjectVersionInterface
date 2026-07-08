@@ -18,24 +18,24 @@ from Hierarchy.circuit import Circuit
 # - id: An optional identifier for the cell.
 # - model: The model of the cell, 
 # - instances: A list to store the instances of elements and subcells within the cell.
-# - listNodes: A list to store the nodes in the cell.
+# - list_nodes: A list to store the nodes in the cell.
 # - net_map: A list to store the mapping of port nets in the cell.
 # - lines: A list to store the lines of the netlist representation of the cell.
-# - Path_name: The path name of the cell in the hierarchy.
+# - path_name: The path name of the cell in the hierarchy.
 
 # Methods:
 # - 1) add_port_net(port): A method to add a port net to the cell's net_map.
 # - 2) add_cell_instance(cell_instance): A method to add a cell instance to the cell's instances list.
-# - 3) add_Rebuild_cell_instance(cell_instance, nets): A method to add a cell instance to the 
+# - 3) add_rebuild_cell_instance(cell_instance, nets): A method to add a cell instance to the 
 #   cell's instances list. PROBLEMATIC
-# - 4) add_element(element, net_in, net_out, ListUpperNodes): A method to add an element to the
+# - 4) add_element(element, net_in, net_out, list_upper_nodes): A method to add an element to the
 #   cell's instances list.
-# - 5) get_node(name, ListUpperNodes): A method to get a node by name from the cell's listNodes
-#   or from the ListUpperNodes. If the node does not exist, it creates a
-#   new node and adds it to the listNodes.
+# - 5) get_node(name, list_upper_nodes): A method to get a node by name from the cell's list_nodes
+#   or from the list_upper_nodes. If the node does not exist, it creates a
+#   new node and adds it to the list_nodes.
 # - 6) clean_cells(): A method to remove instances with None names from the cell's instances list
 # - 7) summary(): A method to print a summary of the cell, including its name and the types and names of its instances.
-# - 8) rebuild(filename, linelist, Circuit, nodes, UpperNodes): A method to rebuild the cell from a netlist file.
+# - 8) rebuild(filename, linelist, circuit, nodes, upper_nodes): A method to rebuild the cell from a netlist file.
 #   MUST REFACTOR!
 
 
@@ -43,20 +43,20 @@ from Hierarchy.circuit import Circuit
 # - Why is the name and type the same in the intialization? 
 # - What is a port net and a node differently? 
 #   Answer: A port net is a node that is connected to a port of the cell.
-# - What is the difference between the listNodes and the lines? 
-#   Answer: The listNodes is a list of Node objects that represent the nodes in the cell, 
+# - What is the difference between the list_nodes and the lines? 
+#   Answer: The list_nodes is a list of Node objects that represent the nodes in the cell, 
 #           while the lines is a list of strings that represent the lines of the netlist 
 #           representation of the cell. 
-#           The listNodes is used for internal representation and manipulation of the 
+#           The list_nodes is used for internal representation and manipulation of the 
 #           cell's structure, while the lines is used for generating the netlist output.
 # - What is the convention for the path names? Are they relative or absolute?
 # - Why do we need to separate the port nets to the normal nodes? 
 #   Answer: To distinguish between the external connections of the cell (port nets) and the internal connections (normal nodes).
 
 # Improvements:
-# - Remove the id parameter as it is not useed, and the names themselves are unique in the listNodes.
-# - Remove the nets parameter from the add_Rebuild_cell_instance method.
-# - The add_Rebuild_cell_instance method seems to be doing the same thing as the add_cell_instance method, 
+# - Remove the id parameter as it is not useed, and the names themselves are unique in the list_nodes.
+# - Remove the nets parameter from the add_rebuild_cell_instance method.
+# - The add_rebuild_cell_instance method seems to be doing the same thing as the add_cell_instance method, 
 #   we should remove one of them.
 # - The get_node method should be renamed to something like find_or_create_node to better reflect its functionality.
 # - Strongly type the parameters of the methods.
@@ -78,10 +78,10 @@ class Cell:
         self.name = name
         self.model = name
         self.instances = []
-        self.listNodes= []
+        self.list_nodes= []
         self.net_map = []
         self.lines = []
-        self.Path_name = ""
+        self.path_name = ""
         
 
     
@@ -94,41 +94,35 @@ class Cell:
         
         self.instances.append(cell_instance)
         return cell_instance
-
-    def add_Rebuild_cell_instance(self, cell_instance, nets):
-
-        
-        self.instances.append(cell_instance)
-        return cell_instance
     
-    def add_element(self, element, net_in, net_out,ListUpperNodes):
-        element.net_in = self.get_node(net_in,ListUpperNodes)
-        element.net_out = self.get_node(net_out,ListUpperNodes)
+    def add_element(self, element, net_in, net_out, list_upper_nodes):
+        element.net_in = self.get_node(net_in, list_upper_nodes)
+        element.net_out = self.get_node(net_out, list_upper_nodes)
 
         self.instances.append(element)
         return element
 
 
-    def get_node(self, name,ListUpperNodes):
-        nameNode = {x.name: x for x in self.listNodes}
+    def get_node(self, name, list_upper_nodes):
+        name_node = {x.name: x for x in self.list_nodes}
         
        
 
-        if name in nameNode:
-            return nameNode[name]
+        if name in name_node:
+            return name_node[name]
         
-        nameUpperNode = {x.name: x for x in ListUpperNodes}
+        name_upper_node = {x.name: x for x in list_upper_nodes}
 
-        if name in nameUpperNode:
-            return nameUpperNode[name]
+        if name in name_upper_node:
+            return name_upper_node[name]
         
-        NewNode = Node(name)
-        if NewNode.name in self.net_map: 
-            NewNode.Internal = False
-            NewNode.Port = name
+        new_node = Node(name)
+        if new_node.name in self.net_map: 
+            new_node.Internal = False
+            new_node.Port = name
         
-        self.listNodes.append(NewNode)
-        return NewNode
+        self.list_nodes.append(new_node)
+        return new_node
 
 
 
@@ -148,17 +142,16 @@ class Cell:
             print(type(i),i.name,i.net_out,i.net_in)
 
 
-    def rebuild(self,filename, linelist,Circuit,nodes,UpperNodes):
+    def rebuild(self,filename, linelist,circuit,nodes,upper_nodes):
 
         lignes =open(filename, "r").read().splitlines()   # iterates through each netlist line 
         cell = lignes[linelist[0]-1:linelist[1]-1] # extracts the lines corresponding to the cell based on the provided line numbers
         tokens = cell[0].split()  # splits the first line of the cell to extract the tokens, such as the cell name and port nets
-        ListPorts = tokens[2:]  # extracts the port nets from the tokens, which are typically listed after the cell name in the .subckt line of the netlist
-        dict = {}  # creates an empty dictionary to map the port nets to the corresponding nodes in the cell. 
+        list_ports = tokens[2:]  # extracts the port nets from the tokens, which are typically listed after the cell name in the .subckt line of the netlist
                    # This mapping is used to replace the port net names in the cell's netlist lines with the actual node names during the rebuilding process.
-        for i in range (len(ListPorts)): 
-            dict[ListPorts[i]] = nodes[i]  # populates the dictionary with the port net names as keys and the corresponding node names from the provided nodes list as values.
-            for cle, valeur in dict.items():
+        for i in range (len(list_ports)): 
+            dict[list_ports[i]] = nodes[i]  # populates the dictionary with the port net names as keys and the corresponding node names from the provided nodes list as values.
+            for cle, valeur in dict.items(self):
                 ligne = re.sub(
                     r"(?<!\w)" + re.escape(cle) + r"(?!\w)",
                     valeur,
@@ -191,7 +184,7 @@ class Cell:
                         break
                 
                 self.add_element( # FIX: net_p and net_n are not being passed to the JJElement constructor => redundant 
-                    JJElement(name, None, None, Ic),net_in,net_out,UpperNodes  # Adds JJ element to cell 
+                    JJElement(name, None, None, Ic),net_in,net_out,upper_nodes  # Adds JJ element to cell 
                 )
 
 
@@ -208,7 +201,7 @@ class Cell:
                         break
 
                 self.add_element(
-                    BiasIBElement(name, None, None ,Ib),net_in,net_out,UpperNodes
+                    BiasIBElement(name, None, None ,Ib),net_in,net_out,upper_nodes
                 )
 
             # ===== Inductance =====
@@ -217,17 +210,17 @@ class Cell:
                 net_p = tokens[1]
                 net_n = tokens[2]
 
-                Lval = None
+                lval = None
                 for t in tokens:
                     if t.lower().startswith("l="):
-                        Lval = float(
+                        lval = float(
                             t.split("=", 1)[1]
                             .replace("p", "")
                             .replace("n", "")
                         )
                         break
                 self.add_element(    
-                    InductorElement(name, None, None, Lval),net_p,net_n,UpperNodes
+                    InductorElement(name, None, None, lval),net_p,net_n,upper_nodes
                 )
 
             # ===== Résistance =====
@@ -236,17 +229,17 @@ class Cell:
                 net_p = tokens[1]
                 net_n = tokens[2]
 
-                Rval = None
+                rval = None
                 for t in tokens[3:]:
                     if t.lower().startswith("r="):
-                        Rval = float(t.split("=", 1)[1])
+                        rval = float(t.split("=", 1)[1])
                         break
 
-                if Rval is None:
-                    Rval = float(tokens[-1])  # Why only Resistance get the check if it's none? 
+                if rval is None:
+                    rval = float(tokens[-1])  # Why only Resistance get the check if it's none? 
 
                 self.add_element(
-                    ResistorElement(name, None, None, Rval),net_p,net_n,UpperNodes
+                    ResistorElement(name, None, None, rval),net_p,net_n,upper_nodes
                 )
             # ===========================
             # INSTANCIATION DE CELLULE (XI…)
@@ -254,14 +247,14 @@ class Cell:
             if head.lower().startswith("xi"):
                 model = tokens[-1]                    # 'JTL' WHAT IS JTL?
                 nets = tokens[1:-1]
-                ListNodeToSendDown = []
+                list_node_to_send_down = []
                 for i in nets: 
-                    ListNodeToSendDown.append(self.get_node(i,UpperNodes))
-                addedCell = Cell(model)   # So the model is always the same as the name ?
-                #print("Instance Name",addedCell.name)
+                    list_node_to_send_down.append(self.get_node(i,upper_nodes))
+                added_cell = Cell(model)   # So the model is always the same as the name ?
+                #print("Instance Name",added_cell.name)
                 #print("Instance Name",head)
-                addedCell.rebuild(filename,Circuit.get_cell(model).lines,Circuit,nets,ListNodeToSendDown)   # Too much recursion. Could use B+ tree to iterate through the hierarchy instead of recursion.
-                ListNodeToSendDown = [] 
-                addedCell.name = head[1:]
-                self.add_cell_instance(addedCell)
-                continue
+                added_cell.rebuild(filename,circuit.get_cell(model).lines,circuit,nets,list_node_to_send_down)   # Too much recursion. Could use B+ tree to iterate through the hierarchy instead of recursion.
+                list_node_to_send_down = [] 
+                added_cell.name = head[1:]
+                self.add_cell_instance(added_cell)
+                

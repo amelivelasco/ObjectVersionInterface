@@ -16,7 +16,7 @@ class CDLParser:
     """
     Parser CDL strict :
     - tout ce qui est entre .subckt et .ends
-      DOIT être JJ / IB / L / R
+      DOIT être JJ / ib / L / R
     """
 
     def __init__(self):
@@ -26,7 +26,7 @@ class CDLParser:
 
 
     def parse(self, filename: str):
-        NewCircuit = Circuit()
+        new_circuit = Circuit()
 
         with open(filename, "r") as f:
             for lineno, raw in enumerate(f, start=1):
@@ -60,7 +60,7 @@ class CDLParser:
                 # ---------------------------
                 if low.startswith(".ends"):
                     self.current_cell.lines.append(lineno)
-                    NewCircuit.add_cell(self.current_cell)
+                    new_circuit.add_cell(self.current_cell)
                     self.current_cell= None
                     continue
 
@@ -84,13 +84,13 @@ class CDLParser:
                 if head.lower().startswith("xi"):
                     model = tokens[-1]                    # 'JTL'
                     nets = tokens[1:-1]
-                    ListNodeToSendDown = []
+                    list_node_to_send_down = []
                     for i in nets: 
-                        ListNodeToSendDown.append(self.current_cell.get_node(i,[]))
-                    addedCell = Cell(model)
-                    addedCell.rebuild(filename,NewCircuit.get_cell(model).lines,NewCircuit,nets,ListNodeToSendDown)
-                    addedCell.name = head[1:]
-                    self.current_cell.add_cell_instance(addedCell)
+                        list_node_to_send_down.append(self.current_cell.get_node(i,[]))
+                    added_cell = Cell(model)
+                    added_cell.rebuild(filename,new_circuit.get_cell(model).lines,new_circuit,nets,list_node_to_send_down)
+                    added_cell.name = head[1:]
+                    self.current_cell.add_cell_instance(added_cell)
                     continue
 
 
@@ -100,36 +100,36 @@ class CDLParser:
                     net_in = tokens[1]
                     net_out = tokens[2]
 
-                    Ic = 100.0
+                    ic = 100.0
                     for t in tokens:
                         if t.lower().startswith(("ic=", "ics=")):
-                            Ic = float(t.split("=", 1)[1].replace("u", ""))
+                            ic = float(t.split("=", 1)[1].replace("u", ""))
                             break
                     
                     self.current_cell.add_element(
-                        JJElement(name, None, None, Ic),net_in,net_out,[]
+                        JJElement(name, None, None, ic),net_in,net_out,[]
                     )
 
 
-                # ===== IB =====
+                # ===== ib =====
                 elif head.lower().startswith("xpcib"):
                     name = re.sub(r"^xpc", "", head, flags=re.I)
                     net_in = tokens[2]
                     net_out = tokens[3]
 
-                    Ib = None
+                    ib = None
                     for t in tokens:
                         if t.lower().startswith("ib="):
-                            Ib = float(t.split("=", 1)[1].replace("u", ""))
+                            ib = float(t.split("=", 1)[1].replace("u", ""))
                             break
 
-                    if Ib is None:
+                    if ib is None:
                         raise ValueError(
-                            f"[ligne {lineno}] IB sans ib="
+                            f"[ligne {lineno}] ib sans ib="
                         )
 
                     self.current_cell.add_element(
-                        BiasIBElement(name, None, None ,Ib),net_in,net_out,[]
+                        BiasIBElement(name, None, None ,ib),net_in,net_out,[]
                     )
 
                 # ===== Inductance =====
@@ -138,23 +138,23 @@ class CDLParser:
                     net_p = tokens[1]
                     net_n = tokens[2]
 
-                    Lval = None
+                    lval = None
                     for t in tokens:
                         if t.lower().startswith("l="):
-                            Lval = float(
+                            lval = float(
                                 t.split("=", 1)[1]
                                 .replace("p", "")
                                 .replace("n", "")
                             )
                             break
 
-                    if Lval is None:
+                    if lval is None:
                         raise ValueError(
                             f"[ligne {lineno}] Inductance sans L="
                         )
 
                     self.current_cell.add_element(
-                        InductorElement(name, None, None, Lval),net_p,net_n,[]
+                        InductorElement(name, None, None, lval),net_p,net_n,[]
                     )
 
                 # ===== Résistance =====
@@ -163,22 +163,22 @@ class CDLParser:
                     net_p = tokens[1]
                     net_n = tokens[2]
 
-                    Rval = None
+                    rval = None
                     for t in tokens[3:]:
                         if t.lower().startswith("r="):
-                            Rval = float(t.split("=", 1)[1])
+                            rval = float(t.split("=", 1)[1])
                             break
 
-                    if Rval is None:
-                        Rval = float(tokens[-1])
+                    if rval is None:
+                        rval = float(tokens[-1])
 
                     self.current_cell.add_element(
-                        ResistorElement(name, None, None, Rval),net_p,net_n,[]
+                        ResistorElement(name, None, None, rval),net_p,net_n,[]
                     )
-        NewCircuit.defineTOP(self.TOP)
-        return NewCircuit
+        new_circuit.define_top(self.TOP)
+        return new_circuit
     
-    def parsesol(self, filename: str,Circuit):
+    def parsesol(self, filename: str, circuit):
 
         
         buffer_values = []
@@ -201,13 +201,13 @@ class CDLParser:
 
                 # Case: L8--P4
                 if "--" in name:
-                    L_name, P_name = name.split("--")
-                    line = f"{L_name} {design} {extracted} {absdiff} {percdiff}"
+                    l_name, p_name = name.split("--")
+                    line = f"{l_name} {design} {extracted} {absdiff} {percdiff}"
 
                     buffer_values.append(
                         line.split()
                     )
-                    line = f"L{P_name} 0 0{absdiff} {percdiff}"
+                    line = f"L{p_name} 0 0{absdiff} {percdiff}"
                     buffer_values.append(
                         line.split()
                     )
@@ -216,51 +216,51 @@ class CDLParser:
         for i in buffer_values: 
             print(i)
 
-        for Value in buffer_values:
+        for b_value in buffer_values:
 
             #################### JJ extracted Values ################
-            if Value[0].startswith("LJ"):
-                where = Circuit.findElement(Circuit.TOP,Value[0][1:])
-                where.addIndParas(Value[2])
+            if b_value[0].startswith("LJ"):
+                where = circuit.findElement(circuit.TOP,b_value[0][1:])
+                where.addIndParas(b_value[2])
                 continue
-            if Value[0].startswith("J"):
-                where = Circuit.findElement(Circuit.TOP,Value[0])
-                where.addJJReal(Value[2])
+            if b_value[0].startswith("J"):
+                where = circuit.findElement(circuit.TOP,b_value[0])
+                where.addJJReal(b_value[2])
                 continue
-            if Value[0].startswith("LRS"):
-                m = re.search(r"LRS(\d+)", Value[0])
+            if b_value[0].startswith("LRS"):
+                m = re.search(r"LRS(\d+)", b_value[0])
                 value = int(m.group(1))
-                where = Circuit.findElement(Circuit.TOP,"J"+str(value))
-                where.addJJIndParral(Value[2])
+                where = circuit.findElement(circuit.TOP,"J"+str(value))
+                where.addJJIndParral(b_value[2])
                 continue
-            if Value[0].startswith("RS"):
-                where = Circuit.findElement(Circuit.TOP,"J"+Value[0][2:])
-                where.addJJRParral(Value[2])
+            if b_value[0].startswith("RS"):
+                where = circuit.findElement(circuit.TOP,"J"+b_value[0][2:])
+                where.addJJRParral(b_value[2])
                 continue
-            if Value[0].startswith("LP"):
-                where = Circuit.findElement(Circuit.TOP,"J"+Value[0][2:])
-                where.addJJLp(Value[2])
+            if b_value[0].startswith("LP"):
+                where = circuit.findElement(circuit.TOP,"J"+b_value[0][2:])
+                where.addJJLp(b_value[2])
                 continue
-            Ind = Value[0][1] 
+            ind = b_value[0][1] 
             #################### R extracted Values ################
-            if Value[0].startswith("R") and Ind.isdigit():
-                where = Circuit.findElement(Circuit.TOP,Value[0])
-                where.addRealR(Value[2])
+            if b_value[0].startswith("R") and ind.isdigit():
+                where = circuit.findElement(circuit.TOP,b_value[0])
+                where.addRealR(b_value[2])
                 continue
             #################### Ind extracted Values ################
-            if Value[0].startswith("L") and Ind.isdigit():
-                where = Circuit.findElement(Circuit.TOP,Value[0])
-                where.addRealL(Value[2])
+            if b_value[0].startswith("L") and ind.isdigit():
+                where = circuit.findElement(circuit.TOP,b_value[0])
+                where.addRealL(b_value[2])
                 continue
             #################### Bias extracted Values ################
-            if Value[0].startswith("RIB"):
-                where = Circuit.findElement(Circuit.TOP,Value[0][1:])
-                where.addRealIB(Value[2])
+            if b_value[0].startswith("Rib"):
+                where = circuit.findElement(circuit.TOP,b_value[0][1:])
+                where.addRealib(b_value[2])
                 continue
-            if Value[0].startswith("LIB"):
-                where = Circuit.findElement(Circuit.TOP,Value[0][1:])
-                where.addRealLIB(Value[2])
-                continue
+            if b_value[0].startswith("Lib"):
+                where = circuit.findElement(circuit.TOP,b_value[0][1:])
+                where.addRealLib(b_value[2])
+                
             
             
 

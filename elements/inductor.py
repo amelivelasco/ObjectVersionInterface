@@ -45,6 +45,6 @@ class InductorElement(Element):
         return [
             f"L{self.name}\t{self.net_in}\t{self.net_out}\t{self.L}"
         ]
-    def addRealL(self,Value):
-        self.RealL = Value
+    def addRealL(self, real_l_value:float):
+        self.RealL = real_l_value
         return

@@ -28,28 +28,28 @@ def main():
     # -------------------------------
     # 5) Parsing du fichier CDL
     # -------------------------------
-    Circuit = parser.parse(r"DC_to_SFQ\Netlist.sp")
-    Circuit.FolderTowrite()
-    TOP_CEL = Circuit.TOP
-    Circuit.listTOPNodes(TOP_CEL)
+    circuit = parser.parse(r"DC_to_SFQ\Netlist.sp")
+    circuit.folder_to_write()
+    TOP_CEL = circuit.TOP
+    circuit.list_top_nodes(TOP_CEL)
     # --- Charger le layout ---
-    Circuit.defineKlayout(r"DC_to_SFQ\Layout.gds")
-    Circuit.IntegratingLayout()
-    Circuit.RenumTOP()
-    Circuit.assign_cell_ids()
-    Circuit.define_local_names()
-    Circuit.rename_all_elements_by_type()
-    #Circuit.traverse_cell(TOP_CEL)
+    circuit.define_klayout(r"DC_to_SFQ\Layout.gds")
+    circuit.integrating_layout()
+    circuit.renum_top()
+    circuit.assign_cell_ids()
+    circuit.define_local_names()
+    circuit.rename_all_elements_by_type()
+    #circuit.traverse_cell(TOP_CEL)
 
-    Circuit.write_cell_names()
+    circuit.write_cell_names()
     
-    Circuit.write_inductex_file()
-    Circuit.attach_elements_to_nodes()
-    Circuit.mark_single_connection_nodes_in_layout()
-    Circuit.cover_cell_with_layer()
+    circuit.write_inductex_file()
+    circuit.attach_elements_to_nodes()
+    circuit.mark_single_connection_nodes_in_layout()
+    circuit.cover_cell_with_layer()
 
-    #parser.parsesol(r"Datafolder\sol.txt",Circuit)
-    #Circuit.BuildNetlist()
+    #parser.parsesol(r"Datafolder\sol.txt",circuit)
+    #circuit.BuildNetlist()
 
 if __name__ == "__main__":
     

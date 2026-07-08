@@ -8,7 +8,7 @@ class Node:
     def __init__(self, name: str):
         self.id = None
         self.name = name
-        self.Internal = True
-        self.Port = None
-        self.GlobalName = None
+        self.internal = True
+        self.port = None
+        self.global_name = None
         self.connected_elements = []

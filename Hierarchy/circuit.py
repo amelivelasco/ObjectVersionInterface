@@ -19,7 +19,7 @@ from datetime import datetime
 # - name: The name of the circuit, such as "top".
 # - cells: A dictionary mapping cell names to Cell objects, representing the cells in the circuit.
 # - TOP: The top cell of the circuit, which serves as the entry point for the hierarchy.
-# - ListNodesTOP: A list of nodes in the top cell, which can be used for renaming and managing connections.
+# - list_nodes_top: A list of nodes in the top cell, which can be used for renaming and managing connections.
 # - element_counters: A dictionary to keep track of the count of each type of element for renaming purposes.
 # - layout_top: The top cell of the KLayout layout, used for integrating the logical circuit with the physical design.
 
@@ -35,9 +35,9 @@ from datetime import datetime
 # - This whole class must be refactored as it contains too many responsabilities.
 # - Remove add_instance and add_cells methods as they are not used and are redundant with add_cell.
 # - Remove summary or cell_names methods as they are redundant with each other.
-# - Remove defineTOP method as it is redundant with get_cell method.
+# - Remove define_top method as it is redundant with get_cell method.
 # - The visit method should not be defined inside define_local_names, it should be a separate method.
-# - Remove IntegratingLayout method as it just calls GoThrough method => redundant
+# - Remove integrating_layout method as it just calls go_through method => redundant
 
 # Questions:
 # - What is the purpose of property 102 in the method find_layout_instance_by_pid?
@@ -58,7 +58,7 @@ class Circuit:
         self.name = name
         self.cells = {}       # name -> Cell (instances XI)
         self.TOP = None
-        self.ListNodesTOP = []
+        self.list_nodes_top = []
         self.element_counters = {}
         self.layout_top = None
 
@@ -85,7 +85,7 @@ class Circuit:
         """
         return list(self.cells.keys())
     
-    def FolderTowrite(self):
+    def folder_to_write(self):
 
         timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M")
         folder_name = f"BIG_Cell_{timestamp}"
@@ -100,7 +100,7 @@ class Circuit:
         """
         return self.cells.get(name)
 
-    def defineTOP(self,name): # Remove, same as get_celll
+    def define_top(self,name): # Remove, same as get_celll
         self.TOP = self.cells[name]
 
     def define_local_names(self): 
@@ -156,15 +156,15 @@ class Circuit:
                 return klayout_inst
         return None
     
-    def defineKlayout(self, pPathGDS):
+    def define_klayout(self, pPathGDS):
 
         self.layout = pya.Layout() # pya is the KLayout Python API. 
         self.layout.read(pPathGDS) # The KLayout is used to read and manipulate GDSII files, which are standard file formats for representing integrated circuit layouts.
         self.layout_top = self.layout.top_cell() # is this reassignment necessary?
 
     
-    def IntegratingLayout(self): 
-        def GoThrough(layout_cell, circuit_cell, layout_parent_inst=None):
+    def integrating_layout(self): 
+        def go_through(layout_cell, circuit_cell, layout_parent_inst=None):
 
             # Affichage du contexte
             if layout_parent_inst is None:
@@ -207,7 +207,7 @@ class Circuit:
 
                 # Descente hiérarchique si l'objet logique contient des sous-instances
                 if hasattr(circuit_inst, "instances") and circuit_inst.instances:
-                    GoThrough(
+                    go_through(
                         layout_inst.cell,      # IMPORTANT : on passe la CELL
                         circuit_inst,
                         layout_parent_inst=layout_inst
@@ -218,17 +218,17 @@ class Circuit:
             f"<-> layout={self.layout_top.name}"
         )
 
-        GoThrough(self.layout_top, self.TOP)
+        go_through(self.layout_top, self.TOP)
 
-    def RenumTOP(self):
+    def renum_top(self):
         
         gnd_number = 0
-        self.counterNode = 1
+        self.counter_node = 1
         
-        for node in self.ListNodesTOP: 
+        for node in self.list_nodes_top: 
             if node.name != "GND!":
-                node.GlobalName = self.counterNode
-                self.counterNode += 1
+                node.GlobalName = self.counter_node
+                self.counter_node += 1
             if node.name == "GND!":
                 print("a")
                 node.GlobalName = gnd_number
@@ -237,18 +237,18 @@ class Circuit:
 
 
     
-    def listTOPNodes(self,cell):
-        self.ListNodesTOP.extend(cell.listNodes)
+    def list_top_nodes(self,cell):
+        self.list_nodes_top.extend(cell.list_nodes)
         for e in cell.instances:
             if hasattr(e, "net_in"):
                 continue
             else:
-                self.listTOPNodes(e) 
+                self.list_top_nodes(e) 
 
 
 
     
-    def plot_all_baseElEment(self):
+    def plot_all_base_elements(self):
         """
         Affiche tous les IBias du circuit avec leur Path_name.
         """
@@ -312,7 +312,7 @@ class Circuit:
             "IB": "IB",
         }
 
-        def renameAll(cell):
+        def rename_all(cell):
             for inst in cell.instances:
 
                 # ✅ Élément logique (feuille)
@@ -326,9 +326,9 @@ class Circuit:
 
                 # ✅ Sous-cell
                 else:
-                    renameAll(inst)
+                    rename_all(inst)
 
-        renameAll(self.TOP)
+        rename_all(self.TOP)
 
     def write_cell_names(self):
         """
@@ -337,8 +337,8 @@ class Circuit:
         """
 
         self.label_layer = self.layout.layer(52, 0)
-        self.TermLayer = self.layout.layer(45, 0)
-        def recursiveName(cell,parent_trans):
+        self.term_layer = self.layout.layer(45, 0)
+        def recursive_name(cell,parent_trans):
             for inst in cell.instances:
                 
                 # Transformation locale de cette instance
@@ -349,49 +349,49 @@ class Circuit:
 
                 if hasattr(inst,"type") and inst.type == "JJ":
                        
-                    PortJ = str(inst.name + " M2 M1")
-                    local_text_pos_portJ = pya.Point(0,0)
-                    text_trans_PortJ = global_trans * pya.Trans(local_text_pos_portJ)
-                    PortJtxt = pya.Text(
-                        str(PortJ),
-                        text_trans_PortJ
+                    portj = str(inst.name + " M2 M1")
+                    local_text_pos_portj = pya.Point(0,0)
+                    text_trans_portj = global_trans * pya.Trans(local_text_pos_portj)
+                    portjtxt = pya.Text(
+                        str(portj),
+                        text_trans_portj
                     )
-                    self.layout_top.shapes(self.label_layer).insert(PortJtxt)
+                    self.layout_top.shapes(self.label_layer).insert(portjtxt)
 
-                    Ray = sqrt((inst.Ic*10000000)/(10*3.14159*2))+8000 # This calculates the radius of the circle based on the critical current (Ic) of the Josephson junction. 
+                    ray = sqrt((inst.Ic*10000000)/(10*3.14159*2))+8000 # This calculates the radius of the circle based on the critical current (Ic) of the Josephson junction. 
 
-                    PortParResJ = str("Prb"+inst.name[1:] + " M2 R2")
-                    local_text_pos_PortParResJ = pya.Point(0,-Ray)
-                    text_trans_PortParResJ = global_trans * pya.Trans(local_text_pos_PortParResJ)
-                    PortParResJtxt = pya.Text(
-                        str(PortParResJ),
-                        text_trans_PortParResJ
+                    port_par_resj = str("Prb"+inst.name[1:] + " M2 R2")
+                    local_text_pos_port_par_resj = pya.Point(0,-ray)
+                    text_trans_port_par_resj = global_trans * pya.Trans(local_text_pos_port_par_resj)
+                    port_par_resjtxt = pya.Text(
+                        str(port_par_resj),
+                        text_trans_port_par_resj
                     )
-                    self.layout_top.shapes(self.label_layer).insert(PortParResJtxt)
+                    self.layout_top.shapes(self.label_layer).insert(port_par_resjtxt)
                     inst.global_trans = global_trans
 
                 elif hasattr(inst,"type") and inst.type == "IB":
-                    IbResLenght = ((((2.6*10**6)/(inst.Ib*10**6))*5)/2)*1000000+2000
-                    PortIB = str(inst.name + " M3 M2")
-                    local_text_pos_PortIB = pya.Point(0,IbResLenght)
-                    text_trans_PortIB = global_trans * pya.Trans(local_text_pos_PortIB)
-                    PortIBtxt = pya.Text(
-                        str(PortIB),
-                        text_trans_PortIB
+                    ib_res_length = ((((2.6*10**6)/(inst.Ib*10**6))*5)/2)*1000000+2000
+                    port_ib = str(inst.name + " M3 M2")
+                    local_text_pos_port_ib = pya.Point(0,ib_res_length)
+                    text_trans_port_ib = global_trans * pya.Trans(local_text_pos_port_ib)
+                    port_ibtxt = pya.Text(
+                        str(port_ib),
+                        text_trans_port_ib
                     )
-                    self.layout_top.shapes(self.label_layer).insert(PortIBtxt)
+                    self.layout_top.shapes(self.label_layer).insert(port_ibtxt)
                     inst.global_trans = global_trans
 
                 elif hasattr(inst,"type") and inst.type == "R":
-                    ResLenght = (((inst.R)*10)/2)*1000+1000
-                    PortRes = str("P"+inst.name + " M2 R2")
-                    local_text_pos_PortRes = pya.Point(0,ResLenght)
-                    text_trans_PortRes = global_trans * pya.Trans(local_text_pos_PortRes)
-                    PortIBtxt = pya.Text(
-                        str(PortRes),
-                        text_trans_PortRes
+                    res_length = (((inst.R)*10)/2)*1000+1000
+                    port_res = str("P"+inst.name + " M2 R2")
+                    local_text_pos_port_res = pya.Point(0,res_length)
+                    text_trans_port_res = global_trans * pya.Trans(local_text_pos_port_res)
+                    port_ibtxt = pya.Text(
+                        str(port_res),
+                        text_trans_port_res
                     )
-                    self.layout_top.shapes(self.label_layer).insert(PortIBtxt)
+                    self.layout_top.shapes(self.label_layer).insert(port_ibtxt)
                     inst.global_trans = global_trans
                 
                 elif hasattr(inst, "type") and inst.type == "L":
@@ -400,9 +400,9 @@ class Circuit:
 
 
                 elif hasattr(inst, "instances"):
-                    recursiveName(inst,global_trans)
+                    recursive_name(inst,global_trans)
 
-        recursiveName(self.TOP,pya.Trans())
+        recursive_name(self.TOP,pya.Trans())
 
         self.layout.write(os.path.join(self.output_dir,"BIG_Cellname.gds"))
 
@@ -416,32 +416,32 @@ class Circuit:
         - IB
         - R
 
-        Ajoute les nœuds internes créés dans self.ListNodesTOP.
+        Ajoute les nœuds internes créés dans self.list_nodes_top.
         """
 
         lines = []
 
         def new_internal_node():
             """
-            Crée un nom de nœud interne unique et l'ajoute à self.ListNodesTOP.
+            Crée un nom de nœud interne unique et l'ajoute à self.list_nodes_top.
             """
-            node = Node(self.counterNode)
-            node.GlobalName = int(self.counterNode)
-            self.counterNode +=1
+            node = Node(self.counter_node)
+            node.GlobalName = int(self.counter_node)
+            self.counter_node +=1
 
             # Évite les doublons
-            if node not in self.ListNodesTOP:
-                self.ListNodesTOP.append(node)
+            if node not in self.list_nodes_top:
+                self.list_nodes_top.append(node)
 
             return node
 
         
-        def emit_L(elem):  # The L is an inductor element in the circuit. 
+        def emit_l(elem):  # The L is an inductor element in the circuit. 
             """
             Format :
             Lname net_in net_out Lvalue
             """
-            self.listAdditionalNode = None
+            self.list_additional_node = None
 
             lines.append(
                 f"{elem.name:<10} "
@@ -451,7 +451,7 @@ class Circuit:
             )
 
 
-        def emit_JJ(elem):
+        def emit_jj(elem):
             """
             Format demandé :
 
@@ -465,29 +465,29 @@ class Circuit:
             prb_name = "Prb" + jname[1:]
             lj_name  = "Lj"  + jname[1:]
             rs_name  = "Rs"  + jname[1:]
-            Lp_net = elem.net_out
+            lp_net = elem.net_out
             W_NAME = 10   # make a constant for this
             W_NET = 15
 
 
             if str(elem.net_out.GlobalName) == "0":
 
-                Lp_net = new_internal_node()
-                Lp_name = "Lp" + jname[1:]
-                Lp_value = "0.4"   # valeur parasite (à ajuster si besoin)
+                lp_net = new_internal_node()
+                lp_name = "Lp" + jname[1:]
+                lp_value = "0.4"   # valeur parasite (à ajuster si besoin)
 
                 # Connexions logiques (affichage)
-                Lp_net.connected_elements.append(jname)
-                Lp_net.connected_elements.append(elem.net_out.GlobalName)
+                lp_net.connected_elements.append(jname)
+                lp_net.connected_elements.append(elem.net_out.GlobalName)
 
-                elem.listAdditionalNode.append(Lp_net)
+                elem.listAdditionalNode.append(lp_net)
 
                 # Ligne InductEx : inductance parasite vers ground
                 lines.append(
-                    f"{Lp_name:<{W_NAME}} "
-                    f"{Lp_net.GlobalName:<{W_NET}} "
+                    f"{lp_name:<{W_NAME}} "
+                    f"{lp_net.GlobalName:<{W_NET}} "
                     f"{elem.net_out.GlobalName:<{W_NET}} "
-                    f"{Lp_value}"
+                    f"{lp_value}"
                 )
 
 
@@ -525,17 +525,17 @@ class Circuit:
             lines.append(
                 f"{'Lj' + jname[1:]:<{W_NAME}} "
                 f"{additional_net.GlobalName:<{W_NET}} "
-                f"{Lp_net.GlobalName:<{W_NET}}"
+                f"{lp_net.GlobalName:<{W_NET}}"
             )
 
             lines.append(
                 f"{'Rs' + jname[1:]:<{W_NAME}} "
                 f"{second_additional_net.GlobalName:<{W_NET}} "
-                f"{Lp_net.GlobalName:<{W_NET}}"
+                f"{lp_net.GlobalName:<{W_NET}}"
             )
 
 
-        def emit_IB(elem):
+        def emit_ib(elem):
             ibname = str(elem.name)
             ib_port_name = ibname
             lib_name = "Lib" + ibname[2:]
@@ -579,7 +579,7 @@ class Circuit:
                 f"{rib_value}"
             )
 
-        def emit_R(elem):
+        def emit_r(elem):
             """
             Format demandé :
 
@@ -623,16 +623,16 @@ class Circuit:
                 elem_type = getattr(elem, "type", None)
 
                 if elem_type == "L":
-                    emit_L(elem)
+                    emit_l(elem)
 
                 elif elem_type == "JJ":
-                    emit_JJ(elem)
+                    emit_jj(elem)
 
                 elif elem_type == "IB":
-                    emit_IB(elem)
+                    emit_ib(elem)
 
                 elif elem_type == "R":
-                    emit_R(elem)
+                    emit_r(elem)
 
                 else:
                     # Élément hiérarchique : on descend
@@ -717,7 +717,7 @@ class Circuit:
 
                 print(f"Fichier InductEx écrit : {output_path}")
                 print("Nœuds internes créés :")
-                for node in self.ListNodesTOP:
+                for node in self.list_nodes_top:
                     print(" ", node)
 
 
@@ -728,22 +728,22 @@ class Circuit:
         listant les éléments qui y sont connectés.
         """
 
-        def walkNode(cell):
+        def walk_node(cell):
             for elem in cell.instances:
                 # Connexion entrée
                 if hasattr(elem, "net_in"): 
                     elem.net_in.connected_elements.append(elem)
                     elem.net_out.connected_elements.append(elem)
-                    continue
+                    
 
                 # Descente hiérarchique
                 else:
-                    walkNode(elem)
-                    continue
+                    walk_node(elem)
+                    
 
 
         # Parcours
-        walkNode(self.TOP)
+        walk_node(self.TOP)
         #self.display_node_connectivity_summary()
     
     
@@ -758,8 +758,8 @@ class Circuit:
         one_conn = []
         two_conn = []
         three_plus_conn = []
-        print(len(self.ListNodesTOP))
-        for node in self.ListNodesTOP:
+        print(len(self.list_nodes_top))
+        for node in self.list_nodes_top:
             print(node.GlobalName)
             print(node.connected_elements)
             n = len(node.connected_elements)
@@ -814,7 +814,7 @@ class Circuit:
 
         print("=== MARK SINGLE-CONNECTION NODES IN LAYOUT ===")
 
-        for node in self.ListNodesTOP:
+        for node in self.list_nodes_top:
 
             if not hasattr(node, "connected_elements"):
                 continue
@@ -830,12 +830,12 @@ class Circuit:
 
             pname = f"P{elem.name} M2 M0"
 
-            local_text_pos_P = pya.Point(-5000, 0)
-            text_trans_P = elem.global_trans * pya.Trans(local_text_pos_P)
+            local_text_pos_p = pya.Point(-5000, 0)
+            text_trans_p = elem.global_trans * pya.Trans(local_text_pos_p)
 
-            PortPtxt = pya.Text(
+            port_p_txt = pya.Text(
                 pname,
-                text_trans_P
+                text_trans_p
             )
             
             w = 500   # largeur
@@ -846,9 +846,9 @@ class Circuit:
                 -w // 2, -h // 2,
                 w // 2,  h // 2
                 )
-            box_t = box.transformed(text_trans_P)
-            self.layout_top.shapes(self.TermLayer).insert(box_t)
-            self.layout_top.shapes(label_layer).insert(PortPtxt)
+            box_t = box.transformed(text_trans_p)
+            self.layout_top.shapes(self.term_layer).insert(box_t)
+            self.layout_top.shapes(label_layer).insert(port_p_txt)
 
 
             
@@ -907,7 +907,7 @@ class Circuit:
             xmax,
             ymax
         )
-        self.layout_top.shapes(self.TermLayer).insert(banner_box)
+        self.layout_top.shapes(self.term_layer).insert(banner_box)
 
         text = "Pdc M3 M0"
 
@@ -943,34 +943,34 @@ class Circuit:
 
                 return None
 
-        NodeIB = walk(self.TOP)
+        node_ib = walk(self.TOP)
 
-        print(NodeIB)
-        NewNode = Node(str(len(self.ListNodesTOP)+1))
+        print(node_ib)
+        new_node = Node(str(len(self.list_nodes_top)+1))
 
-        new_line = f"{"Ldc":<15} {NodeIB.GlobalName:<10} {NewNode.name:<10}\n{"Pdc":<15} {NewNode.name:<10} 0\n"
+        new_line = f"{"Ldc":<15} {node_ib.GlobalName:<10} {new_node.name:<10}\n{"Pdc":<15} {new_node.name:<10} 0\n"
         with open(os.path.join(self.output_dir, "BIG_Cell_inductex.cir"), "a") as f:
                 f.write(new_line)
 
     
 
-    def findElement(self, cell, name):
+    def find_element(self, cell, name):
         for elem in cell.instances:
             # Cas : élément feuille (composant)
             if hasattr(elem, "net_in"):
                 if elem.name == name:
                     return elem
-                continue
+                
             # Cas : sous-cell → descente hiérarchique
             else:
-                found = self.findElement(elem, name)  # Maybe print out if element is not found
+                found = self.find_element(elem, name)  # Maybe print out if element is not found
                 if found is not None:
                     return found
-                continue
+                
 
         return None
     
-    def BuildNetlist(self):  # this method writes the netlist in a .sp file instead of a .cir file, which means its purpose is a SPICE netlist and not an InductEx netlist.
+    def build_net_list(self):  # this method writes the netlist in a .sp file instead of a .cir file, which means its purpose is a SPICE netlist and not an InductEx netlist.
         # It's not used anywhere... REMOVE!
         lines = []
 
@@ -1005,7 +1005,7 @@ class Circuit:
         """
         ports = []
 
-        for node in self.ListNodesTOP:
+        for node in self.list_nodes_top:
             if len(node.connected_elements) == 1:
                 # Ignore GND
                 if str(node.GlobalName) == "0":
@@ -1025,7 +1025,7 @@ class Circuit:
         return f".subckt {self.TOP.name} {port_list}"
 
 
-    def walk_top_instances(self,linetoAdd):
+    def walk_top_instances(self,line_to_add):
 
         def visit(cell):
             
@@ -1041,25 +1041,25 @@ class Circuit:
                         net_out = "GND!"
 
                     if inst.type == "IB":
-                        linetoAdd.append(f"R{inst.name} VDD net{inst.listAdditionalNode[0].GlobalName} r={inst.RealIB}")
-                        linetoAdd.append(f"L{inst.name} net{inst.listAdditionalNode[0].GlobalName} {net_out} l={inst.RealLIB}p")
+                        line_to_add.append(f"R{inst.name} VDD net{inst.list_additional_node[0].GlobalName} r={inst.RealIB}")
+                        line_to_add.append(f"L{inst.name} net{inst.list_additional_node[0].GlobalName} {net_out} l={inst.RealLIB}p")
 
                     elif inst.type == "L":
-                        linetoAdd.append(f"L{inst.name} {net_in} {net_out} ind2 l={inst.RealL}p")
+                        line_to_add.append(f"L{inst.name} {net_in} {net_out} ind2 l={inst.RealL}p")
 
                     elif inst.type == "R":
-                        linetoAdd.append(f"R{inst.name} {net_in} {net_out} res r={inst.RealR}")
+                        line_to_add.append(f"R{inst.name} {net_in} {net_out} res r={inst.RealR}")
 
                     elif inst.type == "JJ":
                         if net_out == "GND!":
-                            linetoAdd.append(f"Xj{inst.name} {net_in} net{inst.listAdditionalNode[1].GlobalName} jj ics={inst.RealJ}u lser={inst.IndPar}p")
-                            linetoAdd.append(f"Rs{inst.name[1:]} {net_in} net{inst.listAdditionalNode[0].GlobalName} res r={inst.RParral}")
-                            linetoAdd.append(f"L{inst.name} net{inst.listAdditionalNode[0].GlobalName} net{inst.listAdditionalNode[1].GlobalName} ind2 l={inst.JJIndParral}p")
-                            linetoAdd.append(f"Lp{inst.name[1:]} net{inst.listAdditionalNode[0].GlobalName} {net_out} ind2 l={inst.Lp}p")
+                            line_to_add.append(f"Xj{inst.name} {net_in} net{inst.list_additional_node[1].GlobalName} jj ics={inst.RealJ}u lser={inst.IndPar}p")
+                            line_to_add.append(f"Rs{inst.name[1:]} {net_in} net{inst.list_additional_node[0].GlobalName} res r={inst.RParral}")
+                            line_to_add.append(f"L{inst.name} net{inst.list_additional_node[0].GlobalName} net{inst.list_additional_node[1].GlobalName} ind2 l={inst.JJIndParral}p")
+                            line_to_add.append(f"Lp{inst.name[1:]} net{inst.list_additional_node[0].GlobalName} {net_out} ind2 l={inst.Lp}p")
                         else: 
-                            linetoAdd.append(f"Xj{inst.name} {net_in} {net_out} jj ics={inst.RealJ}u lser={inst.IndPar}p")
-                            linetoAdd.append(f"Rs{inst.name[1:]} {net_in} net{inst.listAdditionalNode[0].GlobalName} res r={inst.RParral}")
-                            linetoAdd.append(f"L{inst.name} net{inst.listAdditionalNode[0].GlobalName} {net_out} ind2 l={inst.JJIndParral}p")
+                            line_to_add.append(f"Xj{inst.name} {net_in} {net_out} jj ics={inst.RealJ}u lser={inst.IndPar}p")
+                            line_to_add.append(f"Rs{inst.name[1:]} {net_in} net{inst.list_additional_node[0].GlobalName} res r={inst.RParral}")
+                            line_to_add.append(f"L{inst.name} net{inst.list_additional_node[0].GlobalName} {net_out} ind2 l={inst.JJIndParral}p")
 
 
                 # ✅ Sous-cell
