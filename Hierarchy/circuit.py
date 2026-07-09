@@ -981,9 +981,6 @@ class Circuit:
                     f.write(l + "\n")
 
 
-
-
-
     def find_single_connected_nets(self):
         """
         Retourne un set de noms de nets connectés à un seul élément.
@@ -1013,42 +1010,79 @@ class Circuit:
     def walk_top_instances(self,line_to_add):
 
         def visit(cell):
-            
-
             for inst in cell.instances:
-                # ✅ Élément logique
-                if hasattr(inst, "net_in"):
-                    net_in = "net"+str(inst.net_in.GlobalName)
-                    net_out = "net"+str(inst.net_out.GlobalName)
-                    if net_in == "net0" : 
-                        net_in = "GND!"
-                    if net_out  == "net0" :
-                        net_out = "GND!"
-
-                    if inst.type == "IB":
-                        line_to_add.append(f"R{inst.name} VDD net{inst.list_additional_node[0].GlobalName} r={inst.RealIB}")
-                        line_to_add.append(f"L{inst.name} net{inst.list_additional_node[0].GlobalName} {net_out} l={inst.RealLIB}p")
-
-                    elif inst.type == "L":
-                        line_to_add.append(f"L{inst.name} {net_in} {net_out} ind2 l={inst.RealL}p")
-
-                    elif inst.type == "R":
-                        line_to_add.append(f"R{inst.name} {net_in} {net_out} res r={inst.RealR}")
-
-                    elif inst.type == "JJ":
-                        if net_out == "GND!":
-                            line_to_add.append(f"Xj{inst.name} {net_in} net{inst.list_additional_node[1].GlobalName} jj ics={inst.RealJ}u lser={inst.IndPar}p")
-                            line_to_add.append(f"Rs{inst.name[1:]} {net_in} net{inst.list_additional_node[0].GlobalName} res r={inst.RParral}")
-                            line_to_add.append(f"L{inst.name} net{inst.list_additional_node[0].GlobalName} net{inst.list_additional_node[1].GlobalName} ind2 l={inst.JJIndParral}p")
-                            line_to_add.append(f"Lp{inst.name[1:]} net{inst.list_additional_node[0].GlobalName} {net_out} ind2 l={inst.Lp}p")
-                        else: 
-                            line_to_add.append(f"Xj{inst.name} {net_in} {net_out} jj ics={inst.RealJ}u lser={inst.IndPar}p")
-                            line_to_add.append(f"Rs{inst.name[1:]} {net_in} net{inst.list_additional_node[0].GlobalName} res r={inst.RParral}")
-                            line_to_add.append(f"L{inst.name} net{inst.list_additional_node[0].GlobalName} {net_out} ind2 l={inst.JJIndParral}p")
-
-
-                # ✅ Sous-cell
-                else:
+                if not hasattr(inst, "instances"):
                     visit(inst)
-
+                    continue
+                
+                self.add_instance_lines(inst, line_to_add)
         visit(self.TOP)
+    
+    def net_name(self, net):
+        name = f"net{net.GlobalName}"
+        return "GND!" if name == "net0" else name
+    
+    def add_instance_lines(self, inst, lines):
+        net_in = self.net_name(inst.net_in)
+        net_out = self.net_name(inst.net_out)
+
+        if inst.type == "IB":
+            self._add_ib_lines(inst, net_out, lines)
+        elif inst.type == "L":
+            self.add_l_lines(inst, net_in, net_out, lines)
+        elif inst.type == "R":
+            self.add_r_lines(inst, net_in, net_out, lines)
+        elif inst.type == "JJ":
+            self.add_jj_lines(inst, net_in, net_out, lines)
+            
+    def add_ib_lines(self, inst, net_out, lines):
+        node = f"net{inst.list_additional_node[0].GlobalName}"
+        lines.append(
+        f"R{inst.name} VDD {node} r={inst.RealIB}"
+        )
+        lines.append(
+            f"L{inst.name} {node} {net_out} l={inst.RealLIB}p"
+        )
+    
+    def add_l_lines(self, inst, net_in, net_out, lines):
+        lines.append(
+            f"L{inst.name} {net_in} {net_out} ind2 l={inst.RealL}p"
+        )
+
+
+    def add_r_lines(self, inst, net_in, net_out, lines):
+        lines.append(
+            f"R{inst.name} {net_in} {net_out} res r={inst.RealR}"
+        )
+
+    def add_jj_lines(self, inst, net_in, net_out, lines):
+        node0 = f"net{inst.list_additional_node[0].GlobalName}"
+        node1 = f"net{inst.list_additional_node[1].GlobalName}"
+        suffix = inst.name[1:]
+
+        if net_out == "GND!":
+            lines.append(
+                f"Xj{inst.name} {net_in} {node1} jj "
+                f"ics={inst.RealJ}u lser={inst.IndPar}p"
+            )
+            lines.append(
+                f"Rs{suffix} {net_in} {node0} res r={inst.RParral}"
+            )
+            lines.append(
+                f"L{inst.name} {node0} {node1} ind2 l={inst.JJIndParral}p"
+            )
+            lines.append(
+                f"Lp{suffix} {node0} {net_out} ind2 l={inst.Lp}p"
+            )
+            return
+
+        lines.append(
+            f"Xj{inst.name} {net_in} {net_out} jj "
+            f"ics={inst.RealJ}u lser={inst.IndPar}p"
+        )
+        lines.append(
+            f"Rs{suffix} {net_in} {node0} res r={inst.RParral}"
+        )
+        lines.append(
+            f"L{inst.name} {node0} {net_out} ind2 l={inst.JJIndParral}p"
+        )
