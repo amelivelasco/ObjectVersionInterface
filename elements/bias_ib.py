@@ -56,7 +56,7 @@ class BiasIBElement(Element):
         ]
     def addRealIB(self, real_ib_value:float):
         self.RealIB = real_ib_value
-        return
+        
     def addRealLIB(self, real_lib_value:float):
         self.RealLIB = real_lib_value
-        return
+        

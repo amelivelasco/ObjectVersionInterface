@@ -85,15 +85,19 @@ class Circuit:
         """
         return list(self.cells.keys())
     
-    def folder_to_write(self):
+    def folder_to_write(self, base_dir=None):
 
         timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M")
         folder_name = f"BIG_Cell_{timestamp}"
 
-        full_path = os.path.join("Datafolder", folder_name)
+        if base_dir is None:
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+        full_path = os.path.join(base_dir, "Datafolder", folder_name)
         os.makedirs(full_path, exist_ok=True)
 
         self.output_dir = full_path
+
     def get_cell(self, name):
         """
         Retourne la Cell du circuit ayant ce nom.

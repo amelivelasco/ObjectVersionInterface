@@ -23,7 +23,129 @@ class CDLParser:
         self.current_cell = None
         self.TOP = None
         self.is_a_cell = False
+        
+    def _handle_subckt(self, line, line_number):
+        tokens = line.split()
+        cell_name = tokens[1]
+        ports = tokens[2:]
+        self.TOP = cell_name
+        self.current_cell = Cell(name=cell_name)
+        self.current_cell.lines.append(line_number)
+        
+        for p in ports:
+            self.current_cell.add_port_net(p)
+    
+    def _handle_ends(self, new_circuit, line_number):
+        self.current_cell.lines.append(line_number)
+        new_circuit.add_cell(self.current_cell)
+        self.current_cell= None
+        
+    def _handle_xi(self, head, tokens, filename, new_circuit):
+        model = tokens[-1]                    # 'JTL'
+        nets = tokens[1:-1]
+        list_node_to_send_down = []
+        for i in nets: 
+            list_node_to_send_down.append(self.current_cell.get_node(i,[]))
+        added_cell = Cell(model)
+        added_cell.rebuild(filename,new_circuit.get_cell(model).lines,new_circuit,nets,list_node_to_send_down)
+        added_cell.name = head[1:]
+        self.current_cell.add_cell_instance(added_cell)
+    
+    def _handle_xsjj(self, head, tokens):
+        name = re.sub(r"^xsj", "", head, flags=re.I)
+        net_in = tokens[1]
+        net_out = tokens[2]
 
+        ic = 100.0
+        for t in tokens:
+            if t.lower().startswith(("ic=", "ics=")):
+                ic = float(t.split("=", 1)[1].replace("u", ""))
+                break
+        
+        self.current_cell.add_element(
+            JJElement(name, None, None, ic),net_in,net_out,[]
+        )
+    
+    def _handle_xpcib(self, head, tokens, line_number):
+        name = re.sub(r"^xpc", "", head, flags=re.I)
+        net_in = tokens[2]
+        net_out = tokens[3]
+
+        ib = None
+        for t in tokens:
+            if t.lower().startswith("ib="):
+                ib = float(t.split("=", 1)[1].replace("u", ""))
+                break
+
+        if ib is None:
+            raise ValueError(
+                f"[ligne {line_number}] ib sans ib="
+            )
+
+        self.current_cell.add_element(
+            BiasIBElement(name, None, None ,ib),net_in,net_out,[]
+        )
+    def _handle_ll(self, head, tokens, line_number):
+        name = head[1:]
+        net_p = tokens[1]
+        net_n = tokens[2]
+
+        lval = None
+        for t in tokens:
+            if t.lower().startswith("l="):
+                lval = float(
+                    t.split("=", 1)[1]
+                    .replace("p", "")
+                    .replace("n", "")
+                )
+                break
+
+        if lval is None:
+            raise ValueError(
+                f"[ligne {line_number}] Inductance sans L="
+            )
+
+        self.current_cell.add_element(
+            InductorElement(name, None, None, lval),net_p,net_n,[]
+        )
+    
+    def _handle_r(self, head, tokens):
+        name = head[1:]
+        net_p = tokens[1]
+        net_n = tokens[2]
+
+        rval = None
+        for t in tokens[3:]:
+            if t.lower().startswith("r="):
+                rval = float(t.split("=", 1)[1])
+                break
+
+        if rval is None:
+            rval = float(tokens[-1])
+
+        self.current_cell.add_element(
+            ResistorElement(name, None, None, rval),net_p,net_n,[]
+        )
+    
+    def _instructor(self, head, tokens, filename, new_circuit, line_number):
+        if head.lower().startswith("xi"):
+            self._handle_xi(head, tokens, filename, new_circuit)
+                # ===== JJ =====
+        if head.lower().startswith("xsjj"):
+            self._handle_xsjj(head, tokens)
+
+                # ===== ib =====
+        elif head.lower().startswith("xpcib"):
+            self._handle_xpcib(head, tokens, line_number)
+
+                # ===== Inductance =====
+        elif head.lower().startswith("ll"):
+            self._handle_ll(head, tokens, line_number)
+
+                # ===== Résistance =====
+        elif head.lower().startswith("r"):
+            self._handle_r(head, tokens)
+        
 
     def parse(self, filename: str):
         new_circuit = Circuit()
@@ -42,16 +164,7 @@ class CDLParser:
                 # Début de cellule
                 # ---------------------------
                 if low.startswith(".subckt"):
-
-                    tokens = line.split()
-                    cell_name = tokens[1]
-                    ports = tokens[2:]
-                    self.TOP = cell_name
-                    self.current_cell = Cell(name=cell_name)
-                    self.current_cell.lines.append(lineno)
-                    
-                    for p in ports:
-                        self.current_cell.add_port_net(p)
+                    self._handle_subckt(line, lineno)
 
                     continue
 
@@ -59,9 +172,7 @@ class CDLParser:
                 # Fin de cellule
                 # ---------------------------
                 if low.startswith(".ends"):
-                    self.current_cell.lines.append(lineno)
-                    new_circuit.add_cell(self.current_cell)
-                    self.current_cell= None
+                    self._handle_ends(new_circuit, lineno)
                     continue
 
                 # ---------------------------
@@ -76,111 +187,17 @@ class CDLParser:
                 tokens = line.split()
                 head = tokens[0]
 
-
                 
                 # ===========================
                 # INSTANCIATION DE CELLULE (XI…)
                 # ===========================
-                if head.lower().startswith("xi"):
-                    model = tokens[-1]                    # 'JTL'
-                    nets = tokens[1:-1]
-                    list_node_to_send_down = []
-                    for i in nets: 
-                        list_node_to_send_down.append(self.current_cell.get_node(i,[]))
-                    added_cell = Cell(model)
-                    added_cell.rebuild(filename,new_circuit.get_cell(model).lines,new_circuit,nets,list_node_to_send_down)
-                    added_cell.name = head[1:]
-                    self.current_cell.add_cell_instance(added_cell)
-                    continue
-
-
-                                # ===== JJ =====
-                if head.lower().startswith("xsjj"):
-                    name = re.sub(r"^xsj", "", head, flags=re.I)
-                    net_in = tokens[1]
-                    net_out = tokens[2]
-
-                    ic = 100.0
-                    for t in tokens:
-                        if t.lower().startswith(("ic=", "ics=")):
-                            ic = float(t.split("=", 1)[1].replace("u", ""))
-                            break
-                    
-                    self.current_cell.add_element(
-                        JJElement(name, None, None, ic),net_in,net_out,[]
-                    )
-
-
-                # ===== ib =====
-                elif head.lower().startswith("xpcib"):
-                    name = re.sub(r"^xpc", "", head, flags=re.I)
-                    net_in = tokens[2]
-                    net_out = tokens[3]
-
-                    ib = None
-                    for t in tokens:
-                        if t.lower().startswith("ib="):
-                            ib = float(t.split("=", 1)[1].replace("u", ""))
-                            break
-
-                    if ib is None:
-                        raise ValueError(
-                            f"[ligne {lineno}] ib sans ib="
-                        )
-
-                    self.current_cell.add_element(
-                        BiasIBElement(name, None, None ,ib),net_in,net_out,[]
-                    )
-
-                # ===== Inductance =====
-                elif head.lower().startswith("ll"):
-                    name = head[1:]
-                    net_p = tokens[1]
-                    net_n = tokens[2]
-
-                    lval = None
-                    for t in tokens:
-                        if t.lower().startswith("l="):
-                            lval = float(
-                                t.split("=", 1)[1]
-                                .replace("p", "")
-                                .replace("n", "")
-                            )
-                            break
-
-                    if lval is None:
-                        raise ValueError(
-                            f"[ligne {lineno}] Inductance sans L="
-                        )
-
-                    self.current_cell.add_element(
-                        InductorElement(name, None, None, lval),net_p,net_n,[]
-                    )
-
-                # ===== Résistance =====
-                elif head.lower().startswith("r"):
-                    name = head[1:]
-                    net_p = tokens[1]
-                    net_n = tokens[2]
-
-                    rval = None
-                    for t in tokens[3:]:
-                        if t.lower().startswith("r="):
-                            rval = float(t.split("=", 1)[1])
-                            break
-
-                    if rval is None:
-                        rval = float(tokens[-1])
-
-                    self.current_cell.add_element(
-                        ResistorElement(name, None, None, rval),net_p,net_n,[]
-                    )
+                self._instructor(head, tokens, filename, new_circuit, lineno)
+                
         new_circuit.define_top(self.TOP)
         return new_circuit
     
     def parsesol(self, filename: str, circuit):
 
-        
         buffer_values = []
 
         

@@ -33,7 +33,7 @@ def main():
     layout_path = os.path.join(base_dir, "DC_to_SFQ", "Layout.gds")
 
     circuit = parser.parse(netlist_path)
-    circuit.folder_to_write()
+    circuit.folder_to_write(base_dir)
     TOP_CEL = circuit.TOP
     circuit.list_top_nodes(TOP_CEL)
     # --- Charger le layout ---

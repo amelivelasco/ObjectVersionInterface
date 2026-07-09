@@ -36,9 +36,9 @@ class InductorElement(Element):
     Inductance logique.
     """
 
-    def __init__(self, name: str, net_p: str, net_n: str, L_pH: float):
+    def __init__(self, name: str, net_p: str, net_n: str, l_ph: float):
         super().__init__(name, net_p, net_n)
-        self.L = L_pH  # pH
+        self.L = l_ph  # pH
         self.type = "L"
 
     def emit(self) -> list[str]:
@@ -47,4 +47,3 @@ class InductorElement(Element):
         ]
     def addRealL(self, real_l_value:float):
         self.RealL = real_l_value
-        return

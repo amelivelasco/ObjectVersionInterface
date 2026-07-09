@@ -56,8 +56,8 @@ class Element(ABC):
     def __init__(self, name: str, net_in, net_out):
         self.name = name
         self.Path_name = None
-        self.net_in = {"1": [None]}
-        self.net_out = {"2": [None]}
+        self.net_in = net_in
+        self.net_out = net_out
         self.local_name = None
         self.type = None
         self.netInductex = None

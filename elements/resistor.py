@@ -40,4 +40,4 @@ class ResistorElement(Element):
     
     def addRealR(self, real_r_value:float):
         self.RealR = real_r_value
-        return
+        

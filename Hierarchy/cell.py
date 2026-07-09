@@ -135,7 +135,6 @@ class Cell:
                 self.instances.remove(i)
     
 
-   
     def summary(self):
         print("cell name:", self.name)
         for i in self.instances:
@@ -143,118 +142,190 @@ class Cell:
 
 
     def rebuild(self,filename, linelist,circuit,nodes,upper_nodes):
+        
+        cell_lines = self._get_cell_lines(filename, linelist)
 
-        lignes =open(filename, "r").read().splitlines()   # iterates through each netlist line 
-        cell = lignes[linelist[0]-1:linelist[1]-1] # extracts the lines corresponding to the cell based on the provided line numbers
-        tokens = cell[0].split()  # splits the first line of the cell to extract the tokens, such as the cell name and port nets
-        list_ports = tokens[2:]  # extracts the port nets from the tokens, which are typically listed after the cell name in the .subckt line of the netlist
-                   # This mapping is used to replace the port net names in the cell's netlist lines with the actual node names during the rebuilding process.
-        for i in range (len(list_ports)): 
-            dict[list_ports[i]] = nodes[i]  # populates the dictionary with the port net names as keys and the corresponding node names from the provided nodes list as values.
-            for cle, valeur in dict.items(self):
-                ligne = re.sub(
-                    r"(?<!\w)" + re.escape(cle) + r"(?!\w)",
-                    valeur,
-                    ligne
+        port_mapping = self._build_port_mapping(cell_lines[0], nodes)
+        cell_lines = self._replace_port_names(cell_lines, port_mapping)
+
+        for line in cell_lines:
+            self._rebuild_line(line, filename, circuit, upper_nodes)
+    
+    def _get_cell_lines(self, filename, linelist):
+        with open(filename, "r") as file:
+            lines = file.read().splitlines()
+
+        start = linelist[0] - 1
+        end = linelist[1] - 1
+
+        return lines[start:end]
+
+    def _build_port_mapping(self, subckt_line, nodes):
+        tokens = subckt_line.split()
+        ports = tokens[2:]
+
+        return dict(zip(ports, nodes))
+    
+    def _replace_port_names(self, cell_lines, port_mapping):
+        replaced_lines = []
+
+        for line in cell_lines:
+            for old_port, new_node in port_mapping.items():
+                line = re.sub(
+                    r"(?<!\w)" + re.escape(old_port) + r"(?!\w)",
+                    str(new_node),
+                    line
                 )
-            cell[i] = ligne
 
+            replaced_lines.append(line)
 
-        for line in cell:  # iterates through each line of the cell's netlist representation to process the elements and instances defined in the cell.
-            tokens = line.split() 
-            head = tokens[0] 
+        return replaced_lines
 
-            low = line.lower()  # forces lowercase
-            if low.startswith(".subckt"):  # identifies the start of a subcircuit definition in the netlist., add as an enum
-                ports = tokens[2:]
-                
-                for p in ports:
-                    self.add_port_net(p)   # Adds the port nets to the cell's net_map using the add_port_net method
+    def _rebuild_line(self, line, filename, circuit, upper_nodes):
+        tokens = line.split()
+
+        if not tokens:
+            return
+
+        head = tokens[0]
+        head_lower = head.lower()
+
+        if head_lower.startswith(".subckt"):
+            self._handle_subckt(tokens)
+            return
+
+        if head_lower.startswith("xsjj"):
+            self._handle_jj(tokens, upper_nodes)
+            return
+
+        if head_lower.startswith("xpcib"):
+            self._handle_ib(tokens, upper_nodes)
+            return
+
+        if head_lower.startswith("ll"):
+            self._handle_inductor(tokens, upper_nodes)
+            return
+
+        if head_lower.startswith("r"):
+            self._handle_resistor(tokens, upper_nodes)
+            return
+
+        if head_lower.startswith("xi"):
+            self._handle_cell_instance(tokens, filename, circuit, upper_nodes)
+            
+    
+    def _handle_subckt(self, tokens):
+        ports = tokens[2:]
+
+        for port in ports:
+            self.add_port_net(port)
+    
+    def _handle_jj(self, tokens, upper_nodes):
+        head = tokens[0]
+
+        name = re.sub(r"^xsj", "", head, flags=re.I)
+        net_in = tokens[1]
+        net_out = tokens[2]
+
+        ic = self._get_float_param(tokens, ("ic=", "ics="), default=100.0, remove_chars="u")
+
+        self.add_element(
+            JJElement(name, None, None, ic),
+            net_in,
+            net_out,
+            upper_nodes
+        )
+    
+    def _handle_ib(self, tokens, upper_nodes):
+        head = tokens[0]
+
+        name = re.sub(r"^xpc", "", head, flags=re.I)
+        net_in = tokens[2]
+        net_out = tokens[3]
+
+        ib = self._get_float_param(tokens, ("ib=",), default=None, remove_chars="u")
+
+        self.add_element(
+            BiasIBElement(name, None, None, ib),
+            net_in,
+            net_out,
+            upper_nodes
+        )
+    
+    def _handle_inductor(self, tokens, upper_nodes):
+        head = tokens[0]
+
+        name = head[1:]
+        net_p = tokens[1]
+        net_n = tokens[2]
+
+        lval = self._get_float_param(tokens, ("l=",), default=None, remove_chars="pn")
+
+        self.add_element(
+            InductorElement(name, None, None, lval),
+            net_p,
+            net_n,
+            upper_nodes
+        )
+    
+    def _handle_resistor(self, tokens, upper_nodes):
+        head = tokens[0]
+
+        name = head[1:]
+        net_p = tokens[1]
+        net_n = tokens[2]
+
+        rval = self._get_float_param(tokens[3:], ("r=",), default=None)
+
+        if rval is None:
+            rval = float(tokens[-1])
+
+        self.add_element(
+            ResistorElement(name, None, None, rval),
+            net_p,
+            net_n,
+            upper_nodes
+        )
+    
+    def _handle_cell_instance(self, tokens, filename, circuit, upper_nodes):
+        head = tokens[0]
+
+        model = tokens[-1]
+        nets = tokens[1:-1]
+
+        child_nodes = [
+            self.get_node(net, upper_nodes)
+            for net in nets
+        ]
+
+        added_cell = Cell(model)
+
+        added_cell.rebuild(
+            filename,
+            circuit.get_cell(model).lines,
+            circuit,
+            nets,
+            child_nodes
+        )
+
+        added_cell.name = head[1:]
+
+        self.add_cell_instance(added_cell)
+    
+    def _get_float_param(self, tokens, prefixes, default=None, remove_chars=""):
+        for token in tokens:
+            token_lower = token.lower()
+
+            if not token_lower.startswith(prefixes):
                 continue
-                # ===== JJ =====
-            if head.lower().startswith("xsjj"):  # make this an enum for the types of elements
-                name = re.sub(r"^xsj", "", head, flags=re.I)
-                net_in = tokens[1]
-                net_out = tokens[2]
 
-                Ic = 100.0  # Is this a constant value for the critical current of the Josephson Junction? 
-                for t in tokens:
-                    if t.lower().startswith(("ic=", "ics=")):
-                        Ic = float(t.split("=", 1)[1].replace("u", ""))  # replaces "u" with "" to convert microamperes to a float value. 
-                        break
-                
-                self.add_element( # FIX: net_p and net_n are not being passed to the JJElement constructor => redundant 
-                    JJElement(name, None, None, Ic),net_in,net_out,upper_nodes  # Adds JJ element to cell 
-                )
+            value = token.split("=", 1)[1]
 
+            for char in remove_chars:
+                value = value.replace(char, "")
 
-            # ===== IB =====
-            elif head.lower().startswith("xpcib"):  # Same as above, make this an enum for the types of elements
-                name = re.sub(r"^xpc", "", head, flags=re.I) # Here, make xpc as an enum of "subs"
-                net_in = tokens[2]
-                net_out = tokens[3]
+            return float(value)
 
-                Ib = None
-                for t in tokens:
-                    if t.lower().startswith("ib="):  # Here, make ib as an enum of "types"
-                        Ib = float(t.split("=", 1)[1].replace("u", ""))
-                        break
-
-                self.add_element(
-                    BiasIBElement(name, None, None ,Ib),net_in,net_out,upper_nodes
-                )
-
-            # ===== Inductance =====
-            elif head.lower().startswith("ll"): 
-                name = head[1:]
-                net_p = tokens[1]
-                net_n = tokens[2]
-
-                lval = None
-                for t in tokens:
-                    if t.lower().startswith("l="):
-                        lval = float(
-                            t.split("=", 1)[1]
-                            .replace("p", "")
-                            .replace("n", "")
-                        )
-                        break
-                self.add_element(    
-                    InductorElement(name, None, None, lval),net_p,net_n,upper_nodes
-                )
-
-            # ===== Résistance =====
-            elif head.lower().startswith("r"):
-                name = head[1:]
-                net_p = tokens[1]
-                net_n = tokens[2]
-
-                rval = None
-                for t in tokens[3:]:
-                    if t.lower().startswith("r="):
-                        rval = float(t.split("=", 1)[1])
-                        break
-
-                if rval is None:
-                    rval = float(tokens[-1])  # Why only Resistance get the check if it's none? 
-
-                self.add_element(
-                    ResistorElement(name, None, None, rval),net_p,net_n,upper_nodes
-                )
-            # ===========================
-            # INSTANCIATION DE CELLULE (XI…)
-            # ===========================
-            if head.lower().startswith("xi"):
-                model = tokens[-1]                    # 'JTL' WHAT IS JTL?
-                nets = tokens[1:-1]
-                list_node_to_send_down = []
-                for i in nets: 
-                    list_node_to_send_down.append(self.get_node(i,upper_nodes))
-                added_cell = Cell(model)   # So the model is always the same as the name ?
-                #print("Instance Name",added_cell.name)
-                #print("Instance Name",head)
-                added_cell.rebuild(filename,circuit.get_cell(model).lines,circuit,nets,list_node_to_send_down)   # Too much recursion. Could use B+ tree to iterate through the hierarchy instead of recursion.
-                list_node_to_send_down = [] 
-                added_cell.name = head[1:]
-                self.add_cell_instance(added_cell)
+        return default
+        
                 
