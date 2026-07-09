@@ -1,3 +1,5 @@
+from exporters.KLayoutExporter import KLayoutExporter
+from exporters.InductexExporter import InductexExporter
 from parser.cdl_parser import CDLParser
 import pya
 import os
@@ -31,29 +33,32 @@ def main():
     # -------------------------------
     netlist_path = os.path.join(base_dir, "DC_to_SFQ", "Netlist.sp")
     layout_path = os.path.join(base_dir, "DC_to_SFQ", "Layout.gds")
-
+    
     circuit = parser.parse(netlist_path)
-    circuit.folder_to_write(base_dir)
+    
+    klayout_exp = KLayoutExporter(circuit, layout_path)
+    inductex_exp = InductexExporter(circuit)
+
+    inductex_exp.folder_to_write(base_dir)
     TOP_CEL = circuit.TOP
-    circuit.list_top_nodes(TOP_CEL)
+    inductex_exp.list_top_nodes(TOP_CEL)
     # --- Charger le layout ---
-    circuit.define_klayout(layout_path)
-    circuit.integrating_layout()
-    circuit.renum_top()
+    klayout_exp.integrating_layout()
+    inductex_exp.renum_top()
     circuit.assign_cell_ids()
     circuit.define_local_names()
     circuit.rename_all_elements_by_type()
     #circuit.traverse_cell(TOP_CEL)
 
-    circuit.write_cell_names()
+    klayout_exp.write_cell_names()
     
-    lines = circuit.read_inductex_file()
-    elem_connections = circuit.read_elem_connections(lines)
-    circuit.write_inductex_file(elem_connections)
+    lines = inductex_exp.read_inductex_file()
+    elem_connections = inductex_exp.read_elem_connections(lines)
+    inductex_exp.write_inductex_file(elem_connections)
     
-    circuit.attach_elements_to_nodes()
-    circuit.mark_single_connection_nodes_in_layout()
-    circuit.cover_cell_with_layer()
+    inductex_exp.attach_elements_to_nodes()
+    klayout_exp.mark_single_connection_nodes_in_layout()
+    klayout_exp.cover_cell_with_layer()
 
     #parser.parsesol(r"Datafolder\sol.txt",circuit)
     #circuit.BuildNetlist()
