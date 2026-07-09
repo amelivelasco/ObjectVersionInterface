@@ -196,11 +196,7 @@ class CDLParser:
         new_circuit.define_top(self.TOP)
         return new_circuit
     
-    def parsesol(self, filename: str, circuit):
-
-        buffer_values = []
-
-        
+    def _format_lines(self, filename, buffer_values):
         with open(filename, "r") as f:
             for raw_line in f:
                 line = raw_line.strip()
@@ -230,53 +226,95 @@ class CDLParser:
                     )
                 else:
                     buffer_values.append(line.split())
-        for i in buffer_values: 
-            print(i)
-
+    
+    def _extract_lj(self, circuit, b_value):
+        where = circuit.findElement(circuit.TOP,b_value[0][1:])
+        where.addIndParas(b_value[2])
+        
+    def _extract_j(self, circuit, b_value):
+        where = circuit.findElement(circuit.TOP,b_value[0])
+        where.addJJReal(b_value[2])
+        
+    def _extract_lrs(self, circuit, b_value):
+        m = re.search(r"LRS(\d+)", b_value[0])
+        value = int(m.group(1))
+        where = circuit.findElement(circuit.TOP,"J"+str(value))
+        where.addJJIndParral(b_value[2])
+    
+    def _extract_rs(self, circuit, b_value):
+        where = circuit.findElement(circuit.TOP,"J"+b_value[0][2:])
+        where.addJJRParral(b_value[2])
+    
+    def _extract_lp(self, circuit, b_value):
+        where = circuit.findElement(circuit.TOP,"J"+b_value[0][2:])
+        where.addJJLp(b_value[2])
+    
+    def _extract_r(self, circuit, b_value):
+        where = circuit.findElement(circuit.TOP,b_value[0])
+        where.addRealR(b_value[2])
+    
+    def _extract_l(self, circuit, b_value):
+        where = circuit.findElement(circuit.TOP,b_value[0])
+        where.addRealL(b_value[2])
+    
+    def _extract_rib(self, circuit, b_value):
+        where = circuit.findElement(circuit.TOP,b_value[0][1:])
+        where.addRealib(b_value[2])
+    
+    def _extract_lib(self, circuit, b_value):
+        where = circuit.findElement(circuit.TOP,b_value[0][1:])
+        where.addRealLib(b_value[2])
+        
+    def _extract_jj_values(self, circuit, buffer_values):
         for b_value in buffer_values:
-
-            #################### JJ extracted Values ################
             if b_value[0].startswith("LJ"):
-                where = circuit.findElement(circuit.TOP,b_value[0][1:])
-                where.addIndParas(b_value[2])
-                continue
+                    self._extract_lj(circuit, b_value)
+                    continue
             if b_value[0].startswith("J"):
-                where = circuit.findElement(circuit.TOP,b_value[0])
-                where.addJJReal(b_value[2])
+                self._extract_j(circuit, b_value)
                 continue
             if b_value[0].startswith("LRS"):
-                m = re.search(r"LRS(\d+)", b_value[0])
-                value = int(m.group(1))
-                where = circuit.findElement(circuit.TOP,"J"+str(value))
-                where.addJJIndParral(b_value[2])
+                self._extract_lrs(circuit, b_value)
                 continue
             if b_value[0].startswith("RS"):
-                where = circuit.findElement(circuit.TOP,"J"+b_value[0][2:])
-                where.addJJRParral(b_value[2])
+                self._extract_rs(circuit, b_value)
                 continue
             if b_value[0].startswith("LP"):
-                where = circuit.findElement(circuit.TOP,"J"+b_value[0][2:])
-                where.addJJLp(b_value[2])
-                continue
-            ind = b_value[0][1] 
-            #################### R extracted Values ################
+                self._extract_lp(circuit, b_value)
+                
+        ind = b_value[0][1] 
+        return ind
+    
+    def _extract_rib_values(self, circuit, buffer_values, ind):
+        for b_value in buffer_values:
+        #################### R extracted Values ################
             if b_value[0].startswith("R") and ind.isdigit():
-                where = circuit.findElement(circuit.TOP,b_value[0])
-                where.addRealR(b_value[2])
+                self._extract_r(circuit, b_value)
                 continue
             #################### Ind extracted Values ################
             if b_value[0].startswith("L") and ind.isdigit():
-                where = circuit.findElement(circuit.TOP,b_value[0])
-                where.addRealL(b_value[2])
+                self._extract_l(circuit, b_value)
                 continue
             #################### Bias extracted Values ################
             if b_value[0].startswith("Rib"):
-                where = circuit.findElement(circuit.TOP,b_value[0][1:])
-                where.addRealib(b_value[2])
+                self._extract_rib(circuit, b_value)
                 continue
             if b_value[0].startswith("Lib"):
-                where = circuit.findElement(circuit.TOP,b_value[0][1:])
-                where.addRealLib(b_value[2])
+                self._extract_lib(circuit, b_value)
+        
+    def _format_b_values(self, circuit, buffer_values):
+        ind = self._extract_jj_values(circuit, buffer_values)
+        self._extract_rib_values(circuit, buffer_values, ind)
+    
+    def parsesol(self, filename: str, circuit):
+
+        buffer_values = []
+        self._format_lines(filename, buffer_values)
+        
+        for i in buffer_values: 
+            print(i)
+
+        self._format_b_values(circuit, buffer_values)
                 
             
             
