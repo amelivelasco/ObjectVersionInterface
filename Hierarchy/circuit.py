@@ -868,8 +868,8 @@ class Circuit:
         bbox = self.layout_top.bbox()
 
         # Sécurité : cell vide
-        if bbox.empty():
-            print(f"Cell {cell.name} est vide, rien à recouvrir.")
+        if bbox.empty() and self.layout_top != None:
+            print(f"Cell {self.layout_top} est vide, rien à recouvrir.")
             return
 
         # Création du rectangle couvrant toute la cell
