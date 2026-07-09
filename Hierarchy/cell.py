@@ -76,6 +76,7 @@ class Cell:
     def __init__(self, name: str):
         self.id = None
         self.name = name
+        self.raw_name = name
         self.model = name
         self.instances = []
         self.list_nodes= []
@@ -198,7 +199,7 @@ class Cell:
             self._handle_jj(tokens, upper_nodes)
             return
 
-        if head_lower.startswith("xpcib"):
+        if head_lower.startswith("xpc") and "|ib" in head_lower:
             self._handle_ib(tokens, upper_nodes)
             return
 

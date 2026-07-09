@@ -20,7 +20,8 @@ from datetime import datetime
 
 
 def main():
-
+    
+    
     # -------------------------------
     # 4) Parser CDL
     # -------------------------------
@@ -31,8 +32,8 @@ def main():
     # -------------------------------
     # 5) Parsing du fichier CDL
     # -------------------------------
-    netlist_path = os.path.join(base_dir, "DC_to_SFQ", "Netlist.sp")
-    layout_path = os.path.join(base_dir, "DC_to_SFQ", "Layout.gds")
+    netlist_path = os.path.join(base_dir, "test_files", "BasicCellsHomemade_MultiplexerAmeli.sp")
+    layout_path = os.path.join(base_dir, "test_files", "MultiplexerAmeli.custom_compiler.gds")
     
     circuit = parser.parse(netlist_path)
     
@@ -44,6 +45,8 @@ def main():
     inductex_exp.list_top_nodes(TOP_CEL)
     # --- Charger le layout ---
     klayout_exp.integrating_layout()
+    klayout_exp.report_mapping_audit()
+    klayout_exp.report_layout_mapping()
     inductex_exp.renum_top()
     circuit.assign_cell_ids()
     circuit.define_local_names()
@@ -63,6 +66,7 @@ def main():
     #parser.parsesol(r"Datafolder\sol.txt",circuit)
     #circuit.BuildNetlist()
 
+    
 if __name__ == "__main__":
     
     main()

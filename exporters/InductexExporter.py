@@ -21,6 +21,7 @@ class InductexExporter(BaseExporter):
             else:
                 self.list_top_nodes(e) 
     
+    # could be in circuit class
     def folder_to_write(self, base_dir=None):
 
         timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M")
@@ -296,35 +297,47 @@ class InductexExporter(BaseExporter):
         inductances = []
         others = []
 
+        elem_connections = {
+            "j": ports,
+            "ib": ports,
+            "p": ports,
+            "r": resistances,
+            "l": inductances,
+            "others": others
+        }
+
         for line in lines:
             stripped = line.strip()
             if not stripped:
                 continue
 
             head = stripped.split()[0]
-            head_low = head.lower()  # can you do it above in one step
+            head_low = head.lower()
 
-            # Ports : J*, IB*, P*, Pr*, Prb*
-            elem_connections = {
-                "j": ports,
-                "ib": ports,
-                "p": ports,
-                "r": resistances,
-                "l": inductances,
-                "others": others
-            }
-            
-            for key in elem_connections.keys():
-                if head_low.startswith(key):
-                    elem_connections[key].append(line)
+            matched = False
+            for key, bucket in elem_connections.items():
+                if key != "others" and head_low.startswith(key):
+                    bucket.append(line)
+                    matched = True
                     break
-            return elem_connections
+
+            if not matched:
+                others.append(line)
+
+        return elem_connections
 
         # =================================================
         # === ICI : ÉCRITURE FINALE DU FICHIER ============
         # =================================================
     def write_inductex_file(self, relations):
-        
+        if relations is None:
+            relations = {
+                "l": [],
+                "p": [],
+                "r": [],
+                "others": []
+            }
+
         output_path = os.path.join(self.output_dir, "BIG_Cell_inductex.cir")
 
         mydict = {
@@ -385,9 +398,12 @@ class InductexExporter(BaseExporter):
 
         node_ib = walk(self.circuit.TOP)
 
-        print(node_ib)
+        if node_ib is None:
+            print("Warning: no IB node found in circuit, skipping IB attachment.")
+            return
+
         new_node = Node(str(len(self.list_nodes_top)+1))
 
-        new_line = f"{"Ldc":<15} {node_ib.GlobalName:<10} {new_node.name:<10}\n{"Pdc":<15} {new_node.name:<10} 0\n"
+        new_line = f"{'Ldc':<15} {node_ib.GlobalName:<10} {new_node.name:<10}\n{'Pdc':<15} {new_node.name:<10} 0\n"
         with open(os.path.join(self.output_dir, "BIG_Cell_inductex.cir"), "a") as f:
                 f.write(new_line)

@@ -55,6 +55,7 @@ class Element(ABC):
 
     def __init__(self, name: str, net_in, net_out):
         self.name = name
+        self.raw_name = name
         self.Path_name = None
         self.net_in = net_in
         self.net_out = net_out

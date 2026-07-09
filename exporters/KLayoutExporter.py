@@ -24,17 +24,133 @@ class KLayoutExporter(BaseExporter):
     #     self.layout_top = self.layout.top_cell() # is this reassignment necessary?
     
     def find_layout_instance_by_pid(self, layout_cell, target_name):
-        """
-        layout_cell : pya.Cell
-        target_name : nom logique attendu, ex: I2, J3, L5
-        """
+        print(f"\nSearching for: {target_name}")
+        print(f"Inside layout cell: {layout_cell.name}")
 
-        print("check layout cell:", layout_cell.property(102))  # What is property 102??
+        found_names = []
 
         for klayout_inst in layout_cell.each_inst():
-            if str(klayout_inst.property(102)).lower()== str(target_name).lower():
+            pid = klayout_inst.property(102)
+            cell_name = klayout_inst.cell.name
+
+            found_names.append((pid, cell_name))
+
+            print(
+                "  layout instance:",
+                f"pid={pid}",
+                f"cell={cell_name}"
+            )
+
+            if str(pid).lower() == str(target_name).lower():
                 return klayout_inst
+
+        print(f"NOT FOUND: {target_name}")
+        print("Available layout instances were:")
+        for pid, cell_name in found_names:
+            print(f"  pid={pid}, cell={cell_name}")
+
         return None
+    
+
+    def report_mapping_audit(self):
+        print("\n=== LAYOUT MAPPING AUDIT ===")
+
+        total = 0
+        mapped = 0
+        unmapped = 0
+
+        def walk(cell):
+            nonlocal total, mapped, unmapped
+
+            for inst in cell.instances:
+                if hasattr(inst, "instances"):
+                    walk(inst)
+                    continue
+
+                total += 1
+
+                raw_name = getattr(inst, "raw_name", inst.name)
+                layout_inst = getattr(inst, "KLayoutInstance", None)
+                layout_path = self._raw_name_to_layout_path(raw_name)
+
+                if layout_inst is None:
+                    unmapped += 1
+                    print(
+                        f"FAIL | raw={raw_name:<18} "
+                        f"path={'/'.join(layout_path):<15} "
+                        f"reason=not mapped"
+                    )
+                    continue
+
+                mapped += 1
+                pid = layout_inst.property(102)
+                cell_name = layout_inst.cell.name
+
+                print(
+                    f"OK   | raw={raw_name:<18} "
+                    f"path={'/'.join(layout_path):<15} "
+                    f"pid={str(pid):<6} "
+                    f"layout_cell={cell_name}"
+                )
+
+        walk(self.circuit.TOP)
+
+        print("\n=== SUMMARY ===")
+        print(f"Total logical elements: {total}")
+        print(f"Mapped: {mapped}")
+        print(f"Unmapped: {unmapped}")
+
+
+
+
+    def _raw_name_to_layout_path(self, raw_name):
+        """
+        Converts CDL flattened names to GDS hierarchy path.
+
+        Examples:
+            XpcI0|IB1  -> ["I0", "IB1"]
+            XsjI0|J1   -> ["I0", "J1"]
+            LI0|L1     -> ["I0", "L1"]
+            IB1        -> ["IB1"]
+        """
+
+        name = str(raw_name)
+
+        prefixes = ["Xpc", "Xsj", "L", "R"]
+
+        for prefix in prefixes:
+            if name.lower().startswith(prefix.lower()):
+                name = name[len(prefix):]
+                break
+
+        return name.split("|")
+    
+    def find_layout_instance_by_path(self, layout_cell, path_parts):
+        """
+        Finds a nested layout instance using a hierarchy path.
+
+        Example:
+            layout_cell = MultiplexerAmeli
+            path_parts = ["I0", "IB1"]
+
+        It first finds I0 inside MultiplexerAmeli,
+        then finds IB1 inside I0's layout cell.
+        """
+
+        current_cell = layout_cell
+        current_inst = None
+        global_trans = pya.Trans()
+
+        for part in path_parts:
+            current_inst = self.find_layout_instance_by_pid(current_cell, part)
+
+            if current_inst is None:
+                return None, None
+
+            global_trans = global_trans * current_inst.trans
+            current_cell = current_inst.cell
+
+        return current_inst, global_trans
 
     
     def integrating_layout(self): 
@@ -55,23 +171,37 @@ class KLayoutExporter(BaseExporter):
 
             for circuit_inst in circuit_cell.instances:
 
+                lookup_names = [getattr(circuit_inst, "raw_name", circuit_inst.name)]
+                if lookup_names[0] != circuit_inst.name:
+                    lookup_names.append(circuit_inst.name)
+
                 print("looking for circuit instance:", circuit_inst.name)
                 print("inside layout cell:", layout_cell.name)
+                print("lookup names:", lookup_names)
 
-                layout_inst = self.find_layout_instance_by_pid(
-                    layout_cell,
-                    circuit_inst.name
-                )
+                layout_inst = None
+                global_trans = None
+
+                for lookup_name in lookup_names:
+                    path_parts = self._raw_name_to_layout_path(lookup_name)
+
+                    layout_inst, global_trans = self.find_layout_instance_by_path(
+                        self.layout_top,
+                        path_parts
+                    )
+
+                    if layout_inst is not None:
+                        break
 
                 if layout_inst is None:
                     raise RuntimeError(
-                        f"Instance '{circuit_inst.name}' not found "
-                        f"in layout cell '{layout_cell.name}'"
+                        f"Instance '{circuit_inst.name}' not found in layout. "
+                        f"Tried names: {lookup_names}"
                     )
 
-                # Lien entre ton objet logique et KLayout
                 circuit_inst.KLayoutInstance = layout_inst
                 circuit_inst.KLayoutCell = layout_inst.cell
+                circuit_inst.global_trans = global_trans
 
                 print(
                     f"FOUND: circuit={circuit_inst.name} "
@@ -93,7 +223,22 @@ class KLayoutExporter(BaseExporter):
         )
 
         go_through(self.layout_top, self.circuit.TOP)
-        
+
+    def report_layout_mapping(self):
+        def walk(cell, path=""):
+            for inst in cell.instances:
+                inst_name = getattr(inst, "raw_name", inst.name)
+                current_path = f"{path}/{inst_name}" if path else inst_name
+                layout_inst = getattr(inst, "KLayoutInstance", None)
+                if layout_inst is not None:
+                    pid = layout_inst.property(102)
+                    print(f"MAP: {current_path} -> layout cell '{layout_inst.cell.name}' pid={pid}")
+                else:
+                    print(f"UNMAPPED: {current_path}")
+                if hasattr(inst, "instances") and inst.instances:
+                    walk(inst, current_path)
+        walk(self.circuit.TOP)
+    
     def mark_single_connection_nodes_in_layout(self):
         """
         Pour chaque node connecté à un seul élément,
@@ -224,11 +369,11 @@ class KLayoutExporter(BaseExporter):
         def recursive_name(cell,parent_trans):
             for inst in cell.instances:
                 
-                # Transformation locale de cette instance
-                local_trans = inst.KLayoutInstance.trans
-
-                # Transformation absolue dans la TOP cell
-                global_trans = parent_trans * local_trans
+                if hasattr(inst, "global_trans"):
+                    global_trans = inst.global_trans
+                else:
+                    local_trans = inst.KLayoutInstance.trans
+                    global_trans = parent_trans * local_trans
 
                 if hasattr(inst,"type") and inst.type == "JJ":
                        

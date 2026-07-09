@@ -49,6 +49,7 @@ class CDLParser:
         added_cell = Cell(model)
         added_cell.rebuild(filename,new_circuit.get_cell(model).lines,new_circuit,nets,list_node_to_send_down)
         added_cell.name = head[1:]
+        added_cell.raw_name = head
         self.current_cell.add_cell_instance(added_cell)
     
     def _handle_xsjj(self, head, tokens):
@@ -62,12 +63,16 @@ class CDLParser:
                 ic = float(t.split("=", 1)[1].replace("u", ""))
                 break
         
-        self.current_cell.add_element(
-            JJElement(name, None, None, ic),net_in,net_out,[]
-        )
+        element = JJElement(name, None, None, ic)
+        element.raw_name = head
+        self.current_cell.add_element(element, net_in, net_out, [])
     
     def _handle_xpcib(self, head, tokens, line_number):
-        name = re.sub(r"^xpc", "", head, flags=re.I)
+        name = head
+        if "|" in head:
+            name = head.split("|")[-1]
+        name = re.sub(r"^xpc", "", name, flags=re.I)
+
         net_in = tokens[2]
         net_out = tokens[3]
 
@@ -82,9 +87,9 @@ class CDLParser:
                 f"[ligne {line_number}] ib sans ib="
             )
 
-        self.current_cell.add_element(
-            BiasIBElement(name, None, None ,ib),net_in,net_out,[]
-        )
+        element = BiasIBElement(name, None, None, ib)
+        element.raw_name = head
+        self.current_cell.add_element(element, net_in, net_out, [])
     def _handle_ll(self, head, tokens, line_number):
         name = head[1:]
         net_p = tokens[1]
@@ -105,9 +110,9 @@ class CDLParser:
                 f"[ligne {line_number}] Inductance sans L="
             )
 
-        self.current_cell.add_element(
-            InductorElement(name, None, None, lval),net_p,net_n,[]
-        )
+        element = InductorElement(name, None, None, lval)
+        element.raw_name = head
+        self.current_cell.add_element(element, net_p, net_n, [])
     
     def _handle_r(self, head, tokens):
         name = head[1:]
@@ -123,9 +128,9 @@ class CDLParser:
         if rval is None:
             rval = float(tokens[-1])
 
-        self.current_cell.add_element(
-            ResistorElement(name, None, None, rval),net_p,net_n,[]
-        )
+        element = ResistorElement(name, None, None, rval)
+        element.raw_name = head
+        self.current_cell.add_element(element, net_p, net_n, [])
     
     def _instructor(self, head, tokens, filename, new_circuit, line_number):
         if head.lower().startswith("xi"):
@@ -135,7 +140,7 @@ class CDLParser:
             self._handle_xsjj(head, tokens)
 
                 # ===== ib =====
-        elif head.lower().startswith("xpcib"):
+        elif head.lower().startswith("xpcib") or (head.lower().startswith("xpc") and "|ib" in head.lower()):
             self._handle_xpcib(head, tokens, line_number)
 
                 # ===== Inductance =====
