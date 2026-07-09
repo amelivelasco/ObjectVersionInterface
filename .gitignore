@@ -7,3 +7,7 @@ __pycache__/
 
 Datafolder/**/*.cir 
 Datafolder/**/*.gds
+
+BasicCellsHomemade_MultiplexerAmeli.sp
+.venv
+__pycache__/*.pyc
