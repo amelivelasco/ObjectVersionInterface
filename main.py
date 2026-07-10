@@ -89,7 +89,10 @@ if __name__ == "__main__":
     )
 
     ordered_components = schematic.read_ordered_components(spice_data)
+    
+    
+    with open(os.path.join(base_dir, "ordered_elems.txt"), "w", encoding="utf-8") as f:
+        for component in ordered_components:
+            f.write(str(component) + "\n")
 
-    for component in ordered_components:
-        print(component)
     
