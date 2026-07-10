@@ -59,7 +59,7 @@ class CDLParser:
 
         ic = 100.0
         for t in tokens:
-            if t.lower().startswith(("ic=", "ics=")):
+            if t.lower().startswith(("j=")):
                 ic = float(t.split("=", 1)[1].replace("u", ""))
                 break
         
@@ -136,7 +136,7 @@ class CDLParser:
         if head.lower().startswith("xi"):
             self._handle_xi(head, tokens, filename, new_circuit)
                 # ===== JJ =====
-        if head.lower().startswith("xsjj"):
+        if head.lower().startswith("xsj"):
             self._handle_xsjj(head, tokens)
 
                 # ===== ib =====
@@ -144,7 +144,7 @@ class CDLParser:
             self._handle_xpcib(head, tokens, line_number)
 
                 # ===== Inductance =====
-        elif head.lower().startswith("ll"):
+        elif head.lower().startswith("l"):
             self._handle_ll(head, tokens, line_number)
 
                 # ===== Résistance =====

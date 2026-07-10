@@ -183,6 +183,7 @@ class Cell:
         return replaced_lines
 
     def _rebuild_line(self, line, filename, circuit, upper_nodes):
+        print("REBUILD LINE:", line)
         tokens = line.split()
 
         if not tokens:
@@ -195,7 +196,7 @@ class Cell:
             self._handle_subckt(tokens)
             return
 
-        if head_lower.startswith("xsjj"):
+        if head_lower.startswith("xsj") and "|j" in head_lower:
             self._handle_jj(tokens, upper_nodes)
             return
 
@@ -203,7 +204,7 @@ class Cell:
             self._handle_ib(tokens, upper_nodes)
             return
 
-        if head_lower.startswith("ll"):
+        if head_lower.startswith("li") and "|l" in head_lower:
             self._handle_inductor(tokens, upper_nodes)
             return
 
@@ -228,7 +229,7 @@ class Cell:
         net_in = tokens[1]
         net_out = tokens[2]
 
-        ic = self._get_float_param(tokens, ("ic=", "ics="), default=100.0, remove_chars="u")
+        ic = self._get_float_param(tokens, ("j="), default=100.0, remove_chars="u")
 
         self.add_element(
             JJElement(name, None, None, ic),

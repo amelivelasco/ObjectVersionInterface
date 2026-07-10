@@ -7,7 +7,7 @@ class SpiceExporter(BaseExporter):
         self.circuit = circuit
     
     def build_net_list(self):  # this method writes the netlist in a .sp file instead of a .cir file, which means its purpose is a SPICE netlist and not an InductEx netlist.
-        # It's not used anywhere... REMOVE!
+
         lines = []
 
         # ===== Header =====

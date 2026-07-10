@@ -16,13 +16,7 @@ class KLayoutExporter(BaseExporter):
 
         self.layout_top = self.layout.top_cell() # is this reassignment necessary?   
         
-             
-    # def define_klayout(self, p_path_gds):
-
-    #     self.layout = pya.Layout() # pya is the KLayout Python API. 
-    #     self.layout.read(p_path_gds) # The KLayout is used to read and manipulate GDSII files, which are standard file formats for representing integrated circuit layouts.
-    #     self.layout_top = self.layout.top_cell() # is this reassignment necessary?
-    
+                 
     def find_layout_instance_by_pid(self, layout_cell, target_name):
         print(f"\nSearching for: {target_name}")
         print(f"Inside layout cell: {layout_cell.name}")
