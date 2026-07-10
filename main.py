@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from UI.main_page import Schematic
 from exporters.KLayoutExporter import KLayoutExporter
 from exporters.InductexExporter import InductexExporter
 from parser.cdl_parser import CDLParser
@@ -69,4 +72,24 @@ def main():
     
 if __name__ == "__main__":
     
-    main()
+    parser = CDLParser()
+
+    base_dir = Path(__file__).resolve().parent
+
+    netlist_path = base_dir / "test_files" / "BasicCellsHomemade_MultiplexerAmeli.sp"
+    map_file = base_dir / "layout_mapping_audit.txt"
+
+    circuit = parser.parse(netlist_path)
+
+    spice_data = parser.circuit_to_schematic_data(circuit)
+
+    schematic = Schematic(
+        sp_file=netlist_path,
+        map_file=map_file
+    )
+
+    ordered_components = schematic.read_ordered_components(spice_data)
+
+    for component in ordered_components:
+        print(component)
+    

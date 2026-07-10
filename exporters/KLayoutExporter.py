@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import klayout.db as pya
 import os
 from math import sqrt
@@ -46,8 +48,14 @@ class KLayoutExporter(BaseExporter):
         return None
     
 
-    def report_mapping_audit(self):
-        print("\n=== LAYOUT MAPPING AUDIT ===")
+    def report_mapping_audit(self, output_path=None):
+        report_lines = []
+
+        def add_line(text=""):
+            print(text)
+            report_lines.append(text)
+
+        add_line("\n=== LAYOUT MAPPING AUDIT ===")
 
         total = 0
         mapped = 0
@@ -69,7 +77,7 @@ class KLayoutExporter(BaseExporter):
 
                 if layout_inst is None:
                     unmapped += 1
-                    print(
+                    add_line(
                         f"FAIL | raw={raw_name:<18} "
                         f"path={'/'.join(layout_path):<15} "
                         f"reason=not mapped"
@@ -80,7 +88,7 @@ class KLayoutExporter(BaseExporter):
                 pid = layout_inst.property(102)
                 cell_name = layout_inst.cell.name
 
-                print(
+                add_line(
                     f"OK   | raw={raw_name:<18} "
                     f"path={'/'.join(layout_path):<15} "
                     f"pid={str(pid):<6} "
@@ -89,12 +97,20 @@ class KLayoutExporter(BaseExporter):
 
         walk(self.circuit.TOP)
 
-        print("\n=== SUMMARY ===")
-        print(f"Total logical elements: {total}")
-        print(f"Mapped: {mapped}")
-        print(f"Unmapped: {unmapped}")
+        add_line("\n=== SUMMARY ===")
+        add_line(f"Total logical elements: {total}")
+        add_line(f"Mapped: {mapped}")
+        add_line(f"Unmapped: {unmapped}")
 
+        if output_path is None:
+            output_path = Path(self.output_dir) / "layout_mapping_audit.txt"
+        else:
+            output_path = Path(output_path)
 
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("\n".join(report_lines), encoding="utf-8")
+
+        print(f"\nMapping audit written to: {output_path}")
 
 
     def _raw_name_to_layout_path(self, raw_name):
