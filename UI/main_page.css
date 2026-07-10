@@ -1,6 +1,7 @@
 body {
   margin: 0;
   font-family: Arial, sans-serif;
+  background: #f8fafc;
 }
 
 #header {
@@ -13,42 +14,6 @@ body {
   border-bottom: 1px solid #ddd;
 }
 
-.component-image {
-  pointer-events: auto;
-  cursor: pointer;
-}
-
-.component-image:hover {
-  filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.65));
-}
-
-.edge {
-  opacity: 0.72;
-}
-
-#drawing_board {
-  background: #f5f7fb;
-  border: 1px solid #ddd;
-  min-height: 500px;
-  margin: 0 auto;
-  width: calc(100% - 40px);
-  max-width: 1300px;
-  height: 700px;
-  overflow: hidden;
-  border-radius: 10px;
-}
-
-.circuit-svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.component:hover rect {
-  stroke: #7c3aed;
-  stroke-width: 2.5;
-}
-
 #header h1 {
   font-size: 23px;
   margin: 0;
@@ -58,32 +23,7 @@ main {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
   padding: 20px;
-}
-
-#toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 12px;
-  align-items: center;
-  width: calc(100% - 40px);
-  max-width: 1300px;
-}
-
-#toolbar button {
-  border: none;
-  background: #1f6feb;
-  color: white;
-  padding: 10px 18px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-#toolbar button:hover {
-  background: #174fb0;
 }
 
 #viewer {
@@ -91,22 +31,43 @@ main {
   max-width: 1300px;
 }
 
-#viewer h2 {
-  margin: 0 0 12px 0;
-  font-size: 20px;
-  color: #1e3a8a;
+#drawing_board {
+  background: #f5f7fb;
+  border: 1px solid #ddd;
+  min-height: 500px;
+  margin: 0 auto;
+  width: 100%;
+  height: 700px;
+  overflow: hidden;
+  border-radius: 10px;
+  position: relative;
 }
 
-.node-circle {
-  fill: #ffffff;
-  stroke: #1f2937;
-  stroke-width: 2;
+.circuit-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  user-select: none;
 }
 
-.node-circle:hover {
-  transform: scale(1.25);
+.circuit-svg.is-panning {
+  cursor: grabbing;
 }
 
-.node-label tspan {
-  font-size: 11px;
+.edge {
+  opacity: 0.76;
+}
+
+.component-image {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.component-image:hover {
+  filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.75));
+}
+
+.label-layer text {
+  pointer-events: none;
 }

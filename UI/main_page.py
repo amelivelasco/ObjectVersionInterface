@@ -1,6 +1,6 @@
 from pathlib import Path
 import re
-
+import json
 from UI.circuit_component import CircuitComponent
 
 
@@ -46,7 +46,6 @@ class Schematic:
         else:
             ordered_components.insert(best_index + 1, new_component)
 
-        ordered_components.append(new_component)
     
     def read_ordered_components(self, spice_data):
         if not self.map_file.exists():
@@ -188,14 +187,84 @@ class Schematic:
 
         return ordered_components
     
-    def draw_circuit(self, ordered_list: list[CircuitComponent]):
+    def get_component_type(self, component):
+        pid = str(component.pid)
+
+        if pid.startswith("L"):
+            return "L"
+
+        if pid.startswith("J"):
+            return "JJ"
+
+        if pid.startswith("IB"):
+            return "IB"
+
+        return "UNKNOWN"
+
+
+    def get_component_image(self, component):
+        component_type = self.get_component_type(component)
+
         relations = {
             "L": "img/ind_draw.png",
-            "J": "img/jj_draw.png",
-            "IB": "img/biais_draw.png"
+            "JJ": "img/jj_draw.png",
+            "IB": "img/biais_draw.png",
         }
-        
-        for elem in ordered_list:
-            prefix = elem.pid[0]
+
+        return relations.get(component_type, "")
+
+
+    def write_circuit_data(self, ordered_components, output_file):
+        output_file = Path(output_file)
+
+        elements = []
+
+        nodes_seen = set()
+        nodes = []
+
+        def add_node(net):
+            if net is None:
+                return
+
+            if net not in nodes_seen:
+                nodes_seen.add(net)
+                nodes.append({
+                    "id": net,
+                    "label": net,
+                })
+
+        for component in ordered_components:
+            add_node(component.net_in)
+            add_node(component.net_out)
+
+            component_type = self.get_component_type(component)
+
+            elements.append({
+                "id": component.raw,
+                "raw": component.raw,
+                "path": component.path,
+                "pid": component.pid,
+                "layout_cell": component.layout_cell,
+                "type": component_type,
+                "net_in": component.net_in,
+                "net_out": component.net_out,
+                "image": self.get_component_image(component),
+            })
+
+        data = {
+            "name": self.sp_file.stem,
+            "nodes": nodes,
+            "elements": elements,
+        }
+
+        js_text = "window.circuitData = "
+        js_text += json.dumps(data, indent=2)
+        js_text += ";\n"
+
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        output_file.write_text(js_text, encoding="utf-8")
+
+        print(f"Circuit data written to: {output_file}")
+            
                             
         
