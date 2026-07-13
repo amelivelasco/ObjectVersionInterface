@@ -43,13 +43,54 @@ class KLayoutExporter(BaseExporter):
         print(f"NOT FOUND: {target_name}")
         print("Available layout instances were:")
         for pid, cell_name in found_names:
-            print(f"  pid={pid}, cell={cell_name}")
+            print(f"  pid={pid}, main_cell_name={layout_cell.name} cell={cell_name}")
+
+        return None
+
+    def get_first_level_layout_cell(self, raw_name):
+        """
+        Returns the layout cell directly below the top-level layout.
+
+        Examples:
+            LI0|L1  -> NDROM2
+            LI12|L2 -> NDROM2
+            I6|J7   -> confluenceBufferUpgrade
+        """
+
+        layout_path = self._raw_name_to_layout_path(
+            raw_name
+        )
+
+        if not layout_path:
+            return None
+
+        # For I0/L1, only use I0.
+        first_level_pid = layout_path[0]
+
+        for layout_inst in self.layout_top.each_inst():
+            pid = layout_inst.property(102)
+
+            if (
+                str(pid).lower()
+                == str(first_level_pid).lower()
+            ):
+                return layout_inst.cell.name
+
+        print(
+            f"WARNING: first-level layout instance "
+            f"'{first_level_pid}' was not found "
+            f"inside '{self.layout_top.name}'"
+        )
 
         return None
     
 
     def report_mapping_audit(self, output_path=None):
         report_lines = []
+
+        # Maps each raw component name to the first cell
+        # directly below the top-level circuit.
+        first_level_cells = {}
 
         def add_line(text=""):
             print(text)
@@ -65,34 +106,78 @@ class KLayoutExporter(BaseExporter):
             nonlocal total, mapped, unmapped
 
             for inst in cell.instances:
-                if hasattr(inst, "instances"):
+                if (
+                    hasattr(inst, "instances")
+                    and inst.instances
+                ):
                     walk(inst)
                     continue
 
                 total += 1
 
-                raw_name = getattr(inst, "raw_name", inst.name)
-                layout_inst = getattr(inst, "KLayoutInstance", None)
-                layout_path = self._raw_name_to_layout_path(raw_name)
+                raw_name = getattr(
+                    inst,
+                    "raw_name",
+                    inst.name,
+                )
+
+                layout_inst = getattr(
+                    inst,
+                    "KLayoutInstance",
+                    None,
+                )
+
+                layout_path = (
+                    self._raw_name_to_layout_path(
+                        raw_name
+                    )
+                )
 
                 if layout_inst is None:
                     unmapped += 1
+
                     add_line(
                         f"FAIL | raw={raw_name:<18} "
                         f"path={'/'.join(layout_path):<15} "
                         f"reason=not mapped"
                     )
+
+                    continue
+
+                first_level_cell_name = (
+                    self.get_first_level_layout_cell(
+                        raw_name
+                    )
+                )
+
+                if first_level_cell_name is None:
+                    unmapped += 1
+
+                    add_line(
+                        f"FAIL | raw={raw_name:<18} "
+                        f"path={'/'.join(layout_path):<15} "
+                        f"reason=first-level cell not found"
+                    )
+
                     continue
 
                 mapped += 1
+
                 pid = layout_inst.property(102)
-                cell_name = layout_inst.cell.name
+
+                # Final small PCell, retained only for debugging.
+                device_cell_name = layout_inst.cell.name
+
+                first_level_cells[raw_name] = (
+                    first_level_cell_name
+                )
 
                 add_line(
                     f"OK   | raw={raw_name:<18} "
                     f"path={'/'.join(layout_path):<15} "
                     f"pid={str(pid):<6} "
-                    f"layout_cell={cell_name}"
+                    f"layout_cell={first_level_cell_name} "
+                    f"device_cell={device_cell_name}"
                 )
 
         walk(self.circuit.TOP)
@@ -103,14 +188,29 @@ class KLayoutExporter(BaseExporter):
         add_line(f"Unmapped: {unmapped}")
 
         if output_path is None:
-            output_path = Path(self.output_dir) / "layout_mapping_audit.txt"
+            output_path = (
+                Path(self.output_dir)
+                / "layout_mapping_audit.txt"
+            )
         else:
             output_path = Path(output_path)
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text("\n".join(report_lines), encoding="utf-8")
+        output_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
 
-        print(f"\nMapping audit written to: {output_path}")
+        output_path.write_text(
+            "\n".join(report_lines),
+            encoding="utf-8",
+        )
+
+        print(
+            f"\nMapping audit written to: "
+            f"{output_path}"
+        )
+
+        return first_level_cells
 
 
     def _raw_name_to_layout_path(self, raw_name):

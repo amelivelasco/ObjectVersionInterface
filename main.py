@@ -1,78 +1,13 @@
+from datetime import datetime, timezone
 from pathlib import Path
 
 from UI.main_page import Schematic
 from exporters.KLayoutExporter import KLayoutExporter
 from exporters.InductexExporter import InductexExporter
 from parser.cdl_parser import CDLParser
-import pya
-import os
-from datetime import datetime, timezone
-
-# Class description:
-# Here is the logic of the main function:
-# - It first creates an instance of the CDLParser class.
-# - It then calls the parse method of the CDLParser instance, passing the path to a
-#  CDL file as an argument. This method reads the CDL file and constructs a circuit hierarchy.
-# - After parsing the CDL file, it performs several operations on the constructed circuit, 
-#   such as defining the layout, integrating the layout, renumbering nodes, assigning cell IDs, 
-#   defining local names, renaming elements by type, writing cell names, writing an InductEx file, 
-#   attaching elements to nodes, marking single connection nodes in the layout, and covering cells with a layer.
-
-# Questions:
-# What is the purpose of the CDLParser class and how does it work? 
 
 
 def main():
-    
-    
-    # -------------------------------
-    # 4) Parser CDL
-    # -------------------------------
-    parser = CDLParser()
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-
-
-    # -------------------------------
-    # 5) Parsing du fichier CDL
-    # -------------------------------
-    netlist_path = os.path.join(base_dir, "test_files", "BasicCellsHomemade_MultiplexerAmeli.sp")
-    layout_path = os.path.join(base_dir, "test_files", "MultiplexerAmeli.custom_compiler.gds")
-    
-    circuit = parser.parse(netlist_path)
-    
-    klayout_exp = KLayoutExporter(circuit, layout_path)
-    inductex_exp = InductexExporter(circuit)
-
-    inductex_exp.folder_to_write(base_dir)
-    TOP_CEL = circuit.TOP
-    inductex_exp.list_top_nodes(TOP_CEL)
-    # --- Charger le layout ---
-    klayout_exp.integrating_layout()
-    klayout_exp.report_mapping_audit()
-    klayout_exp.report_layout_mapping()
-    inductex_exp.renum_top()
-    circuit.assign_cell_ids()
-    circuit.define_local_names()
-    circuit.rename_all_elements_by_type()
-    #circuit.traverse_cell(TOP_CEL)
-
-    klayout_exp.write_cell_names()
-    
-    lines = inductex_exp.read_inductex_file()
-    elem_connections = inductex_exp.read_elem_connections(lines)
-    inductex_exp.write_inductex_file(elem_connections)
-    
-    inductex_exp.attach_elements_to_nodes()
-    klayout_exp.mark_single_connection_nodes_in_layout()
-    klayout_exp.cover_cell_with_layer()
-
-    #parser.parsesol(r"Datafolder\sol.txt",circuit)
-    #circuit.BuildNetlist()
-
-    
-if __name__ == "__main__":
-    parser = CDLParser()
-
     base_dir = Path(__file__).resolve().parent
 
     netlist_path = (
@@ -81,21 +16,98 @@ if __name__ == "__main__":
         / "BasicCellsHomemade_MultiplexerAmeli.sp"
     )
 
+    layout_path = (
+        base_dir
+        / "test_files"
+        / "MultiplexerAmeli.custom_compiler.gds"
+    )
+
     ordered_elems_path = (
         base_dir
         / "ordered_elems.txt"
     )
 
-    # This is the exact file loaded by the browser.
     circuit_data_path = (
         base_dir
         / "UI"
         / "circuit_data.js"
     )
 
-
+    # --------------------------------------------------
+    # 1. Parse the circuit
+    # --------------------------------------------------
+    parser = CDLParser()
     circuit = parser.parse(netlist_path)
 
+    # --------------------------------------------------
+    # 2. Create exporters
+    # --------------------------------------------------
+    klayout_exp = KLayoutExporter(
+        circuit,
+        layout_path,
+    )
+
+    inductex_exp = InductexExporter(circuit)
+
+    inductex_exp.folder_to_write(
+        str(base_dir)
+    )
+
+    top_cell = circuit.TOP
+
+    inductex_exp.list_top_nodes(
+        top_cell
+    )
+
+    # --------------------------------------------------
+    # 3. Match circuit elements with layout instances
+    # --------------------------------------------------
+    klayout_exp.integrating_layout()
+
+    # This method must return:
+    # {
+    #     "LI0|L1": "NDROM2",
+    #     "LI0|L2": "NDROM2",
+    #     "I6|J7": "confluenceBufferUpgrade",
+    #     ...
+    # }
+    first_level_layout_cells = (
+        klayout_exp.report_mapping_audit()
+    )
+
+    klayout_exp.report_layout_mapping()
+
+    # --------------------------------------------------
+    # 4. Continue the original circuit processing
+    # --------------------------------------------------
+    inductex_exp.renum_top()
+
+    circuit.assign_cell_ids()
+    circuit.define_local_names()
+    circuit.rename_all_elements_by_type()
+
+    klayout_exp.write_cell_names()
+
+    lines = inductex_exp.read_inductex_file()
+
+    element_connections = (
+        inductex_exp.read_elem_connections(
+            lines
+        )
+    )
+
+    inductex_exp.write_inductex_file(
+        element_connections
+    )
+
+    inductex_exp.attach_elements_to_nodes()
+
+    klayout_exp.mark_single_connection_nodes_in_layout()
+    klayout_exp.cover_cell_with_layer()
+
+    # --------------------------------------------------
+    # 5. Read the ordered components
+    # --------------------------------------------------
     spice_data = parser.circuit_to_schematic_data(
         circuit
     )
@@ -111,31 +123,74 @@ if __name__ == "__main__":
         )
     )
 
-    print(
-        "Writing circuit data to:",
-        circuit_data_path.resolve(),
-    )
-    
-    with open(
-        ordered_elems_path,
+    # --------------------------------------------------
+    # 6. Replace layout_cell with the first-level cell
+    #    below MultiplexerAmeli
+    # --------------------------------------------------
+    for component in ordered_components:
+        first_level_cell = (
+            first_level_layout_cells.get(
+                component.raw
+            )
+        )
+
+        if first_level_cell is None:
+            print(
+                "WARNING: no first-level layout cell "
+                f"found for {component.raw}. "
+                f"Keeping existing value: "
+                f"{component.layout_cell}"
+            )
+            continue
+
+        print(
+            f"Updating {component.raw}: "
+            f"{component.layout_cell} "
+            f"-> {first_level_cell}"
+        )
+
+        component.layout_cell = (
+            first_level_cell
+        )
+
+    # --------------------------------------------------
+    # 7. Rewrite ordered_elems.txt
+    # --------------------------------------------------
+    generated_at = datetime.now(
+        timezone.utc
+    ).isoformat()
+
+    with ordered_elems_path.open(
         "w",
         encoding="utf-8",
     ) as file:
-        generated_at = datetime.now(
-            timezone.utc
-        ).isoformat()
-
         file.write(
             f"generated_at: {generated_at}\n"
         )
 
         for component in ordered_components:
-            file.write(f"{component}\n")
+            file.write(
+                f"{component}\n"
+            )
 
-    for component in ordered_components:
-        print(component)
+    print(
+        "ordered_elems.txt rewritten at:",
+        ordered_elems_path.resolve(),
+    )
 
+    # --------------------------------------------------
+    # 8. Regenerate circuit_data.js from the updated file
+    # --------------------------------------------------
     schematic.write_circuit_data(
         ordered_components_file=ordered_elems_path,
         output_file=circuit_data_path,
     )
+
+    print(
+        "circuit_data.js regenerated at:",
+        circuit_data_path.resolve(),
+    )
+
+
+if __name__ == "__main__":
+    main()

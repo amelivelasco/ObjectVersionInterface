@@ -1,90 +1,90 @@
 
 === LAYOUT MAPPING AUDIT ===
-OK   | raw=LI0|L1             path=I0/L1           pid=L1     layout_cell=ind2_pcell_030f
-OK   | raw=LI0|L2             path=I0/L2           pid=L2     layout_cell=ind2_pcell_4bca
-OK   | raw=LI0|L3             path=I0/L3           pid=L3     layout_cell=ind2_pcell_13b8
-OK   | raw=LI0|L4             path=I0/L4           pid=L4     layout_cell=ind2_pcell_7010
-OK   | raw=LI0|L5             path=I0/L5           pid=L5     layout_cell=ind2_pcell_03f0
-OK   | raw=LI0|L6             path=I0/L6           pid=L6     layout_cell=ind2_pcell_7537
-OK   | raw=LI0|L7             path=I0/L7           pid=L7     layout_cell=ind2_pcell_6ea0
-OK   | raw=LI0|L8             path=I0/L8           pid=L8     layout_cell=ind2_pcell_0878
-OK   | raw=LI0|L9             path=I0/L9           pid=L9     layout_cell=ind2_pcell_4d37
-OK   | raw=LI0|L10            path=I0/L10          pid=L10    layout_cell=ind2_pcell_2983
-OK   | raw=LI0|L11            path=I0/L11          pid=L11    layout_cell=ind2_pcell_f9cc
-OK   | raw=LI0|L12            path=I0/L12          pid=L12    layout_cell=ind2_pcell_bad2
-OK   | raw=LI0|L74            path=I0/L74          pid=L74    layout_cell=ind2_pcell_4bca
-OK   | raw=LI0|L76            path=I0/L76          pid=L76    layout_cell=ind2_pcell_d58a
-OK   | raw=LI0|L75            path=I0/L75          pid=L75    layout_cell=ind2_pcell_7ab2
-OK   | raw=LI12|L1            path=I12/L1          pid=L1     layout_cell=ind2_pcell_030f
-OK   | raw=LI12|L2            path=I12/L2          pid=L2     layout_cell=ind2_pcell_4bca
-OK   | raw=LI12|L3            path=I12/L3          pid=L3     layout_cell=ind2_pcell_13b8
-OK   | raw=LI12|L4            path=I12/L4          pid=L4     layout_cell=ind2_pcell_7010
-OK   | raw=LI12|L5            path=I12/L5          pid=L5     layout_cell=ind2_pcell_03f0
-OK   | raw=LI12|L6            path=I12/L6          pid=L6     layout_cell=ind2_pcell_7537
-OK   | raw=LI12|L7            path=I12/L7          pid=L7     layout_cell=ind2_pcell_6ea0
-OK   | raw=LI12|L8            path=I12/L8          pid=L8     layout_cell=ind2_pcell_0878
-OK   | raw=LI12|L9            path=I12/L9          pid=L9     layout_cell=ind2_pcell_4d37
-OK   | raw=LI12|L10           path=I12/L10         pid=L10    layout_cell=ind2_pcell_2983
-OK   | raw=LI12|L11           path=I12/L11         pid=L11    layout_cell=ind2_pcell_f9cc
-OK   | raw=LI12|L12           path=I12/L12         pid=L12    layout_cell=ind2_pcell_bad2
-OK   | raw=LI12|L74           path=I12/L74         pid=L74    layout_cell=ind2_pcell_4bca
-OK   | raw=LI12|L76           path=I12/L76         pid=L76    layout_cell=ind2_pcell_d58a
-OK   | raw=LI12|L75           path=I12/L75         pid=L75    layout_cell=ind2_pcell_7ab2
-OK   | raw=LI6|L1             path=I6/L1           pid=L1     layout_cell=ind2_pcell_25cf
-OK   | raw=LI6|L2             path=I6/L2           pid=L2     layout_cell=ind2_pcell_56ef
-OK   | raw=LI6|L4             path=I6/L4           pid=L4     layout_cell=ind2_pcell_25cf
-OK   | raw=LI6|L5             path=I6/L5           pid=L5     layout_cell=ind2_pcell_56ef
-OK   | raw=LI6|L3             path=I6/L3           pid=L3     layout_cell=ind2_pcell_0bba
-OK   | raw=LI6|L6             path=I6/L6           pid=L6     layout_cell=ind2_pcell_0bba
-OK   | raw=LI6|L7             path=I6/L7           pid=L7     layout_cell=ind2_pcell_8d2b
-OK   | raw=LI6|L8             path=I6/L8           pid=L8     layout_cell=ind2_pcell_4dd2
-OK   | raw=LI6|L21            path=I6/L21          pid=L21    layout_cell=ind2_pcell_04ec
-OK   | raw=LI6|L22            path=I6/L22          pid=L22    layout_cell=ind2_pcell_04ec
-OK   | raw=XsjI0|J5           path=I0/J5           pid=J5     layout_cell=jj_s_pcell_e6a0
-OK   | raw=XsjI0|J1           path=I0/J1           pid=J1     layout_cell=jj_s_pcell_34fb
-OK   | raw=XsjI0|J2           path=I0/J2           pid=J2     layout_cell=jj_s_pcell_e6a0
-OK   | raw=XsjI0|J4           path=I0/J4           pid=J4     layout_cell=jj_s_pcell_34fb
-OK   | raw=XsjI0|J7           path=I0/J7           pid=J7     layout_cell=jj_s_pcell_74b5
-OK   | raw=XsjI0|J10          path=I0/J10          pid=J10    layout_cell=jj_s_pcell_7e54
-OK   | raw=XsjI0|J3           path=I0/J3           pid=J3     layout_cell=jj_s_pcell_0a7e
-OK   | raw=XsjI0|J6           path=I0/J6           pid=J6     layout_cell=jj_s_pcell_64e8
-OK   | raw=XsjI0|J8           path=I0/J8           pid=J8     layout_cell=jj_s_pcell_bb5e
-OK   | raw=XsjI0|J11          path=I0/J11          pid=J11    layout_cell=jj_s_pcell_34fb
-OK   | raw=XsjI0|J9           path=I0/J9           pid=J9     layout_cell=jj_s_pcell_34fb
-OK   | raw=XsjI12|J5          path=I12/J5          pid=J5     layout_cell=jj_s_pcell_e6a0
-OK   | raw=XsjI12|J1          path=I12/J1          pid=J1     layout_cell=jj_s_pcell_34fb
-OK   | raw=XsjI12|J2          path=I12/J2          pid=J2     layout_cell=jj_s_pcell_e6a0
-OK   | raw=XsjI12|J4          path=I12/J4          pid=J4     layout_cell=jj_s_pcell_34fb
-OK   | raw=XsjI12|J7          path=I12/J7          pid=J7     layout_cell=jj_s_pcell_74b5
-OK   | raw=XsjI12|J10         path=I12/J10         pid=J10    layout_cell=jj_s_pcell_7e54
-OK   | raw=XsjI12|J3          path=I12/J3          pid=J3     layout_cell=jj_s_pcell_0a7e
-OK   | raw=XsjI12|J6          path=I12/J6          pid=J6     layout_cell=jj_s_pcell_64e8
-OK   | raw=XsjI12|J8          path=I12/J8          pid=J8     layout_cell=jj_s_pcell_bb5e
-OK   | raw=XsjI12|J11         path=I12/J11         pid=J11    layout_cell=jj_s_pcell_34fb
-OK   | raw=XsjI12|J9          path=I12/J9          pid=J9     layout_cell=jj_s_pcell_34fb
-OK   | raw=XsjI6|J1           path=I6/J1           pid=J1     layout_cell=jj_s_pcell_34fb
-OK   | raw=XsjI6|J2           path=I6/J2           pid=J2     layout_cell=jj_s_pcell_a806
-OK   | raw=XsjI6|J3           path=I6/J3           pid=J3     layout_cell=jj_s_pcell_c4c3
-OK   | raw=XsjI6|J4           path=I6/J4           pid=J4     layout_cell=jj_s_pcell_34fb
-OK   | raw=XsjI6|J5           path=I6/J5           pid=J5     layout_cell=jj_s_pcell_a806
-OK   | raw=XsjI6|J6           path=I6/J6           pid=J6     layout_cell=jj_s_pcell_c4c3
-OK   | raw=XsjI6|J7           path=I6/J7           pid=J7     layout_cell=jj_s_pcell_34fb
-OK   | raw=XpcI0|IB1          path=I0/IB1          pid=IB1    layout_cell=pwrcell_pcell_0bb1
-OK   | raw=XpcI0|IB2          path=I0/IB2          pid=IB2    layout_cell=pwrcell_pcell_d53e
-OK   | raw=XpcI0|IB3          path=I0/IB3          pid=IB3    layout_cell=pwrcell_pcell_0bb1
-OK   | raw=XpcI0|IB4          path=I0/IB4          pid=IB4    layout_cell=pwrcell_pcell_a26d
-OK   | raw=XpcI0|IB6          path=I0/IB6          pid=IB6    layout_cell=pwrcell_pcell_0bb1
-OK   | raw=XpcI0|IB5          path=I0/IB5          pid=IB5    layout_cell=pwrcell_pcell_0bb1
-OK   | raw=XpcI12|IB1         path=I12/IB1         pid=IB1    layout_cell=pwrcell_pcell_0bb1
-OK   | raw=XpcI12|IB2         path=I12/IB2         pid=IB2    layout_cell=pwrcell_pcell_d53e
-OK   | raw=XpcI12|IB3         path=I12/IB3         pid=IB3    layout_cell=pwrcell_pcell_0bb1
-OK   | raw=XpcI12|IB4         path=I12/IB4         pid=IB4    layout_cell=pwrcell_pcell_a26d
-OK   | raw=XpcI12|IB6         path=I12/IB6         pid=IB6    layout_cell=pwrcell_pcell_0bb1
-OK   | raw=XpcI12|IB5         path=I12/IB5         pid=IB5    layout_cell=pwrcell_pcell_0bb1
-OK   | raw=XpcI6|IB1          path=I6/IB1          pid=IB1    layout_cell=pwrcell_pcell_0bb1
-OK   | raw=XpcI6|IB2          path=I6/IB2          pid=IB2    layout_cell=pwrcell_pcell_0bb1
-OK   | raw=XpcI6|IB3          path=I6/IB3          pid=IB3    layout_cell=pwrcell_pcell_d864
-OK   | raw=XpcI6|IB4          path=I6/IB4          pid=IB4    layout_cell=pwrcell_pcell_0bb1
+OK   | raw=LI0|L1             path=I0/L1           pid=L1     layout_cell=NDROM2 device_cell=ind2_pcell_030f
+OK   | raw=LI0|L2             path=I0/L2           pid=L2     layout_cell=NDROM2 device_cell=ind2_pcell_4bca
+OK   | raw=LI0|L3             path=I0/L3           pid=L3     layout_cell=NDROM2 device_cell=ind2_pcell_13b8
+OK   | raw=LI0|L4             path=I0/L4           pid=L4     layout_cell=NDROM2 device_cell=ind2_pcell_7010
+OK   | raw=LI0|L5             path=I0/L5           pid=L5     layout_cell=NDROM2 device_cell=ind2_pcell_03f0
+OK   | raw=LI0|L6             path=I0/L6           pid=L6     layout_cell=NDROM2 device_cell=ind2_pcell_7537
+OK   | raw=LI0|L7             path=I0/L7           pid=L7     layout_cell=NDROM2 device_cell=ind2_pcell_6ea0
+OK   | raw=LI0|L8             path=I0/L8           pid=L8     layout_cell=NDROM2 device_cell=ind2_pcell_0878
+OK   | raw=LI0|L9             path=I0/L9           pid=L9     layout_cell=NDROM2 device_cell=ind2_pcell_4d37
+OK   | raw=LI0|L10            path=I0/L10          pid=L10    layout_cell=NDROM2 device_cell=ind2_pcell_2983
+OK   | raw=LI0|L11            path=I0/L11          pid=L11    layout_cell=NDROM2 device_cell=ind2_pcell_f9cc
+OK   | raw=LI0|L12            path=I0/L12          pid=L12    layout_cell=NDROM2 device_cell=ind2_pcell_bad2
+OK   | raw=LI0|L74            path=I0/L74          pid=L74    layout_cell=NDROM2 device_cell=ind2_pcell_4bca
+OK   | raw=LI0|L76            path=I0/L76          pid=L76    layout_cell=NDROM2 device_cell=ind2_pcell_d58a
+OK   | raw=LI0|L75            path=I0/L75          pid=L75    layout_cell=NDROM2 device_cell=ind2_pcell_7ab2
+OK   | raw=LI12|L1            path=I12/L1          pid=L1     layout_cell=NDROM2 device_cell=ind2_pcell_030f
+OK   | raw=LI12|L2            path=I12/L2          pid=L2     layout_cell=NDROM2 device_cell=ind2_pcell_4bca
+OK   | raw=LI12|L3            path=I12/L3          pid=L3     layout_cell=NDROM2 device_cell=ind2_pcell_13b8
+OK   | raw=LI12|L4            path=I12/L4          pid=L4     layout_cell=NDROM2 device_cell=ind2_pcell_7010
+OK   | raw=LI12|L5            path=I12/L5          pid=L5     layout_cell=NDROM2 device_cell=ind2_pcell_03f0
+OK   | raw=LI12|L6            path=I12/L6          pid=L6     layout_cell=NDROM2 device_cell=ind2_pcell_7537
+OK   | raw=LI12|L7            path=I12/L7          pid=L7     layout_cell=NDROM2 device_cell=ind2_pcell_6ea0
+OK   | raw=LI12|L8            path=I12/L8          pid=L8     layout_cell=NDROM2 device_cell=ind2_pcell_0878
+OK   | raw=LI12|L9            path=I12/L9          pid=L9     layout_cell=NDROM2 device_cell=ind2_pcell_4d37
+OK   | raw=LI12|L10           path=I12/L10         pid=L10    layout_cell=NDROM2 device_cell=ind2_pcell_2983
+OK   | raw=LI12|L11           path=I12/L11         pid=L11    layout_cell=NDROM2 device_cell=ind2_pcell_f9cc
+OK   | raw=LI12|L12           path=I12/L12         pid=L12    layout_cell=NDROM2 device_cell=ind2_pcell_bad2
+OK   | raw=LI12|L74           path=I12/L74         pid=L74    layout_cell=NDROM2 device_cell=ind2_pcell_4bca
+OK   | raw=LI12|L76           path=I12/L76         pid=L76    layout_cell=NDROM2 device_cell=ind2_pcell_d58a
+OK   | raw=LI12|L75           path=I12/L75         pid=L75    layout_cell=NDROM2 device_cell=ind2_pcell_7ab2
+OK   | raw=LI6|L1             path=I6/L1           pid=L1     layout_cell=confluenceBufferUpgrade device_cell=ind2_pcell_25cf
+OK   | raw=LI6|L2             path=I6/L2           pid=L2     layout_cell=confluenceBufferUpgrade device_cell=ind2_pcell_56ef
+OK   | raw=LI6|L4             path=I6/L4           pid=L4     layout_cell=confluenceBufferUpgrade device_cell=ind2_pcell_25cf
+OK   | raw=LI6|L5             path=I6/L5           pid=L5     layout_cell=confluenceBufferUpgrade device_cell=ind2_pcell_56ef
+OK   | raw=LI6|L3             path=I6/L3           pid=L3     layout_cell=confluenceBufferUpgrade device_cell=ind2_pcell_0bba
+OK   | raw=LI6|L6             path=I6/L6           pid=L6     layout_cell=confluenceBufferUpgrade device_cell=ind2_pcell_0bba
+OK   | raw=LI6|L7             path=I6/L7           pid=L7     layout_cell=confluenceBufferUpgrade device_cell=ind2_pcell_8d2b
+OK   | raw=LI6|L8             path=I6/L8           pid=L8     layout_cell=confluenceBufferUpgrade device_cell=ind2_pcell_4dd2
+OK   | raw=LI6|L21            path=I6/L21          pid=L21    layout_cell=confluenceBufferUpgrade device_cell=ind2_pcell_04ec
+OK   | raw=LI6|L22            path=I6/L22          pid=L22    layout_cell=confluenceBufferUpgrade device_cell=ind2_pcell_04ec
+OK   | raw=XsjI0|J5           path=I0/J5           pid=J5     layout_cell=NDROM2 device_cell=jj_s_pcell_e6a0
+OK   | raw=XsjI0|J1           path=I0/J1           pid=J1     layout_cell=NDROM2 device_cell=jj_s_pcell_34fb
+OK   | raw=XsjI0|J2           path=I0/J2           pid=J2     layout_cell=NDROM2 device_cell=jj_s_pcell_e6a0
+OK   | raw=XsjI0|J4           path=I0/J4           pid=J4     layout_cell=NDROM2 device_cell=jj_s_pcell_34fb
+OK   | raw=XsjI0|J7           path=I0/J7           pid=J7     layout_cell=NDROM2 device_cell=jj_s_pcell_74b5
+OK   | raw=XsjI0|J10          path=I0/J10          pid=J10    layout_cell=NDROM2 device_cell=jj_s_pcell_7e54
+OK   | raw=XsjI0|J3           path=I0/J3           pid=J3     layout_cell=NDROM2 device_cell=jj_s_pcell_0a7e
+OK   | raw=XsjI0|J6           path=I0/J6           pid=J6     layout_cell=NDROM2 device_cell=jj_s_pcell_64e8
+OK   | raw=XsjI0|J8           path=I0/J8           pid=J8     layout_cell=NDROM2 device_cell=jj_s_pcell_bb5e
+OK   | raw=XsjI0|J11          path=I0/J11          pid=J11    layout_cell=NDROM2 device_cell=jj_s_pcell_34fb
+OK   | raw=XsjI0|J9           path=I0/J9           pid=J9     layout_cell=NDROM2 device_cell=jj_s_pcell_34fb
+OK   | raw=XsjI12|J5          path=I12/J5          pid=J5     layout_cell=NDROM2 device_cell=jj_s_pcell_e6a0
+OK   | raw=XsjI12|J1          path=I12/J1          pid=J1     layout_cell=NDROM2 device_cell=jj_s_pcell_34fb
+OK   | raw=XsjI12|J2          path=I12/J2          pid=J2     layout_cell=NDROM2 device_cell=jj_s_pcell_e6a0
+OK   | raw=XsjI12|J4          path=I12/J4          pid=J4     layout_cell=NDROM2 device_cell=jj_s_pcell_34fb
+OK   | raw=XsjI12|J7          path=I12/J7          pid=J7     layout_cell=NDROM2 device_cell=jj_s_pcell_74b5
+OK   | raw=XsjI12|J10         path=I12/J10         pid=J10    layout_cell=NDROM2 device_cell=jj_s_pcell_7e54
+OK   | raw=XsjI12|J3          path=I12/J3          pid=J3     layout_cell=NDROM2 device_cell=jj_s_pcell_0a7e
+OK   | raw=XsjI12|J6          path=I12/J6          pid=J6     layout_cell=NDROM2 device_cell=jj_s_pcell_64e8
+OK   | raw=XsjI12|J8          path=I12/J8          pid=J8     layout_cell=NDROM2 device_cell=jj_s_pcell_bb5e
+OK   | raw=XsjI12|J11         path=I12/J11         pid=J11    layout_cell=NDROM2 device_cell=jj_s_pcell_34fb
+OK   | raw=XsjI12|J9          path=I12/J9          pid=J9     layout_cell=NDROM2 device_cell=jj_s_pcell_34fb
+OK   | raw=XsjI6|J1           path=I6/J1           pid=J1     layout_cell=confluenceBufferUpgrade device_cell=jj_s_pcell_34fb
+OK   | raw=XsjI6|J2           path=I6/J2           pid=J2     layout_cell=confluenceBufferUpgrade device_cell=jj_s_pcell_a806
+OK   | raw=XsjI6|J3           path=I6/J3           pid=J3     layout_cell=confluenceBufferUpgrade device_cell=jj_s_pcell_c4c3
+OK   | raw=XsjI6|J4           path=I6/J4           pid=J4     layout_cell=confluenceBufferUpgrade device_cell=jj_s_pcell_34fb
+OK   | raw=XsjI6|J5           path=I6/J5           pid=J5     layout_cell=confluenceBufferUpgrade device_cell=jj_s_pcell_a806
+OK   | raw=XsjI6|J6           path=I6/J6           pid=J6     layout_cell=confluenceBufferUpgrade device_cell=jj_s_pcell_c4c3
+OK   | raw=XsjI6|J7           path=I6/J7           pid=J7     layout_cell=confluenceBufferUpgrade device_cell=jj_s_pcell_34fb
+OK   | raw=XpcI0|IB1          path=I0/IB1          pid=IB1    layout_cell=NDROM2 device_cell=pwrcell_pcell_0bb1
+OK   | raw=XpcI0|IB2          path=I0/IB2          pid=IB2    layout_cell=NDROM2 device_cell=pwrcell_pcell_d53e
+OK   | raw=XpcI0|IB3          path=I0/IB3          pid=IB3    layout_cell=NDROM2 device_cell=pwrcell_pcell_0bb1
+OK   | raw=XpcI0|IB4          path=I0/IB4          pid=IB4    layout_cell=NDROM2 device_cell=pwrcell_pcell_a26d
+OK   | raw=XpcI0|IB6          path=I0/IB6          pid=IB6    layout_cell=NDROM2 device_cell=pwrcell_pcell_0bb1
+OK   | raw=XpcI0|IB5          path=I0/IB5          pid=IB5    layout_cell=NDROM2 device_cell=pwrcell_pcell_0bb1
+OK   | raw=XpcI12|IB1         path=I12/IB1         pid=IB1    layout_cell=NDROM2 device_cell=pwrcell_pcell_0bb1
+OK   | raw=XpcI12|IB2         path=I12/IB2         pid=IB2    layout_cell=NDROM2 device_cell=pwrcell_pcell_d53e
+OK   | raw=XpcI12|IB3         path=I12/IB3         pid=IB3    layout_cell=NDROM2 device_cell=pwrcell_pcell_0bb1
+OK   | raw=XpcI12|IB4         path=I12/IB4         pid=IB4    layout_cell=NDROM2 device_cell=pwrcell_pcell_a26d
+OK   | raw=XpcI12|IB6         path=I12/IB6         pid=IB6    layout_cell=NDROM2 device_cell=pwrcell_pcell_0bb1
+OK   | raw=XpcI12|IB5         path=I12/IB5         pid=IB5    layout_cell=NDROM2 device_cell=pwrcell_pcell_0bb1
+OK   | raw=XpcI6|IB1          path=I6/IB1          pid=IB1    layout_cell=confluenceBufferUpgrade device_cell=pwrcell_pcell_0bb1
+OK   | raw=XpcI6|IB2          path=I6/IB2          pid=IB2    layout_cell=confluenceBufferUpgrade device_cell=pwrcell_pcell_0bb1
+OK   | raw=XpcI6|IB3          path=I6/IB3          pid=IB3    layout_cell=confluenceBufferUpgrade device_cell=pwrcell_pcell_d864
+OK   | raw=XpcI6|IB4          path=I6/IB4          pid=IB4    layout_cell=confluenceBufferUpgrade device_cell=pwrcell_pcell_0bb1
 
 === SUMMARY ===
 Total logical elements: 85
