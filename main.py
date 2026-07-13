@@ -71,25 +71,51 @@ def main():
 
     
 if __name__ == "__main__":
-    
     parser = CDLParser()
 
     base_dir = Path(__file__).resolve().parent
 
-    netlist_path = base_dir / "test_files" / "BasicCellsHomemade_MultiplexerAmeli.sp"
-    map_file = base_dir / "layout_mapping_audit.txt"
+    netlist_path = (
+        base_dir
+        / "test_files"
+        / "BasicCellsHomemade_MultiplexerAmeli.sp"
+    )
+
+    ordered_elems_path = (
+        base_dir
+        / "ordered_elems.txt"
+    )
+
+    # This is the exact file loaded by the browser.
+    circuit_data_path = (
+        base_dir
+        / "UI"
+        / "circuit_data.js"
+    )
 
     circuit = parser.parse(netlist_path)
 
-    spice_data = parser.circuit_to_schematic_data(circuit)
+    spice_data = parser.circuit_to_schematic_data(
+        circuit
+    )
 
     schematic = Schematic(
         sp_file=netlist_path,
-        map_file=map_file
+        map_file=ordered_elems_path,
     )
 
-    ordered_components = schematic.read_ordered_components(spice_data)
+    ordered_components = (
+        schematic.read_ordered_components(
+            spice_data
+        )
+    )
 
-    for component in ordered_components:
-        print(component)
-    
+    print(
+        "Writing circuit data to:",
+        circuit_data_path.resolve(),
+    )
+
+    schematic.write_circuit_data(
+        ordered_components_file=ordered_elems_path,
+        output_file=circuit_data_path,
+    )

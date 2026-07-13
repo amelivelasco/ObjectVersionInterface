@@ -61,29 +61,49 @@ function buildOrderedLayout(elements) {
   const rows = Math.ceil(count / columns);
 
   const canvasWidth =
-    drawConfig.marginX * 2 + Math.max(0, columns - 1) * drawConfig.gapX;
+    drawConfig.marginX * 2 +
+    Math.max(0, columns - 1) * drawConfig.gapX;
 
   const canvasHeight =
-    drawConfig.marginY * 2 + Math.max(0, rows - 1) * drawConfig.gapY;
+    drawConfig.marginY * 2 +
+    Math.max(0, rows - 1) * drawConfig.gapY;
 
   const placed = elements.map((element, index) => {
     const row = Math.floor(index / columns);
     const indexInRow = index % columns;
 
-    const direction = row % 2 === 0 ? 1 : -1;
-    const col = direction === 1 ? indexInRow : columns - 1 - indexInRow;
+    /*
+     * Even rows run left-to-right.
+     * Odd rows run right-to-left.
+     */
+    const direction =
+      row % 2 === 0 ? 1 : -1;
 
-    const x = drawConfig.marginX + col * drawConfig.gapX;
-    const y = drawConfig.marginY + row * drawConfig.gapY;
+    const col =
+      direction === 1
+        ? indexInRow
+        : columns - 1 - indexInRow;
+
+    const x =
+      drawConfig.marginX +
+      col * drawConfig.gapX;
+
+    const y =
+      drawConfig.marginY +
+      row * drawConfig.gapY;
 
     const inputPin = {
-      x: x - direction * drawConfig.pinOffset,
+      x:
+        x -
+        direction * drawConfig.pinOffset,
       y,
       net: element.net_in,
     };
 
     const outputPin = {
-      x: x + direction * drawConfig.pinOffset,
+      x:
+        x +
+        direction * drawConfig.pinOffset,
       y,
       net: element.net_out,
     };
@@ -101,10 +121,31 @@ function buildOrderedLayout(elements) {
     };
   });
 
+  console.table(
+    placed.map((element) => ({
+      index: element.index,
+      path: element.path,
+      row: element.row,
+      visualColumn: element.col,
+      direction:
+        element.direction === 1
+          ? "left-to-right"
+          : "right-to-left",
+      x: element.x,
+      y: element.y,
+    }))
+  );
+
   return {
     placed,
-    canvasWidth: Math.max(900, canvasWidth),
-    canvasHeight: Math.max(550, canvasHeight),
+    canvasWidth: Math.max(
+      900,
+      canvasWidth
+    ),
+    canvasHeight: Math.max(
+      550,
+      canvasHeight
+    ),
   };
 }
 
@@ -219,53 +260,47 @@ function drawComponent(layer, element) {
   layer.appendChild(g);
 }
 
-function drawElementLocalWires(wireLayer, dotLayer, labelLayer, element) {
-  const imageInputEdge = {
-    x: element.x - element.direction * (drawConfig.imageSize / 2),
-    y: element.y,
-  };
+// function drawElementLocalWires(wireLayer, dotLayer, labelLayer, element) {
+//   const imageInputEdge = {
+//     x: element.x - element.direction * (drawConfig.imageSize / 2),
+//     y: element.y,
+//   };
 
-  const imageOutputEdge = {
-    x: element.x + element.direction * (drawConfig.imageSize / 2),
-    y: element.y,
-  };
+//   const imageOutputEdge = {
+//     x: element.x + element.direction * (drawConfig.imageSize / 2),
+//     y: element.y,
+//   };
 
-  drawLine(wireLayer, element.inputPin, imageInputEdge);
-  drawLine(wireLayer, imageOutputEdge, element.outputPin);
+//   drawLine(wireLayer, element.inputPin, imageInputEdge);
 
-  drawDot(dotLayer, element.inputPin);
+//   if (element.net_out === "GND!") {
+//     drawLine(wireLayer, element.outputPin, imageInputEdge);
+//   } else {
+//       drawLine(wireLayer, imageOutputEdge, element.outputPin);
+//   }
 
-  if (element.net_out === "GND!") {
-    drawDot(dotLayer, element.outputPin, {
-      radius: drawConfig.groundRadius,
-      fill: drawConfig.groundFill,
-      stroke: drawConfig.groundStroke,
-    });
-  } else {
-    drawDot(dotLayer, element.outputPin);
-  }
+//   drawLabel(
+//     labelLayer,
+//     element.net_in,
+//     element.inputPin.x,
+//     element.inputPin.y - 10,
+//     {
+//       size: "8.5px",
+//     }
+//   );
 
-  drawLabel(
-    labelLayer,
-    element.net_in,
-    element.inputPin.x,
-    element.inputPin.y - 10,
-    {
-      size: "8.5px",
-    }
-  );
+//   drawLabel(
+//     labelLayer,
+//     element.net_out,
+//     element.outputPin.x,
+//     element.outputPin.y + 16,
+//     {
+//       size: "8.5px",
+//       fill: element.net_out === "GND!" ? "#dc2626" : "#334155",
+//     }
+//   );
+// }
 
-  drawLabel(
-    labelLayer,
-    element.net_out,
-    element.outputPin.x,
-    element.outputPin.y + 16,
-    {
-      size: "8.5px",
-      fill: element.net_out === "GND!" ? "#dc2626" : "#334155",
-    }
-  );
-}
 
 function drawConnectionsBetweenOrderedElements(wireLayer, placed) {
   for (let i = 0; i < placed.length - 1; i++) {
@@ -383,11 +418,26 @@ function drawCircuit(data) {
   board.innerHTML = "";
 
   if (!data || !Array.isArray(data.elements)) {
-    board.textContent = "Circuit data is missing. Generate circuit_data.js first.";
+    board.textContent =
+      "Circuit data is missing. Generate circuit_data.js first.";
     return;
   }
 
-  const { placed, canvasWidth, canvasHeight } = buildOrderedLayout(data.elements);
+  console.table(
+    data.elements.map((element, index) => ({
+      index,
+      path: element.path,
+      type: element.type,
+      net_in: element.net_in,
+      net_out: element.net_out,
+    }))
+  );
+
+  const {
+    placed,
+    canvasWidth,
+    canvasHeight,
+  } = buildOrderedLayout(data.elements);
 
   const svg = createSvg(canvasWidth, canvasHeight);
   board.appendChild(svg);
@@ -402,10 +452,6 @@ function drawCircuit(data) {
   svg.appendChild(componentLayer);
   svg.appendChild(labelLayer);
 
-  placed.forEach((element) => {
-    drawElementLocalWires(wireLayer, dotLayer, labelLayer, element);
-  });
-
   drawConnectionsBetweenOrderedElements(wireLayer, placed);
 
   placed.forEach((element) => {
@@ -415,11 +461,41 @@ function drawCircuit(data) {
   setupPanZoom(svg, canvasWidth, canvasHeight);
 }
 
+
 window.addEventListener("DOMContentLoaded", () => {
-  if (window.circuitData) {
-    drawCircuit(window.circuitData);
-  } else {
-    const board = document.getElementById("drawing_board");
-    board.textContent = "Circuit data is missing. Generate circuit_data.js first.";
+  const board = document.getElementById("drawing_board");
+
+  if (
+    !window.circuitData ||
+    !Array.isArray(window.circuitData.elements)
+  ) {
+    board.textContent =
+      "Circuit data is missing. Generate circuit_data.js first.";
+    return;
   }
+
+  console.table(
+    window.circuitData.elements.map((element, index) => ({
+      index,
+      id: element.id,
+      raw: element.raw,
+      path: element.path,
+      pid: element.pid,
+      layout_cell: element.layout_cell,
+      type: element.type,
+      net_in: element.net_in,
+      net_out: element.net_out,
+      image: element.image,
+    }))
+  );
+
+  console.log(
+    [...document.scripts]
+      .map((script) => script.src)
+      .filter((src) => src.includes("circuit_data"))
+  );
+
+  console.log("First loaded element:", window.circuitData?.elements?.[0]);
+
+  drawCircuit(window.circuitData);
 });

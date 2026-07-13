@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pathlib import Path
 import re
 import json
@@ -11,22 +12,36 @@ class Schematic:
 
     def parse_mapping_line(self, line):
         pattern = (
-            r"raw=(?P<raw>\S+)\s+"
-            r"path=(?P<path>\S+)\s+"
-            r"pid=(?P<pid>\S+)\s+"
-            r"layout_cell=(?P<layout_cell>\S+)"
+            r"^\s*CircuitComponent\(\s*"
+            r"raw=(?P<raw>[^,]+),\s*"
+            r"path=(?P<path>[^,]+),\s*"
+            r"pid=(?P<pid>[^,]+),\s*"
+            r"layout_cell=(?P<layout_cell>[^,]+),\s*"
+            r"net_in=(?P<net_in>[^,]+),\s*"
+            r"net_out=(?P<net_out>[^)]+)"
+            r"\s*\)\s*$"
         )
 
-        match = re.search(pattern, line)
+        match = re.match(pattern, line)
 
         if not match:
             return None
 
+        def clean_value(value):
+            value = value.strip()
+
+            if value in {"None", "null", ""}:
+                return None
+
+            return value
+
         return {
-            "raw": match.group("raw"),
-            "path": match.group("path"),
-            "pid": match.group("pid"),
-            "layout_cell": match.group("layout_cell"),
+            "raw": clean_value(match.group("raw")),
+            "path": clean_value(match.group("path")),
+            "pid": clean_value(match.group("pid")),
+            "layout_cell": clean_value(match.group("layout_cell")),
+            "net_in": clean_value(match.group("net_in")),
+            "net_out": clean_value(match.group("net_out")),
         }
 
     def insert_component_by_net(self, ordered_components, new_component):
@@ -49,8 +64,12 @@ class Schematic:
     
     def read_ordered_components(self, spice_data):
         if not self.map_file.exists():
-            raise FileNotFoundError(f"Mapping audit file not found: {self.map_file}")
+            raise FileNotFoundError(
+                f"Ordered elements file not found: {self.map_file}"
+            )
 
+        # Used only as a fallback when net information is missing
+        # from an ordered_elems.txt entry.
         net_lookup = {
             element["id"]: {
                 "net_in": element.get("net_in"),
@@ -59,131 +78,47 @@ class Schematic:
             for element in spice_data["elements"]
         }
 
-        components = []
+        ordered_components = []
 
-        with self.map_file.open("r", encoding="utf-8") as f:
-            for line in f:
+        with self.map_file.open("r", encoding="utf-8") as file:
+            for line_number, line in enumerate(file, start=1):
+                line = line.strip()
+
+                if not line:
+                    continue
+
                 parsed = self.parse_mapping_line(line)
 
                 if parsed is None:
-                    continue
+                    raise ValueError(
+                        f"Invalid ordered element on line {line_number}: {line}"
+                    )
 
                 raw = parsed["raw"]
-                net_info = net_lookup.get(raw, {})
+                fallback_nets = net_lookup.get(raw, {})
+
+                net_in = parsed["net_in"]
+
+                if net_in is None:
+                    net_in = fallback_nets.get("net_in")
+
+                net_out = parsed["net_out"]
+
+                if net_out is None:
+                    net_out = fallback_nets.get("net_out")
 
                 component = CircuitComponent(
                     raw=raw,
                     path=parsed["path"],
                     pid=parsed["pid"],
                     layout_cell=parsed["layout_cell"],
-                    net_in=net_info.get("net_in"),
-                    net_out=net_info.get("net_out"),
+                    net_in=net_in,
+                    net_out=net_out,
                 )
 
-                component.original_index = len(components)
-                components.append(component)
+                component.original_index = len(ordered_components)
 
-        remaining = components[:]
-        ordered_components = []
-
-        def component_group(component):
-            """
-            path=I0/L1   -> I0
-            path=I12/J5  -> I12
-            path=I6/IB1  -> I6
-            """
-            path = str(component.path)
-
-            if "/" in path:
-                return path.split("/", 1)[0]
-
-            return "TOP"
-
-        def has_next(component):
-            """
-            True if this component's output can continue into another component.
-            """
-            return any(
-                other.net_in == component.net_out
-                for other in remaining
-                if other is not component
-            )
-
-        def choose_chain_start():
-            """
-            Pick an element whose net_in is not produced by another remaining element.
-            Example starts:
-                VDD -> I0|net4
-                Sel1 -> I0|net119
-                S1 -> I0|net110
-                net4 -> I6|net27
-            """
-            output_nets = {
-                component.net_out
-                for component in remaining
-                if component.net_out is not None
-            }
-
-            possible_starts = [
-                component
-                for component in remaining
-                if component.net_in not in output_nets
-            ]
-
-            if not possible_starts:
-                possible_starts = remaining
-
-            possible_starts.sort(
-                key=lambda component: component.original_index
-            )
-
-            return possible_starts[0]
-
-        def choose_next(current_component, candidates):
-            """
-            Choose the best next component where:
-                current_component.net_out == candidate.net_in
-            """
-
-            current_group = component_group(current_component)
-
-            def score(candidate):
-                candidate_group = component_group(candidate)
-
-                same_group_score = 0 if candidate_group == current_group else 1
-                continuation_score = 0 if has_next(candidate) else 1
-                original_index_score = candidate.original_index
-
-                return (
-                    same_group_score,
-                    continuation_score,
-                    original_index_score,
-                )
-
-            candidates.sort(key=score)
-            return candidates[0]
-
-        while remaining:
-            current = choose_chain_start()
-            remaining.remove(current)
-            ordered_components.append(current)
-
-            while True:
-                candidates = [
-                    component
-                    for component in remaining
-                    if component.net_in == current.net_out
-                ]
-
-                if not candidates:
-                    break
-
-                next_component = choose_next(current, candidates)
-
-                remaining.remove(next_component)
-                ordered_components.append(next_component)
-
-                current = next_component
+                ordered_components.append(component)
 
         return ordered_components
     
@@ -206,19 +141,83 @@ class Schematic:
         component_type = self.get_component_type(component)
 
         relations = {
-            "L": "img/ind_draw.png",
-            "JJ": "img/jj_draw.png",
-            "IB": "img/biais_draw.png",
+            "L": "../img/ind_draw.png",
+            "JJ": "../img/jj_draw.png",
+            "IB": "../img/biais_draw.png",
         }
 
         return relations.get(component_type, "")
 
+    def load_ordered_components_file(self, ordered_components_file):
+        ordered_components_file = Path(ordered_components_file)
 
-    def write_circuit_data(self, ordered_components, output_file):
+        if not ordered_components_file.exists():
+            raise FileNotFoundError(
+                f"Ordered components file not found: "
+                f"{ordered_components_file.resolve()}"
+            )
+
+        ordered_components = []
+
+        with ordered_components_file.open(
+            "r",
+            encoding="utf-8",
+        ) as file:
+            for line_number, line in enumerate(file, start=1):
+                line = line.strip()
+
+                if not line:
+                    continue
+
+                parsed = self.parse_mapping_line(line)
+
+                if parsed is None:
+                    raise ValueError(
+                        f"Invalid component on line {line_number}: {line}"
+                    )
+
+                component = CircuitComponent(
+                    raw=parsed["raw"],
+                    path=parsed["path"],
+                    pid=parsed["pid"],
+                    layout_cell=parsed["layout_cell"],
+                    net_in=parsed["net_in"],
+                    net_out=parsed["net_out"],
+                )
+
+                ordered_components.append(component)
+        return ordered_components
+
+
+    def write_circuit_data(
+        self,
+        ordered_components_file,
+        output_file,
+    ):
+        ordered_components_file = Path(
+            ordered_components_file
+        )
+
         output_file = Path(output_file)
 
-        elements = []
+        if not ordered_components_file.exists():
+            raise FileNotFoundError(
+                f"Ordered components file not found: "
+                f"{ordered_components_file.resolve()}"
+            )
 
+        ordered_components = (
+            self.load_ordered_components_file(
+                ordered_components_file
+            )
+        )
+
+        print(
+            "Number of ordered components loaded:",
+            len(ordered_components),
+        )
+
+        elements = []
         nodes_seen = set()
         nodes = []
 
@@ -228,16 +227,30 @@ class Schematic:
 
             if net not in nodes_seen:
                 nodes_seen.add(net)
+
                 nodes.append({
                     "id": net,
                     "label": net,
                 })
 
-        for component in ordered_components:
+        for index, component in enumerate(
+            ordered_components
+        ):
+            print(
+                index,
+                component.path,
+                component.raw,
+                component.net_in,
+                "->",
+                component.net_out,
+            )
+
             add_node(component.net_in)
             add_node(component.net_out)
 
-            component_type = self.get_component_type(component)
+            component_type = self.get_component_type(
+                component
+            )
 
             elements.append({
                 "id": component.raw,
@@ -248,23 +261,38 @@ class Schematic:
                 "type": component_type,
                 "net_in": component.net_in,
                 "net_out": component.net_out,
-                "image": self.get_component_image(component),
+                "image": self.get_component_image(
+                    component
+                ),
             })
 
         data = {
-            "name": self.sp_file.stem,
+            "name": ordered_components_file.stem,
+            "generated_at": datetime.now(
+                timezone.utc
+            ).isoformat(),
             "nodes": nodes,
             "elements": elements,
         }
 
         js_text = "window.circuitData = "
-        js_text += json.dumps(data, indent=2)
+        js_text += json.dumps(
+            data,
+            indent=2,
+        )
         js_text += ";\n"
 
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        output_file.write_text(js_text, encoding="utf-8")
+        output_file.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
 
-        print(f"Circuit data written to: {output_file}")
-            
-                            
-        
+        output_file.write_text(
+            js_text,
+            encoding="utf-8",
+        )
+
+        print(
+            f"Circuit data written to: "
+            f"{output_file.resolve()}"
+        )
