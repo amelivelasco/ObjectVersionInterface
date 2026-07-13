@@ -1,3 +1,4 @@
+generated_at: 2026-07-13T14:45:53.479357+00:00
 CircuitComponent(raw=LI0|L1, path=I0/L1, pid=L1, layout_cell=ind2_pcell_030f, net_in=Sel2, net_out=I0|net4)
 CircuitComponent(raw=LI0|L2, path=I0/L2, pid=L2, layout_cell=ind2_pcell_4bca, net_in=I0|net4, net_out=I0|net136)
 CircuitComponent(raw=XsjI0|J2, path=I0/J2, pid=J2, layout_cell=jj_s_pcell_e6a0, net_in=I0|net136, net_out=I0|net140)
@@ -11,7 +12,7 @@ CircuitComponent(raw=LI0|L12, path=I0/L12, pid=L12, layout_cell=ind2_pcell_bad2,
 CircuitComponent(raw=LI6|L4, path=I6/L4, pid=L4, layout_cell=ind2_pcell_25cf, net_in=net4, net_out=I6|net27)
 CircuitComponent(raw=LI6|L5, path=I6/L5, pid=L5, layout_cell=ind2_pcell_56ef, net_in=I6|net27, net_out=I6|net58)
 CircuitComponent(raw=LI6|L22, path=I6/L22, pid=L22, layout_cell=ind2_pcell_04ec, net_in=I6|net58, net_out=I6|net30)
-CircuitComponent(raw=XsjI6|J6, path=I6/J6, pid=J6, layout_cell=jj_s_pcell_c4c3, net_in=I6|net30, net_out=I6|net38) 
+CircuitComponent(raw=XsjI6|J6, path=I6/J6, pid=J6, layout_cell=jj_s_pcell_c4c3, net_in=I6|net30, net_out=I6|net38)
 CircuitComponent(raw=LI6|L6, path=I6/L6, pid=L6, layout_cell=ind2_pcell_0bba, net_in=I6|net38, net_out=I6|net37)
 CircuitComponent(raw=LI6|L7, path=I6/L7, pid=L7, layout_cell=ind2_pcell_8d2b, net_in=I6|net37, net_out=I6|net52)
 CircuitComponent(raw=LI6|L8, path=I6/L8, pid=L8, layout_cell=ind2_pcell_4dd2, net_in=I6|net52, net_out=O1)

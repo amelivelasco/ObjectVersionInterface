@@ -7,7 +7,7 @@ const drawConfig = {
   gapX: 135,
   gapY: 105,
 
-  pinOffset: 48,
+  pinOffset: 22,
 
   wireStroke: "#475569",
   wireStrokeWidth: 2,

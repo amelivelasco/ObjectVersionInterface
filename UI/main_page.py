@@ -86,6 +86,9 @@ class Schematic:
 
                 if not line:
                     continue
+                
+                if line.startswith("generated_at:"):
+                    continue
 
                 parsed = self.parse_mapping_line(line)
 
@@ -163,7 +166,8 @@ class Schematic:
             "r",
             encoding="utf-8",
         ) as file:
-            for line_number, line in enumerate(file, start=1):
+            next(file, None)
+            for line_number, line in enumerate(file, start=2):
                 line = line.strip()
 
                 if not line:

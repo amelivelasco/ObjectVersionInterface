@@ -6,7 +6,7 @@ from exporters.InductexExporter import InductexExporter
 from parser.cdl_parser import CDLParser
 import pya
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Class description:
 # Here is the logic of the main function:
@@ -93,6 +93,7 @@ if __name__ == "__main__":
         / "circuit_data.js"
     )
 
+
     circuit = parser.parse(netlist_path)
 
     spice_data = parser.circuit_to_schematic_data(
@@ -114,6 +115,25 @@ if __name__ == "__main__":
         "Writing circuit data to:",
         circuit_data_path.resolve(),
     )
+    
+    with open(
+        ordered_elems_path,
+        "w",
+        encoding="utf-8",
+    ) as file:
+        generated_at = datetime.now(
+            timezone.utc
+        ).isoformat()
+
+        file.write(
+            f"generated_at: {generated_at}\n"
+        )
+
+        for component in ordered_components:
+            file.write(f"{component}\n")
+
+    for component in ordered_components:
+        print(component)
 
     schematic.write_circuit_data(
         ordered_components_file=ordered_elems_path,
