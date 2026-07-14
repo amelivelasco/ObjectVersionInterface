@@ -13,7 +13,7 @@ function drawPath(layer, a, b, options = {}) {
   layer.appendChild(path);
 }
 
-function drawLine(layer, a, b, options = {}) {
+function drawLine(lineLayer, labelLayer, element, a, b, options = {}) {
   const line = createSvgElement("line", {
     x1: a.x,
     y1: a.y,
@@ -25,7 +25,7 @@ function drawLine(layer, a, b, options = {}) {
     class: "edge",
   });
 
-  layer.appendChild(line);
+  lineLayer.appendChild(line);
 }
 
 function drawDot(layer, point, options = {}) {
@@ -41,7 +41,7 @@ function drawDot(layer, point, options = {}) {
   layer.appendChild(dot);
 }
 
-function drawLabel(layer, text, x, y, options = {}) {
+function drawLabel(labelLayer, text, x, y, options = {}) {
   if (!text) {
     return;
   }
@@ -50,15 +50,23 @@ function drawLabel(layer, text, x, y, options = {}) {
     x,
     y,
     "text-anchor": options.anchor || "middle",
+    "dominant-baseline": "middle",
     "font-family": drawConfig.fontFamily,
     "font-size": options.size || "9px",
     fill: options.fill || "#334155",
+
+    // White outline hides the wire behind the text.
+    stroke: options.background || "#ffffff",
+    "stroke-width": options.backgroundWidth || 4,
+    "paint-order": "stroke",
+    "stroke-linejoin": "round",
+
+    class: "net-label",
   });
 
   label.textContent = text;
-  layer.appendChild(label);
+  labelLayer.appendChild(label);
 }
-
 
 function drawComponent(layer, element) {
   const g = createSvgElement("g", {
@@ -87,7 +95,7 @@ function drawComponent(layer, element) {
       `rotate(90 ${element.x} ${element.y})`
     );
   }
-  
+
   const title = createSvgElement("title");
   title.textContent = [
     element.raw || element.id,
@@ -183,7 +191,7 @@ function drawCircuit(data) {
 
   drawConnectionsBetweenOrderedElements(wireLayer, placed);
 
-  drawSubcircuits(placed, componentLayer, wireLayer)
+  drawSubcircuits(placed, componentLayer, wireLayer, labelLayer)
 
   // placed.forEach((element) => {
   //   drawComponent(componentLayer, element);
@@ -193,7 +201,9 @@ function drawCircuit(data) {
 }
 
 function drawHangerLine(
-    layer,
+    lineLayer,
+    labelLayer,
+    element, 
     a,
     b,
     options = {}
@@ -212,7 +222,9 @@ function drawHangerLine(
 
     // Short vertical line upward.
     drawLine(
-        layer,
+        lineLayer,
+        labelLayer,
+        element,
         a,
         topLeft,
         options
@@ -220,7 +232,9 @@ function drawHangerLine(
 
     // Longer horizontal line.
     drawLine(
-        layer,
+        lineLayer,
+        labelLayer,
+        element,
         topLeft,
         topRight,
         options
@@ -228,14 +242,30 @@ function drawHangerLine(
 
     // Short vertical line downward.
     drawLine(
-        layer,
+        lineLayer,
+        labelLayer,
+        element,
         topRight,
         b,
         options
     );
+
+    const labelX = (topLeft.x + topRight.x) / 2;
+    const labelY = topLeft.y;
+
+    drawLabel(
+      labelLayer,
+      options.label,
+      labelX,
+      labelY,
+      {
+        size: "8.5px",
+        fill: options.labelFill || "#334155",
+      }
+    );
 }
 
-function drawSubcircuits(placed, componentLayer, wireLayer) {
+function drawSubcircuits(placed, componentLayer, wireLayer, labelLayer) {
   for (let i = 0; i < placed.length; i++) {
     const current = placed[i];
     const next = placed[i + 1];
@@ -274,10 +304,13 @@ function drawSubcircuits(placed, componentLayer, wireLayer) {
       // Upper hanger
       drawHangerLine(
         wireLayer,
+        labelLayer,
+        current,
         jjComponent.top,
         resistorComponent.top,
         {
           rise: 25,
+          label: current.net_in,
         }
       );
 
@@ -285,10 +318,17 @@ function drawSubcircuits(placed, componentLayer, wireLayer) {
       // A negative rise makes the hanger extend downward.
       drawHangerLine(
         wireLayer,
+        labelLayer,
+        current,
         jjComponent.bottom,
         resistorComponent.bottom,
         {
           rise: -25,
+          label: current.net_out,
+          labelFill:
+            current.net_out === "GND!"
+              ? "#dc2626"
+              : "#334155",
         }
       );
 
@@ -301,6 +341,48 @@ function drawSubcircuits(placed, componentLayer, wireLayer) {
     drawComponent(componentLayer, current);
   }
 }
+
+
+// function drawGroundWires(wireLayer, dotLayer, labelLayer, element) {
+//   const imageInputEdge = {
+//     x: element.x - element.direction * (drawConfig.imageSize / 2),
+//     y: element.y,
+//   };
+
+//   const imageOutputEdge = {
+//     x: element.x + element.direction * (drawConfig.imageSize / 2),
+//     y: element.y,
+//   };
+
+//   drawLine(wireLayer, element.inputPin, imageInputEdge);
+
+//   if (element.net_out === "GND!") {
+//     drawLine(wireLayer, element.outputPin, imageInputEdge);
+//   } else {
+//       drawLine(wireLayer, imageOutputEdge, element.outputPin);
+//   }
+
+//   drawLabel(
+//     labelLayer,
+//     element.net_in,
+//     element.inputPin.x,
+//     element.inputPin.y - 10,
+//     {
+//       size: "8.5px",
+//     }
+//   );
+
+//   drawLabel(
+//     labelLayer,
+//     element.net_out,
+//     element.outputPin.x,
+//     element.outputPin.y + 16,
+//     {
+//       size: "8.5px",
+//       fill: element.net_out === "GND!" ? "#dc2626" : "#334155",
+//     }
+//   );
+// }
 
 
 window.addEventListener("DOMContentLoaded", () => {
