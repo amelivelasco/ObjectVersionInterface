@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import re
 import json
+from UI.layout_instance import LayoutInstance
 from UI.circuit_component import CircuitComponent
 
 
@@ -9,6 +10,7 @@ class Schematic:
     def __init__(self, sp_file, map_file):
         self.sp_file = Path(sp_file)
         self.map_file = Path(map_file)
+    
 
     def parse_mapping_line(self, line):
         pattern = (
@@ -34,7 +36,7 @@ class Schematic:
                 return None
 
             return value
-
+            
         return {
             "raw": clean_value(match.group("raw")),
             "path": clean_value(match.group("path")),
@@ -60,8 +62,40 @@ class Schematic:
             ordered_components.append(new_component)
         else:
             ordered_components.insert(best_index + 1, new_component)
-
+            
     
+    def handle_layout_cell(self, layout_cells, component):
+        existing_layout = next(
+            (
+                layout
+                for layout in layout_cells
+                if layout.layout_cell == component.layout_cell
+            ),
+            None,
+        )
+
+        if existing_layout is None:
+            # This layout cell has not been created yet.
+            new_layout_cell = LayoutInstance(
+                layout_cell=component.layout_cell,
+                net_in=component.net_in,
+                net_out=component.net_out,
+                elements=[component],
+            )
+
+            layout_cells.append(new_layout_cell)
+
+        else:
+            # Add the component to the existing layout cell.
+            existing_layout.elements.append(component)
+
+            # Keep the layout boundaries updated.
+            if existing_layout.net_in is None:
+                existing_layout.net_in = component.net_in
+
+            existing_layout.net_out = component.net_out
+        
+
     def read_ordered_components(self, spice_data):
         if not self.map_file.exists():
             raise FileNotFoundError(
@@ -79,6 +113,7 @@ class Schematic:
         }
 
         ordered_components = []
+        layout_cells = []
 
         with self.map_file.open("r", encoding="utf-8") as file:
             for line_number, line in enumerate(file, start=1):
@@ -96,6 +131,7 @@ class Schematic:
                     raise ValueError(
                         f"Invalid ordered element on line {line_number}: {line}"
                     )
+                
                 raw = parsed["raw"]
                 fallback_nets = net_lookup.get(raw, {})
 
@@ -109,6 +145,7 @@ class Schematic:
                 if net_out is None:
                     net_out = fallback_nets.get("net_out")
 
+
                 component = CircuitComponent(
                     raw=raw,
                     path=parsed["path"],
@@ -117,10 +154,34 @@ class Schematic:
                     net_in=net_in,
                     net_out=net_out,
                 )
-
+                
+                self.handle_layout_cell(
+                    layout_cells,
+                    component,
+                )
+                
                 component.original_index = len(ordered_components)
 
                 ordered_components.append(component)
+            
+        for cell in layout_cells:
+            print(
+                f"\nLayout cell: "
+                f"{cell.layout_cell}"
+            )
+
+            print(
+                f"Net in: {cell.net_in}"
+            )
+
+            print(
+                f"Net out: {cell.net_out}"
+            )
+
+            for element in cell.elements:
+                print(
+                    f"  - {element.raw}"
+                )
 
         return ordered_components
     

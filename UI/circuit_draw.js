@@ -227,10 +227,6 @@ function drawCircuit(data) {
 
   drawSubcircuits(placed, componentLayer, wireLayer, labelLayer)
 
-  // placed.forEach((element) => {
-  //   drawComponent(componentLayer, element);
-  // });
-
   setupPanZoom(svg, canvasWidth, canvasHeight);
 }
 
@@ -299,6 +295,55 @@ function drawHangerLine(
     );
 }
 
+function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
+      const jjComponent = drawComponent(
+          componentLayer,
+          current
+        );
+
+        const resistorComponent = drawComponent(
+          componentLayer,
+          next
+        );
+
+        // Upper hanger
+        drawHangerLine(
+          wireLayer,
+          labelLayer,
+          current,
+          jjComponent.top,
+          resistorComponent.top,
+          {
+            rise: 25,
+            label: current.net_in,
+          }
+        );
+
+        // Lower hanger
+        // A negative rise makes the hanger extend downward.
+        drawHangerLine(
+          wireLayer,
+          labelLayer,
+          current,
+          jjComponent.bottom,
+          resistorComponent.bottom,
+          {
+            rise: -25,
+            label: current.net_out,
+            labelFill:
+              current.net_out === "GND!"
+                ? "#dc2626"
+                : "#334155",
+          }
+        );
+}
+
+function groupByLayoutInst(current, next, componentLayer, wireLayer, labelLayer) {
+  
+}
+
+
+
 function drawSubcircuits(placed, componentLayer, wireLayer, labelLayer) {
   for (let i = 0; i < placed.length; i++) {
     const current = placed[i];
@@ -314,64 +359,21 @@ function drawSubcircuits(placed, componentLayer, wireLayer, labelLayer) {
         : next?.type;
 
     const isJJResistorPair =
-      currentType === "JJ" &&
-      nextType === "R" &&
-      (
-        next.source_component === current.id ||
+        currentType === "JJ" &&
+        nextType === "R" &&
         (
-          next.path === current.path &&
-          next.pid === current.pid
-        )
-      );
+          next.source_component === current.id ||
+          (
+            next.path === current.path &&
+            next.pid === current.pid
+          )
+        );
 
     if (isJJResistorPair) {
-      const jjComponent = drawComponent(
-        componentLayer,
-        current
-      );
-
-      const resistorComponent = drawComponent(
-        componentLayer,
-        next
-      );
-
-      // Upper hanger
-      drawHangerLine(
-        wireLayer,
-        labelLayer,
-        current,
-        jjComponent.top,
-        resistorComponent.top,
-        {
-          rise: 25,
-          label: current.net_in,
-        }
-      );
-
-      // Lower hanger
-      // A negative rise makes the hanger extend downward.
-      drawHangerLine(
-        wireLayer,
-        labelLayer,
-        current,
-        jjComponent.bottom,
-        resistorComponent.bottom,
-        {
-          rise: -25,
-          label: current.net_out,
-          labelFill:
-            current.net_out === "GND!"
-              ? "#dc2626"
-              : "#334155",
-        }
-      );
-
-      // The resistor at placed[i + 1] was already drawn.
-      i++;
-
-      continue;
+          drawJRpairs(current, next, componentLayer, wireLayer, labelLayer)
+        i++;
+        continue;
     }
-
     drawComponent(componentLayer, current);
   }
 }
