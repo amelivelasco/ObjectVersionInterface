@@ -80,6 +80,14 @@ function drawComponent(layer, element) {
       `rotate(180 ${element.x} ${element.y})`
     );
   }
+
+  if (element.type[0] === "R") {
+    image.setAttribute(
+      "transform",
+      `rotate(90 ${element.x} ${element.y})`
+    );
+  }
+  
   const title = createSvgElement("title");
   title.textContent = [
     element.raw || element.id,
@@ -93,7 +101,33 @@ function drawComponent(layer, element) {
   g.appendChild(title);
   g.appendChild(image);
 
+  const halfSize = drawConfig.imageSize / 2;
+
   layer.appendChild(g);
+  return {
+    group: g,
+    image,
+    center: {
+      x: element.x,
+      y: element.y,
+    },
+    top: {
+      x: element.x,
+      y: element.y - halfSize,
+    },
+    bottom: {
+      x: element.x,
+      y: element.y + halfSize,
+    },
+    left: {
+      x: element.x - halfSize,
+      y: element.y,
+    },
+    right: {
+      x: element.x + halfSize,
+      y: element.y,
+    },
+  };
 }
 
 
@@ -149,9 +183,11 @@ function drawCircuit(data) {
 
   drawConnectionsBetweenOrderedElements(wireLayer, placed);
 
-  placed.forEach((element) => {
-    drawComponent(componentLayer, element);
-  });
+  drawSubcircuits(placed, componentLayer, wireLayer)
+
+  // placed.forEach((element) => {
+  //   drawComponent(componentLayer, element);
+  // });
 
   setupPanZoom(svg, canvasWidth, canvasHeight);
 }
@@ -199,11 +235,71 @@ function drawHangerLine(
     );
 }
 
-function makeJJSubcircuit(componentLayer, element, wireLayer) {
-    if (element.type === "JJ") {
-        drawComponent(componentLayer, element)
-        drawHangerLine(wireLayer, )
+function drawSubcircuits(placed, componentLayer, wireLayer) {
+  for (let i = 0; i < placed.length; i++) {
+    const current = placed[i];
+    const next = placed[i + 1];
+
+    const currentType = Array.isArray(current.type)
+      ? current.type[0]
+      : current.type;
+
+    const nextType =
+      next && Array.isArray(next.type)
+        ? next.type[0]
+        : next?.type;
+
+    const isJJResistorPair =
+      currentType === "JJ" &&
+      nextType === "R" &&
+      (
+        next.source_component === current.id ||
+        (
+          next.path === current.path &&
+          next.pid === current.pid
+        )
+      );
+
+    if (isJJResistorPair) {
+      const jjComponent = drawComponent(
+        componentLayer,
+        current
+      );
+
+      const resistorComponent = drawComponent(
+        componentLayer,
+        next
+      );
+
+      // Upper hanger
+      drawHangerLine(
+        wireLayer,
+        jjComponent.top,
+        resistorComponent.top,
+        {
+          rise: 25,
+        }
+      );
+
+      // Lower hanger
+      // A negative rise makes the hanger extend downward.
+      drawHangerLine(
+        wireLayer,
+        jjComponent.bottom,
+        resistorComponent.bottom,
+        {
+          rise: -25,
+        }
+      );
+
+      // The resistor at placed[i + 1] was already drawn.
+      i++;
+
+      continue;
     }
+
+    drawComponent(componentLayer, current);
+  }
 }
 
 
