@@ -139,13 +139,47 @@ function drawComponent(layer, element) {
 }
 
 
-function drawConnectionsBetweenOrderedElements(wireLayer, placed) {
+function drawConnectionsBetweenOrderedElements(
+  wireLayer,
+  labelLayer,
+  placed
+) {
   for (let i = 0; i < placed.length - 1; i++) {
     const current = placed[i];
     const next = placed[i + 1];
 
-    if (current.net_out && current.net_out === next.net_in) {
-      drawPath(wireLayer, current.outputPin, next.inputPin);
+    if (
+      current.net_out &&
+      current.net_out === next.net_in
+    ) {
+      const a = current.outputPin;
+      const b = next.inputPin;
+
+      drawPath(
+        wireLayer,
+        a,
+        b
+      );
+
+      const middleY = (a.y + b.y) / 2;
+
+      // Center of the long horizontal wire.
+      const labelX = (a.x + b.x) / 2;
+      const labelY = middleY;
+
+      drawLabel(
+        labelLayer,
+        current.net_out,
+        labelX,
+        labelY,
+        {
+          size: "8.5px",
+          fill:
+            current.net_out === "GND!"
+              ? "#dc2626"
+              : "#334155",
+        }
+      );
     }
   }
 }
@@ -189,7 +223,7 @@ function drawCircuit(data) {
   svg.appendChild(componentLayer);
   svg.appendChild(labelLayer);
 
-  drawConnectionsBetweenOrderedElements(wireLayer, placed);
+  drawConnectionsBetweenOrderedElements(wireLayer, labelLayer, placed);
 
   drawSubcircuits(placed, componentLayer, wireLayer, labelLayer)
 
@@ -341,49 +375,6 @@ function drawSubcircuits(placed, componentLayer, wireLayer, labelLayer) {
     drawComponent(componentLayer, current);
   }
 }
-
-
-// function drawGroundWires(wireLayer, dotLayer, labelLayer, element) {
-//   const imageInputEdge = {
-//     x: element.x - element.direction * (drawConfig.imageSize / 2),
-//     y: element.y,
-//   };
-
-//   const imageOutputEdge = {
-//     x: element.x + element.direction * (drawConfig.imageSize / 2),
-//     y: element.y,
-//   };
-
-//   drawLine(wireLayer, element.inputPin, imageInputEdge);
-
-//   if (element.net_out === "GND!") {
-//     drawLine(wireLayer, element.outputPin, imageInputEdge);
-//   } else {
-//       drawLine(wireLayer, imageOutputEdge, element.outputPin);
-//   }
-
-//   drawLabel(
-//     labelLayer,
-//     element.net_in,
-//     element.inputPin.x,
-//     element.inputPin.y - 10,
-//     {
-//       size: "8.5px",
-//     }
-//   );
-
-//   drawLabel(
-//     labelLayer,
-//     element.net_out,
-//     element.outputPin.x,
-//     element.outputPin.y + 16,
-//     {
-//       size: "8.5px",
-//       fill: element.net_out === "GND!" ? "#dc2626" : "#334155",
-//     }
-//   );
-// }
-
 
 window.addEventListener("DOMContentLoaded", () => {
   const board = document.getElementById("drawing_board");

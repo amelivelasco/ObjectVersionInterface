@@ -150,16 +150,14 @@ function buildOrderedLayout(elements) {
 }
 
 function orthogonalPath(a, b) {
-  const dx = Math.abs(b.x - a.x);
-  const dy = Math.abs(b.y - a.y);
+  const middleY = (a.y + b.y) / 2;
 
-  if (dx >= dy) {
-    const midX = (a.x + b.x) / 2;
-    return `M ${a.x} ${a.y} L ${midX} ${a.y} L ${midX} ${b.y} L ${b.x} ${b.y}`;
-  }
-
-  const midY = (a.y + b.y) / 2;
-  return `M ${a.x} ${a.y} L ${a.x} ${midY} L ${b.x} ${midY} L ${b.x} ${b.y}`;
+  return [
+    `M ${a.x} ${a.y}`,
+    `V ${middleY}`,
+    `H ${b.x}`,
+    `V ${b.y}`,
+  ].join(" ");
 }
 
 // function drawElementLocalWires(wireLayer, dotLayer, labelLayer, element) {
