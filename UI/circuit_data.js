@@ -1,6 +1,6 @@
 window.circuitData = {
   "name": "ordered_elems",
-  "generated_at": "2026-07-13T15:41:31.768885+00:00",
+  "generated_at": "2026-07-14T08:57:31.946131+00:00",
   "nodes": [
     {
       "id": "Sel2",
@@ -214,7 +214,10 @@ window.circuitData = {
       "path": "I0/L1",
       "pid": "L1",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "Sel2",
       "net_out": "I0|net4",
       "image": "../img/ind_draw.png"
@@ -225,7 +228,10 @@ window.circuitData = {
       "path": "I0/L2",
       "pid": "L2",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I0|net4",
       "net_out": "I0|net136",
       "image": "../img/ind_draw.png"
@@ -236,10 +242,27 @@ window.circuitData = {
       "path": "I0/J2",
       "pid": "J2",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I0|net136",
       "net_out": "I0|net140",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI0|J2",
+      "raw": "RI0|J2",
+      "path": "I0/J2",
+      "pid": "J2",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I0|net136",
+      "net_out": "I0|net140",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "LI0|L74",
@@ -247,7 +270,10 @@ window.circuitData = {
       "path": "I0/L74",
       "pid": "L74",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I0|net140",
       "net_out": "I0|net137",
       "image": "../img/ind_draw.png"
@@ -258,7 +284,10 @@ window.circuitData = {
       "path": "I0/L3",
       "pid": "L3",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I0|net137",
       "net_out": "I0|net138",
       "image": "../img/ind_draw.png"
@@ -269,10 +298,27 @@ window.circuitData = {
       "path": "I0/J7",
       "pid": "J7",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I0|net138",
       "net_out": "I0|net121",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI0|J7",
+      "raw": "RI0|J7",
+      "path": "I0/J7",
+      "pid": "J7",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I0|net138",
+      "net_out": "I0|net121",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "LI0|L7",
@@ -280,7 +326,10 @@ window.circuitData = {
       "path": "I0/L7",
       "pid": "L7",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I0|net121",
       "net_out": "I0|net100",
       "image": "../img/ind_draw.png"
@@ -291,7 +340,10 @@ window.circuitData = {
       "path": "I0/L8",
       "pid": "L8",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I0|net100",
       "net_out": "I0|net145",
       "image": "../img/ind_draw.png"
@@ -302,7 +354,10 @@ window.circuitData = {
       "path": "I0/L11",
       "pid": "L11",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I0|net145",
       "net_out": "I0|net139",
       "image": "../img/ind_draw.png"
@@ -313,7 +368,10 @@ window.circuitData = {
       "path": "I0/L12",
       "pid": "L12",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I0|net139",
       "net_out": "net4",
       "image": "../img/ind_draw.png"
@@ -324,7 +382,10 @@ window.circuitData = {
       "path": "I6/L4",
       "pid": "L4",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "net4",
       "net_out": "I6|net27",
       "image": "../img/ind_draw.png"
@@ -335,7 +396,10 @@ window.circuitData = {
       "path": "I6/L5",
       "pid": "L5",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I6|net27",
       "net_out": "I6|net58",
       "image": "../img/ind_draw.png"
@@ -346,7 +410,10 @@ window.circuitData = {
       "path": "I6/L22",
       "pid": "L22",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I6|net58",
       "net_out": "I6|net30",
       "image": "../img/ind_draw.png"
@@ -357,10 +424,27 @@ window.circuitData = {
       "path": "I6/J6",
       "pid": "J6",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I6|net30",
       "net_out": "I6|net38",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI6|J6",
+      "raw": "RI6|J6",
+      "path": "I6/J6",
+      "pid": "J6",
+      "layout_cell": "confluenceBufferUpgrade",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I6|net30",
+      "net_out": "I6|net38",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "LI6|L6",
@@ -368,7 +452,10 @@ window.circuitData = {
       "path": "I6/L6",
       "pid": "L6",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I6|net38",
       "net_out": "I6|net37",
       "image": "../img/ind_draw.png"
@@ -379,7 +466,10 @@ window.circuitData = {
       "path": "I6/L7",
       "pid": "L7",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I6|net37",
       "net_out": "I6|net52",
       "image": "../img/ind_draw.png"
@@ -390,7 +480,10 @@ window.circuitData = {
       "path": "I6/L8",
       "pid": "L8",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I6|net52",
       "net_out": "O1",
       "image": "../img/ind_draw.png"
@@ -401,7 +494,10 @@ window.circuitData = {
       "path": "I0/L4",
       "pid": "L4",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "Sel1",
       "net_out": "I0|net119",
       "image": "../img/ind_draw.png"
@@ -412,7 +508,10 @@ window.circuitData = {
       "path": "I0/L5",
       "pid": "L5",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I0|net119",
       "net_out": "I0|net141",
       "image": "../img/ind_draw.png"
@@ -423,10 +522,27 @@ window.circuitData = {
       "path": "I0/J5",
       "pid": "J5",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I0|net141",
       "net_out": "I0|net142",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI0|J5",
+      "raw": "RI0|J5",
+      "path": "I0/J5",
+      "pid": "J5",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I0|net141",
+      "net_out": "I0|net142",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "LI0|L75",
@@ -434,7 +550,10 @@ window.circuitData = {
       "path": "I0/L75",
       "pid": "L75",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I0|net142",
       "net_out": "I0|net127",
       "image": "../img/ind_draw.png"
@@ -445,7 +564,10 @@ window.circuitData = {
       "path": "I0/L6",
       "pid": "L6",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I0|net127",
       "net_out": "I0|net138",
       "image": "../img/ind_draw.png"
@@ -456,7 +578,10 @@ window.circuitData = {
       "path": "I0/L9",
       "pid": "L9",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "S1",
       "net_out": "I0|net110",
       "image": "../img/ind_draw.png"
@@ -467,7 +592,10 @@ window.circuitData = {
       "path": "I0/L10",
       "pid": "L10",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I0|net110",
       "net_out": "I0|net124",
       "image": "../img/ind_draw.png"
@@ -478,7 +606,10 @@ window.circuitData = {
       "path": "I0/L76",
       "pid": "L76",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I0|net144",
       "net_out": "I0|net145",
       "image": "../img/ind_draw.png"
@@ -489,10 +620,27 @@ window.circuitData = {
       "path": "I0/J8",
       "pid": "J8",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I0|net145",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI0|J8",
+      "raw": "RI0|J8",
+      "path": "I0/J8",
+      "pid": "J8",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I0|net145",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "LI12|L1",
@@ -500,7 +648,10 @@ window.circuitData = {
       "path": "I12/L1",
       "pid": "L1",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "Sel1",
       "net_out": "I12|net4",
       "image": "../img/ind_draw.png"
@@ -511,7 +662,10 @@ window.circuitData = {
       "path": "I12/L2",
       "pid": "L2",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I12|net4",
       "net_out": "I12|net136",
       "image": "../img/ind_draw.png"
@@ -522,10 +676,27 @@ window.circuitData = {
       "path": "I12/J2",
       "pid": "J2",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I12|net136",
       "net_out": "I12|net140",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI12|J2",
+      "raw": "RI12|J2",
+      "path": "I12/J2",
+      "pid": "J2",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I12|net136",
+      "net_out": "I12|net140",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "LI12|L74",
@@ -533,7 +704,10 @@ window.circuitData = {
       "path": "I12/L74",
       "pid": "L74",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I12|net140",
       "net_out": "I12|net137",
       "image": "../img/ind_draw.png"
@@ -544,7 +718,10 @@ window.circuitData = {
       "path": "I12/L3",
       "pid": "L3",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I12|net137",
       "net_out": "I12|net138",
       "image": "../img/ind_draw.png"
@@ -555,10 +732,27 @@ window.circuitData = {
       "path": "I12/J7",
       "pid": "J7",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I12|net138",
       "net_out": "I12|net121",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI12|J7",
+      "raw": "RI12|J7",
+      "path": "I12/J7",
+      "pid": "J7",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I12|net138",
+      "net_out": "I12|net121",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "LI12|L7",
@@ -566,7 +760,10 @@ window.circuitData = {
       "path": "I12/L7",
       "pid": "L7",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I12|net121",
       "net_out": "I12|net100",
       "image": "../img/ind_draw.png"
@@ -577,7 +774,10 @@ window.circuitData = {
       "path": "I12/L8",
       "pid": "L8",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I12|net100",
       "net_out": "I12|net145",
       "image": "../img/ind_draw.png"
@@ -588,7 +788,10 @@ window.circuitData = {
       "path": "I12/L11",
       "pid": "L11",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I12|net145",
       "net_out": "I12|net139",
       "image": "../img/ind_draw.png"
@@ -599,7 +802,10 @@ window.circuitData = {
       "path": "I12/L12",
       "pid": "L12",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I12|net139",
       "net_out": "net2",
       "image": "../img/ind_draw.png"
@@ -610,7 +816,10 @@ window.circuitData = {
       "path": "I6/L1",
       "pid": "L1",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "net2",
       "net_out": "I6|net4",
       "image": "../img/ind_draw.png"
@@ -621,7 +830,10 @@ window.circuitData = {
       "path": "I6/L2",
       "pid": "L2",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I6|net4",
       "net_out": "I6|net59",
       "image": "../img/ind_draw.png"
@@ -632,7 +844,10 @@ window.circuitData = {
       "path": "I6/L21",
       "pid": "L21",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I6|net59",
       "net_out": "I6|net53",
       "image": "../img/ind_draw.png"
@@ -643,10 +858,27 @@ window.circuitData = {
       "path": "I6/J3",
       "pid": "J3",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I6|net53",
       "net_out": "I6|net35",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI6|J3",
+      "raw": "RI6|J3",
+      "path": "I6/J3",
+      "pid": "J3",
+      "layout_cell": "confluenceBufferUpgrade",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I6|net53",
+      "net_out": "I6|net35",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "LI12|L4",
@@ -654,7 +886,10 @@ window.circuitData = {
       "path": "I12/L4",
       "pid": "L4",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "Sel2",
       "net_out": "I12|net119",
       "image": "../img/ind_draw.png"
@@ -665,7 +900,10 @@ window.circuitData = {
       "path": "I12/L5",
       "pid": "L5",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I12|net119",
       "net_out": "I12|net141",
       "image": "../img/ind_draw.png"
@@ -676,10 +914,27 @@ window.circuitData = {
       "path": "I12/J5",
       "pid": "J5",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I12|net141",
       "net_out": "I12|net142",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI12|J5",
+      "raw": "RI12|J5",
+      "path": "I12/J5",
+      "pid": "J5",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I12|net141",
+      "net_out": "I12|net142",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "LI12|L75",
@@ -687,7 +942,10 @@ window.circuitData = {
       "path": "I12/L75",
       "pid": "L75",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I12|net142",
       "net_out": "I12|net127",
       "image": "../img/ind_draw.png"
@@ -698,7 +956,10 @@ window.circuitData = {
       "path": "I12/L6",
       "pid": "L6",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I12|net127",
       "net_out": "I12|net138",
       "image": "../img/ind_draw.png"
@@ -709,7 +970,10 @@ window.circuitData = {
       "path": "I12/L9",
       "pid": "L9",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "S2",
       "net_out": "I12|net110",
       "image": "../img/ind_draw.png"
@@ -720,7 +984,10 @@ window.circuitData = {
       "path": "I12/L10",
       "pid": "L10",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I12|net110",
       "net_out": "I12|net124",
       "image": "../img/ind_draw.png"
@@ -731,7 +998,10 @@ window.circuitData = {
       "path": "I12/L76",
       "pid": "L76",
       "layout_cell": "NDROM2",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I12|net144",
       "net_out": "I12|net145",
       "image": "../img/ind_draw.png"
@@ -742,10 +1012,27 @@ window.circuitData = {
       "path": "I12/J8",
       "pid": "J8",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I12|net145",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI12|J8",
+      "raw": "RI12|J8",
+      "path": "I12/J8",
+      "pid": "J8",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I12|net145",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XsjI0|J10",
@@ -753,10 +1040,27 @@ window.circuitData = {
       "path": "I0/J10",
       "pid": "J10",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I0|net144",
       "net_out": "I0|net124",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI0|J10",
+      "raw": "RI0|J10",
+      "path": "I0/J10",
+      "pid": "J10",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I0|net144",
+      "net_out": "I0|net124",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XsjI0|J6",
@@ -764,10 +1068,27 @@ window.circuitData = {
       "path": "I0/J6",
       "pid": "J6",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I0|net127",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI0|J6",
+      "raw": "RI0|J6",
+      "path": "I0/J6",
+      "pid": "J6",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I0|net127",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XsjI12|J10",
@@ -775,10 +1096,27 @@ window.circuitData = {
       "path": "I12/J10",
       "pid": "J10",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I12|net144",
       "net_out": "I12|net124",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI12|J10",
+      "raw": "RI12|J10",
+      "path": "I12/J10",
+      "pid": "J10",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I12|net144",
+      "net_out": "I12|net124",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XsjI12|J6",
@@ -786,10 +1124,27 @@ window.circuitData = {
       "path": "I12/J6",
       "pid": "J6",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I12|net127",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI12|J6",
+      "raw": "RI12|J6",
+      "path": "I12/J6",
+      "pid": "J6",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I12|net127",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XsjI6|J2",
@@ -797,10 +1152,27 @@ window.circuitData = {
       "path": "I6/J2",
       "pid": "J2",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I6|net59",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI6|J2",
+      "raw": "RI6|J2",
+      "path": "I6/J2",
+      "pid": "J2",
+      "layout_cell": "confluenceBufferUpgrade",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I6|net59",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XsjI6|J5",
@@ -808,10 +1180,27 @@ window.circuitData = {
       "path": "I6/J5",
       "pid": "J5",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I6|net58",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI6|J5",
+      "raw": "RI6|J5",
+      "path": "I6/J5",
+      "pid": "J5",
+      "layout_cell": "confluenceBufferUpgrade",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I6|net58",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XpcI0|IB1",
@@ -819,7 +1208,10 @@ window.circuitData = {
       "path": "I0/IB1",
       "pid": "IB1",
       "layout_cell": "NDROM2",
-      "type": "IB",
+      "type": [
+        "IB",
+        ""
+      ],
       "net_in": "VDD",
       "net_out": "I0|net4",
       "image": "../img/biais_draw.png"
@@ -830,10 +1222,27 @@ window.circuitData = {
       "path": "I0/J1",
       "pid": "J1",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I0|net4",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI0|J1",
+      "raw": "RI0|J1",
+      "path": "I0/J1",
+      "pid": "J1",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I0|net4",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XpcI0|IB2",
@@ -841,7 +1250,10 @@ window.circuitData = {
       "path": "I0/IB2",
       "pid": "IB2",
       "layout_cell": "NDROM2",
-      "type": "IB",
+      "type": [
+        "IB",
+        ""
+      ],
       "net_in": "VDD",
       "net_out": "I0|net137",
       "image": "../img/biais_draw.png"
@@ -852,10 +1264,27 @@ window.circuitData = {
       "path": "I0/J3",
       "pid": "J3",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I0|net137",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI0|J3",
+      "raw": "RI0|J3",
+      "path": "I0/J3",
+      "pid": "J3",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I0|net137",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XpcI0|IB3",
@@ -863,7 +1292,10 @@ window.circuitData = {
       "path": "I0/IB3",
       "pid": "IB3",
       "layout_cell": "NDROM2",
-      "type": "IB",
+      "type": [
+        "IB",
+        ""
+      ],
       "net_in": "VDD",
       "net_out": "I0|net119",
       "image": "../img/biais_draw.png"
@@ -874,10 +1306,27 @@ window.circuitData = {
       "path": "I0/J4",
       "pid": "J4",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I0|net119",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI0|J4",
+      "raw": "RI0|J4",
+      "path": "I0/J4",
+      "pid": "J4",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I0|net119",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XpcI0|IB4",
@@ -885,7 +1334,10 @@ window.circuitData = {
       "path": "I0/IB4",
       "pid": "IB4",
       "layout_cell": "NDROM2",
-      "type": "IB",
+      "type": [
+        "IB",
+        ""
+      ],
       "net_in": "VDD",
       "net_out": "I0|net100",
       "image": "../img/biais_draw.png"
@@ -896,7 +1348,10 @@ window.circuitData = {
       "path": "I0/IB6",
       "pid": "IB6",
       "layout_cell": "NDROM2",
-      "type": "IB",
+      "type": [
+        "IB",
+        ""
+      ],
       "net_in": "VDD",
       "net_out": "I0|net139",
       "image": "../img/biais_draw.png"
@@ -907,10 +1362,27 @@ window.circuitData = {
       "path": "I0/J11",
       "pid": "J11",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I0|net139",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI0|J11",
+      "raw": "RI0|J11",
+      "path": "I0/J11",
+      "pid": "J11",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I0|net139",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XpcI0|IB5",
@@ -918,7 +1390,10 @@ window.circuitData = {
       "path": "I0/IB5",
       "pid": "IB5",
       "layout_cell": "NDROM2",
-      "type": "IB",
+      "type": [
+        "IB",
+        ""
+      ],
       "net_in": "VDD",
       "net_out": "I0|net110",
       "image": "../img/biais_draw.png"
@@ -929,10 +1404,27 @@ window.circuitData = {
       "path": "I0/J9",
       "pid": "J9",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I0|net110",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI0|J9",
+      "raw": "RI0|J9",
+      "path": "I0/J9",
+      "pid": "J9",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I0|net110",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XpcI12|IB1",
@@ -940,7 +1432,10 @@ window.circuitData = {
       "path": "I12/IB1",
       "pid": "IB1",
       "layout_cell": "NDROM2",
-      "type": "IB",
+      "type": [
+        "IB",
+        ""
+      ],
       "net_in": "VDD",
       "net_out": "I12|net4",
       "image": "../img/biais_draw.png"
@@ -951,10 +1446,27 @@ window.circuitData = {
       "path": "I12/J1",
       "pid": "J1",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I12|net4",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI12|J1",
+      "raw": "RI12|J1",
+      "path": "I12/J1",
+      "pid": "J1",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I12|net4",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XpcI12|IB2",
@@ -962,7 +1474,10 @@ window.circuitData = {
       "path": "I12/IB2",
       "pid": "IB2",
       "layout_cell": "NDROM2",
-      "type": "IB",
+      "type": [
+        "IB",
+        ""
+      ],
       "net_in": "VDD",
       "net_out": "I12|net137",
       "image": "../img/biais_draw.png"
@@ -973,10 +1488,27 @@ window.circuitData = {
       "path": "I12/J3",
       "pid": "J3",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I12|net137",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI12|J3",
+      "raw": "RI12|J3",
+      "path": "I12/J3",
+      "pid": "J3",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I12|net137",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XpcI12|IB3",
@@ -984,7 +1516,10 @@ window.circuitData = {
       "path": "I12/IB3",
       "pid": "IB3",
       "layout_cell": "NDROM2",
-      "type": "IB",
+      "type": [
+        "IB",
+        ""
+      ],
       "net_in": "VDD",
       "net_out": "I12|net119",
       "image": "../img/biais_draw.png"
@@ -995,10 +1530,27 @@ window.circuitData = {
       "path": "I12/J4",
       "pid": "J4",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I12|net119",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI12|J4",
+      "raw": "RI12|J4",
+      "path": "I12/J4",
+      "pid": "J4",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I12|net119",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XpcI12|IB4",
@@ -1006,7 +1558,10 @@ window.circuitData = {
       "path": "I12/IB4",
       "pid": "IB4",
       "layout_cell": "NDROM2",
-      "type": "IB",
+      "type": [
+        "IB",
+        ""
+      ],
       "net_in": "VDD",
       "net_out": "I12|net100",
       "image": "../img/biais_draw.png"
@@ -1017,7 +1572,10 @@ window.circuitData = {
       "path": "I12/IB6",
       "pid": "IB6",
       "layout_cell": "NDROM2",
-      "type": "IB",
+      "type": [
+        "IB",
+        ""
+      ],
       "net_in": "VDD",
       "net_out": "I12|net139",
       "image": "../img/biais_draw.png"
@@ -1028,10 +1586,27 @@ window.circuitData = {
       "path": "I12/J11",
       "pid": "J11",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I12|net139",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI12|J11",
+      "raw": "RI12|J11",
+      "path": "I12/J11",
+      "pid": "J11",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I12|net139",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XpcI12|IB5",
@@ -1039,7 +1614,10 @@ window.circuitData = {
       "path": "I12/IB5",
       "pid": "IB5",
       "layout_cell": "NDROM2",
-      "type": "IB",
+      "type": [
+        "IB",
+        ""
+      ],
       "net_in": "VDD",
       "net_out": "I12|net110",
       "image": "../img/biais_draw.png"
@@ -1050,10 +1628,27 @@ window.circuitData = {
       "path": "I12/J9",
       "pid": "J9",
       "layout_cell": "NDROM2",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I12|net110",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI12|J9",
+      "raw": "RI12|J9",
+      "path": "I12/J9",
+      "pid": "J9",
+      "layout_cell": "NDROM2",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I12|net110",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XpcI6|IB1",
@@ -1061,7 +1656,10 @@ window.circuitData = {
       "path": "I6/IB1",
       "pid": "IB1",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "IB",
+      "type": [
+        "IB",
+        ""
+      ],
       "net_in": "VDD",
       "net_out": "I6|net4",
       "image": "../img/biais_draw.png"
@@ -1072,10 +1670,27 @@ window.circuitData = {
       "path": "I6/J1",
       "pid": "J1",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I6|net4",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI6|J1",
+      "raw": "RI6|J1",
+      "path": "I6/J1",
+      "pid": "J1",
+      "layout_cell": "confluenceBufferUpgrade",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I6|net4",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XpcI6|IB2",
@@ -1083,7 +1698,10 @@ window.circuitData = {
       "path": "I6/IB2",
       "pid": "IB2",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "IB",
+      "type": [
+        "IB",
+        ""
+      ],
       "net_in": "VDD",
       "net_out": "I6|net27",
       "image": "../img/biais_draw.png"
@@ -1094,10 +1712,27 @@ window.circuitData = {
       "path": "I6/J4",
       "pid": "J4",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I6|net27",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI6|J4",
+      "raw": "RI6|J4",
+      "path": "I6/J4",
+      "pid": "J4",
+      "layout_cell": "confluenceBufferUpgrade",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I6|net27",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     },
     {
       "id": "XpcI6|IB3",
@@ -1105,7 +1740,10 @@ window.circuitData = {
       "path": "I6/IB3",
       "pid": "IB3",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "IB",
+      "type": [
+        "IB",
+        ""
+      ],
       "net_in": "VDD",
       "net_out": "I6|net37",
       "image": "../img/biais_draw.png"
@@ -1116,7 +1754,10 @@ window.circuitData = {
       "path": "I6/L3",
       "pid": "L3",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "L",
+      "type": [
+        "L",
+        ""
+      ],
       "net_in": "I6|net37",
       "net_out": "I6|net35",
       "image": "../img/ind_draw.png"
@@ -1127,7 +1768,10 @@ window.circuitData = {
       "path": "I6/IB4",
       "pid": "IB4",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "IB",
+      "type": [
+        "IB",
+        ""
+      ],
       "net_in": "VDD",
       "net_out": "I6|net52",
       "image": "../img/biais_draw.png"
@@ -1138,10 +1782,27 @@ window.circuitData = {
       "path": "I6/J7",
       "pid": "J7",
       "layout_cell": "confluenceBufferUpgrade",
-      "type": "JJ",
+      "type": [
+        "JJ",
+        "R"
+      ],
       "net_in": "I6|net52",
       "net_out": "GND!",
       "image": "../img/jj_draw.png"
+    },
+    {
+      "id": "RI6|J7",
+      "raw": "RI6|J7",
+      "path": "I6/J7",
+      "pid": "J7",
+      "layout_cell": "confluenceBufferUpgrade",
+      "type": [
+        "R",
+        ""
+      ],
+      "net_in": "I6|net52",
+      "net_out": "GND!",
+      "image": "../img/res_draw.png"
     }
   ]
 };

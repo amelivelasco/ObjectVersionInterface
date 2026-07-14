@@ -96,7 +96,6 @@ class Schematic:
                     raise ValueError(
                         f"Invalid ordered element on line {line_number}: {line}"
                     )
-
                 raw = parsed["raw"]
                 fallback_nets = net_lookup.get(raw, {})
 
@@ -126,30 +125,32 @@ class Schematic:
         return ordered_components
     
     def get_component_type(self, component):
-        pid = str(component.pid)
+        raw = str(component.raw)
 
-        if pid.startswith("L"):
-            return "L"
+        if raw.startswith("L"):
+            return ("L", "")
 
-        if pid.startswith("J"):
-            return "JJ"
+        if raw.startswith("Xsj"):
+            return ("JJ", "R")
 
-        if pid.startswith("IB"):
-            return "IB"
+        if raw.startswith("Xpc"):
+            return ("IB", "")
 
         return "UNKNOWN"
 
 
     def get_component_image(self, component):
-        component_type = self.get_component_type(component)
+        (component_type1, component_type2) = self.get_component_type(component)
 
         relations = {
             "L": "../img/ind_draw.png",
             "JJ": "../img/jj_draw.png",
+            "R": "../img/res_draw.png",
             "IB": "../img/biais_draw.png",
         }
 
-        return relations.get(component_type, "")
+        return relations.get(component_type1,
+            relations.get(component_type2, ""))
 
     def load_ordered_components_file(self, ordered_components_file):
         ordered_components_file = Path(ordered_components_file)
@@ -252,23 +253,44 @@ class Schematic:
             add_node(component.net_in)
             add_node(component.net_out)
 
-            component_type = self.get_component_type(
+            (component_type1, component_type2) = self.get_component_type(
                 component
             )
-
+            
             elements.append({
                 "id": component.raw,
                 "raw": component.raw,
                 "path": component.path,
                 "pid": component.pid,
                 "layout_cell": component.layout_cell,
-                "type": component_type,
+                "type": (component_type1, component_type2),
                 "net_in": component.net_in,
                 "net_out": component.net_out,
                 "image": self.get_component_image(
                     component
                 ),
             })
+            
+            if component_type1 == "JJ":
+                resistor_id = re.sub(
+                    r"^Xsj",
+                    "R",
+                    component.raw,
+                    count=1,
+                    flags=re.IGNORECASE,
+                )
+
+                elements.append({
+                    "id": resistor_id,
+                    "raw": resistor_id,
+                    "path": component.path,
+                    "pid": component.pid,
+                    "layout_cell": component.layout_cell,
+                    "type": ("R", ""),
+                    "net_in": component.net_in,
+                    "net_out": component.net_out,
+                    "image": "../img/res_draw.png",
+                })
 
         data = {
             "name": ordered_components_file.stem,

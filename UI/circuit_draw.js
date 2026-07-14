@@ -59,6 +59,7 @@ function drawLabel(layer, text, x, y, options = {}) {
   layer.appendChild(label);
 }
 
+
 function drawComponent(layer, element) {
   const g = createSvgElement("g", {
     class: `component component-${element.type}`,
@@ -201,7 +202,7 @@ function drawHangerLine(
 function makeJJSubcircuit(componentLayer, element, wireLayer) {
     if (element.type === "JJ") {
         drawComponent(componentLayer, element)
-        drawHangerLine()
+        drawHangerLine(wireLayer, )
     }
 }
 
@@ -229,17 +230,8 @@ window.addEventListener("DOMContentLoaded", () => {
       type: element.type,
       net_in: element.net_in,
       net_out: element.net_out,
-      image: element.image,
+      image: element.image
     }))
   );
-
-  console.log(
-    [...document.scripts]
-      .map((script) => script.src)
-      .filter((src) => src.includes("circuit_data"))
-  );
-
-  console.log("First loaded element:", window.circuitData?.elements?.[0]);
-
   drawCircuit(window.circuitData);
 });
