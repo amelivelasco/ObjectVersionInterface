@@ -254,6 +254,53 @@ class Schematic:
                 ordered_components.append(component)
         return ordered_components
 
+    def write_layout_cells(self, ordered_components):
+        layout_cells = []
+
+        for component in ordered_components:
+            self.handle_layout_cell(
+                layout_cells,
+                component,
+            )
+        layout_cells_data = []
+
+        for layout_cell in layout_cells:
+            layout_element_ids = []
+
+            for component in layout_cell.elements:
+                layout_element_ids.append(
+                    component.raw
+                )
+
+                component_type1, _ = (
+                    self.get_component_type(component)
+                )
+
+                # Include the generated resistor in the same
+                # layout cell as its JJ.
+                if component_type1 == "JJ":
+                    resistor_id = re.sub(
+                        r"^Xsj",
+                        "R",
+                        component.raw,
+                        count=1,
+                        flags=re.IGNORECASE,
+                    )
+
+                    layout_element_ids.append(
+                        resistor_id
+                    )
+
+            layout_cells_data.append({
+                "id": layout_cell.layout_cell,
+                "layout_cell": layout_cell.layout_cell,
+                "net_in": layout_cell.net_in,
+                "net_out": layout_cell.net_out,
+                "elements": layout_element_ids,
+            })
+            
+        return layout_cells_data
+
 
     def write_circuit_data(
         self,
@@ -352,7 +399,9 @@ class Schematic:
                     "net_out": component.net_out,
                     "image": "../img/res_draw.png",
                 })
-
+                
+        layout_cells_data = self.write_layout_cells(ordered_components)
+        
         data = {
             "name": ordered_components_file.stem,
             "generated_at": datetime.now(
@@ -360,6 +409,7 @@ class Schematic:
             ).isoformat(),
             "nodes": nodes,
             "elements": elements,
+            "layout_cells": layout_cells_data,
         }
 
         js_text = "window.circuitData = "

@@ -1,6 +1,3 @@
-from UI.circuit_component import CircuitComponent
-
-
 class LayoutInstance:
     def __init__(self, layout_cell, net_in, net_out, elements=None):
         self.layout_cell = layout_cell
