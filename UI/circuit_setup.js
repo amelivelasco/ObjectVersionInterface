@@ -22,6 +22,26 @@ const drawConfig = {
   groundStroke: "#7f1d1d",
 
   fontFamily: "Arial, sans-serif",
+  
+  // Layout-cell configuration
+  layoutCellMarginX: 70,
+  layoutCellMarginY: 70,
+
+  layoutCellGapX: 70,
+  layoutCellGapY: 70,
+
+  layoutCellPaddingX: 45,
+  layoutCellPaddingTop: 75,
+  layoutCellPaddingBottom: 40,
+
+  layoutCellElementGapX: 105,
+  layoutCellElementGapY: 95,
+
+  layoutCellMinWidth: 320,
+  layoutCellMinHeight: 230,
+
+  // Start a new row of layout cells after this width.
+  layoutCellRowWidth: 1500,
 };
 
 function createSvg(width, height) {
@@ -159,47 +179,6 @@ function orthogonalPath(a, b) {
     `V ${b.y}`,
   ].join(" ");
 }
-
-// function drawElementLocalWires(wireLayer, dotLayer, labelLayer, element) {
-//   const imageInputEdge = {
-//     x: element.x - element.direction * (drawConfig.imageSize / 2),
-//     y: element.y,
-//   };
-
-//   const imageOutputEdge = {
-//     x: element.x + element.direction * (drawConfig.imageSize / 2),
-//     y: element.y,
-//   };
-
-//   drawLine(wireLayer, element.inputPin, imageInputEdge);
-
-//   if (element.net_out === "GND!") {
-//     drawLine(wireLayer, element.outputPin, imageInputEdge);
-//   } else {
-//       drawLine(wireLayer, imageOutputEdge, element.outputPin);
-//   }
-
-//   drawLabel(
-//     labelLayer,
-//     element.net_in,
-//     element.inputPin.x,
-//     element.inputPin.y - 10,
-//     {
-//       size: "8.5px",
-//     }
-//   );
-
-//   drawLabel(
-//     labelLayer,
-//     element.net_out,
-//     element.outputPin.x,
-//     element.outputPin.y + 16,
-//     {
-//       size: "8.5px",
-//       fill: element.net_out === "GND!" ? "#dc2626" : "#334155",
-//     }
-//   );
-// }
 
 
 function setupPanZoom(svg, fullWidth, fullHeight) {

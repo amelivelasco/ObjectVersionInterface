@@ -194,34 +194,110 @@ function drawCircuit(data) {
     return;
   }
 
-  console.table(
-    data.elements.map((element, index) => ({
-      index,
-      path: element.path,
-      type: element.type,
-      net_in: element.net_in,
-      net_out: element.net_out,
-    }))
-  );
+  if (
+    !Array.isArray(
+      data.layout_cells
+    )
+  ) {
+    board.textContent =
+      "Layout-cell data is missing from circuit_data.js.";
+
+    return;
+  }
 
   const {
-    placed,
+    placedCells,
     canvasWidth,
     canvasHeight,
-  } = buildOrderedLayout(data.elements);
+  } = buildLayoutCellLayout(data);
+
+  // const {
+  //   placed,
+  //   canvasWidth,
+  //   canvasHeight,
+  // } = buildOrderedLayout(data.elements);
+
+  const placed =
+    buildPlacedElements(
+      data,
+      placedCells
+    );
+
+  console.table(
+    placedCells.map(
+      (cell) => ({
+        layoutCell:
+          cell.layout_cell,
+
+        elements:
+          cell.elements.length,
+
+        x:
+          cell.x,
+
+        y:
+          cell.y,
+
+        width:
+          cell.width,
+
+        height:
+          cell.height,
+
+        rows:
+          cell.rows,
+
+        columns:
+          cell.columns,
+      })
+    )
+  );
+
+  console.table(
+    placed.map(
+      (element, index) => ({
+        index,
+
+        id:
+          element.id,
+
+        layoutCell:
+          element.parentLayoutCell,
+
+        x:
+          element.x,
+
+        y:
+          element.y,
+
+        direction:
+          element.direction,
+
+        netIn:
+          element.net_in,
+
+        netOut:
+          element.net_out,
+      })
+    )
+  );
+
 
   const svg = createSvg(canvasWidth, canvasHeight);
   board.appendChild(svg);
-
+  const layoutCellLayer =createSvgElement("g",{class:"layout-cell-layer"});
   const wireLayer = createSvgElement("g", { class: "wire-layer" });
   const dotLayer = createSvgElement("g", { class: "dot-layer" });
   const componentLayer = createSvgElement("g", { class: "component-layer" });
   const labelLayer = createSvgElement("g", { class: "label-layer" });
 
+  svg.appendChild(layoutCellLayer);
   svg.appendChild(wireLayer);
   svg.appendChild(dotLayer);
   svg.appendChild(componentLayer);
   svg.appendChild(labelLayer);
+
+  drawLayoutCellBoundaries(layoutCellLayer, placedCells);
 
   drawConnectionsBetweenOrderedElements(wireLayer, labelLayer, placed);
 
@@ -239,6 +315,7 @@ function drawHangerLine(
     options = {}
     ) {
     const rise = options.rise ?? 25;
+    const margin = options.margin ?? 0;
 
     const topLeft = {
         x: a.x,
@@ -293,7 +370,48 @@ function drawHangerLine(
         fill: options.labelFill || "#334155",
       }
     );
-}
+
+
+    const minX = Math.min(
+      a.x,
+      b.x,
+      topLeft.x,
+      topRight.x
+    );
+
+    const maxX = Math.max(
+      a.x,
+      b.x,
+      topLeft.x,
+      topRight.x
+    );
+
+    const minY = Math.min(
+      a.y,
+      b.y,
+      topLeft.y,
+      topRight.y
+    );
+
+    const maxY = Math.max(
+      a.y,
+      b.y,
+      topLeft.y,
+      topRight.y
+    );
+
+    return {
+      left: minX - margin,
+      right: maxX + margin,
+
+      // Reserved space outside the hanger.
+      top: minY - margin,
+      bottom: maxY + margin,
+
+      hangerY: topLeft.y,
+      margin,
+    };
+  }
 
 function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
       const jjComponent = drawComponent(
@@ -315,6 +433,7 @@ function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
           resistorComponent.top,
           {
             rise: 25,
+            margin: 10,
             label: current.net_in,
           }
         );
@@ -329,6 +448,7 @@ function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
           resistorComponent.bottom,
           {
             rise: -25,
+            margin: 10,
             label: current.net_out,
             labelFill:
               current.net_out === "GND!"
@@ -337,11 +457,6 @@ function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
           }
         );
 }
-
-function groupByLayoutInst(current, next, componentLayer, wireLayer, labelLayer) {
-  
-}
-
 
 
 function drawSubcircuits(placed, componentLayer, wireLayer, labelLayer) {
@@ -370,7 +485,7 @@ function drawSubcircuits(placed, componentLayer, wireLayer, labelLayer) {
         );
 
     if (isJJResistorPair) {
-          drawJRpairs(current, next, componentLayer, wireLayer, labelLayer)
+        drawJRpairs(current, next, componentLayer, wireLayer, labelLayer)
         i++;
         continue;
     }

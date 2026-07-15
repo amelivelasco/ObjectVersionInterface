@@ -1,11 +1,13 @@
 class CircuitComponent:
-    def __init__(self, raw, path, pid, layout_cell, net_in, net_out):
+    def __init__(self, raw, path, pid, layout_cell, net_in, net_out, row = None, column= None):
         self.raw = raw
         self.path = path
         self.pid = pid
         self.layout_cell = layout_cell
         self.net_in = net_in
         self.net_out = net_out
+        self.row = row
+        self.column = column
         
     @property
     def nets(self):
