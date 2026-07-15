@@ -88,6 +88,8 @@ function measureLayoutCell(elementCount) {
       drawConfig.layoutCellPaddingBottom
   );
 
+  console.log("")
+
   return {
     columns,
     rows,
@@ -99,9 +101,13 @@ function measureLayoutCell(elementCount) {
 }
  
 function buildLayoutCellLayout(data) {
-  const elementMap = createElementMap(
-    data.elements || []
+  console.log(
+    "NEW buildLayoutCellLayout VERSION IS RUNNING"
   );
+  const elementMap =
+    createElementMap(
+      data.elements || []
+    );
 
   const placedCells = [];
 
@@ -113,6 +119,13 @@ function buildLayoutCellLayout(data) {
 
   let currentRowHeight = 0;
   let maximumRight = 0;
+
+  /*
+   * These track the row and column of
+   * each large layout-cell rectangle.
+   */
+  let layoutCellRow = 0;
+  let layoutCellColumn = 0;
 
   const rowRightLimit =
     drawConfig.layoutCellMarginX +
@@ -133,6 +146,25 @@ function buildLayoutCellLayout(data) {
         resolvedElements.length
       );
 
+    /*
+     * Assign row and column to every
+     * element inside this layout cell.
+     */
+    // const positionedElements =
+    //   assignElementRowsAndColumns(
+    //     resolvedElements,
+    //     measurement.columns
+    //   );
+
+    // const positionedElements = setElementsPositions(data, resolvedElements, measurement.columns)
+
+    const placement =
+      setElementsPositions(
+        resolvedElements,
+        measurement.rows,
+        measurement.columns
+      );
+
     const shouldStartNewRow =
       x !==
         drawConfig.layoutCellMarginX &&
@@ -148,6 +180,9 @@ function buildLayoutCellLayout(data) {
         drawConfig.layoutCellGapY;
 
       currentRowHeight = 0;
+
+      layoutCellRow++;
+      layoutCellColumn = 0;
     }
 
     const placedCell = {
@@ -168,17 +203,69 @@ function buildLayoutCellLayout(data) {
         ...(layoutCell.elements || []),
       ],
 
-      // These are now complete element objects.
       elements:
-        resolvedElements,
+        placement.elements,
+
+      connections:
+        placement.connections,
+
+      /*
+       * Position of the large layout-cell
+       * rectangle in the overall canvas.
+       */
+      layoutCellRow,
+      layoutCellColumn,
 
       x,
       y,
 
+      /*
+       * Adds:
+       * columns,
+       * rows,
+       * contentWidth,
+       * contentHeight,
+       * width,
+       * height.
+       */
       ...measurement,
     };
 
-    placedCells.push(placedCell);
+    placedCells.push(
+      placedCell
+    );
+
+    console.log(
+      `Layout cell ${placedCell.layout_cell} ` +
+      `placed at layout row ${layoutCellRow}, ` +
+      `layout column ${layoutCellColumn}`
+    );
+
+    console.table(
+      placedCell.elements.map(
+        (element) => ({
+          id:
+            element.id,
+
+          raw:
+            element.raw,
+
+          layoutCell:
+            placedCell.layout_cell,
+
+          row:
+            element.row,
+
+          column:
+            element.column,
+
+          direction:
+            element.direction === 1
+              ? "left-to-right"
+              : "right-to-left",
+        })
+      )
+    );
 
     maximumRight = Math.max(
       maximumRight,
@@ -193,6 +280,8 @@ function buildLayoutCellLayout(data) {
     x +=
       measurement.width +
       drawConfig.layoutCellGapX;
+
+    layoutCellColumn++;
   }
 
   const canvasWidth = Math.max(
@@ -215,45 +304,30 @@ function buildLayoutCellLayout(data) {
   };
 }
 
-
 function placeElementsInsideLayoutCell(
   cell
 ) {
   const contentStartX =
     cell.x +
-    (cell.width -
-      cell.contentWidth) /
-      2;
+    (
+      cell.width -
+      cell.contentWidth
+    ) / 2;
 
   const contentStartY =
     cell.y +
     drawConfig.layoutCellPaddingTop;
 
   return cell.elements.map(
-    (element, index) => {
-      const row = Math.floor(
-        index / cell.columns
-      );
-
-      const indexInRow =
-        index % cell.columns;
-
-      /*
-       * Snake layout:
-       * even rows: left to right
-       * odd rows: right to left
-       */
-      const direction =
-        row % 2 === 0
-          ? 1
-          : -1;
+    (element) => {
+      const row =
+        element.row;
 
       const column =
-        direction === 1
-          ? indexInRow
-          : cell.columns -
-            1 -
-            indexInRow;
+        element.column;
+
+      const direction =
+        element.direction ?? 1;
 
       const x =
         contentStartX +
@@ -267,42 +341,35 @@ function placeElementsInsideLayoutCell(
         row *
           drawConfig.layoutCellElementGapY;
 
-      const inputPin = {
+      element.x = x;
+      element.y = y;
+
+      element.inputPin = {
         x:
           x -
           direction *
             drawConfig.pinOffset,
 
         y,
-        net: element.net_in,
+        net:
+          element.net_in,
       };
 
-      const outputPin = {
+      element.outputPin = {
         x:
           x +
           direction *
             drawConfig.pinOffset,
 
         y,
-        net: element.net_out,
+        net:
+          element.net_out,
       };
 
-      return {
-        ...element,
+      element.parentLayoutCell =
+        cell.layout_cell;
 
-        x,
-        y,
-
-        row,
-        col: column,
-        direction,
-
-        inputPin,
-        outputPin,
-
-        parentLayoutCell:
-          cell.layout_cell,
-      };
+      return element;
     }
   );
 }
@@ -480,3 +547,5 @@ function drawLayoutCellBoundaries(
     layer.appendChild(group);
   }
 }
+
+

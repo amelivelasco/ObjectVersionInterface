@@ -35,13 +35,21 @@ const drawConfig = {
   layoutCellPaddingBottom: 40,
 
   layoutCellElementGapX: 105,
-  layoutCellElementGapY: 95,
+  layoutCellElementGapY: 105,
 
   layoutCellMinWidth: 320,
   layoutCellMinHeight: 230,
 
   // Start a new row of layout cells after this width.
   layoutCellRowWidth: 1500,
+
+    wireLaneStep: 12,
+  wireClearance: 5,
+
+  wireRouteLeftInset: 10,
+  wireRouteRightInset: 10,
+  wireRouteTopInset: 58,
+  wireRouteBottomInset: 10,
 };
 
 function createSvg(width, height) {
@@ -75,98 +83,78 @@ function estimateColumns(elementCount) {
   return Math.ceil(Math.sqrt(elementCount * 1.8));
 }
 
-function buildOrderedLayout(elements) {
-  const count = elements.length;
-  const columns = estimateColumns(count);
-  const rows = Math.ceil(count / columns);
+function assignElementRowsAndColumns(
+  elements,
+  columns
+) {
+  return elements.map(
+    (element, index) => {   // depends on the elements position in the list
+      const row = Math.floor(
+        index / columns
+      );
 
-  const canvasWidth =
-    drawConfig.marginX * 2 +
-    Math.max(0, columns - 1) * drawConfig.gapX;
+      const indexInRow =
+        index % columns;
 
-  const canvasHeight =
-    drawConfig.marginY * 2 +
-    Math.max(0, rows - 1) * drawConfig.gapY;
+      const direction = 1
 
-  const placed = elements.map((element, index) => {
-    const row = Math.floor(index / columns);
-    const indexInRow = index % columns;
+      const column =
+        direction === 1
+          ? indexInRow
+          : columns -
+            1 -
+            indexInRow;
 
-    /*
-     * Even rows run left-to-right.
-     * Odd rows run right-to-left.
-     */
-    const direction =
-      row % 2 === 0 ? 1 : -1;
+      /*
+       * Store the values directly on the
+       * original circuit element.
+       */
+      element.row = row;
+      element.column = column;
+      element.direction = direction;
 
-    const col =
-      direction === 1
-        ? indexInRow
-        : columns - 1 - indexInRow;
+      console.log(
+        `Element ${element.raw} placed in ` +
+        `layout cell ${element.layout_cell}: ` +
+        `row ${row}, column ${column}`
+      );
 
-    const x =
-      drawConfig.marginX +
-      col * drawConfig.gapX;
+      return element;
+    }
+  );
+}
 
-    const y =
-      drawConfig.marginY +
-      row * drawConfig.gapY;
 
-    const inputPin = {
-      x:
-        x -
-        direction * drawConfig.pinOffset,
-      y,
-      net: element.net_in,
-    };
-
-    const outputPin = {
-      x:
-        x +
-        direction * drawConfig.pinOffset,
-      y,
-      net: element.net_out,
-    };
-
-    return {
-      ...element,
-      index,
-      x,
-      y,
-      row,
-      col,
-      direction,
-      inputPin,
-      outputPin,
-    };
-  });
-
-  console.table(
-    placed.map((element) => ({
-      index: element.index,
-      path: element.path,
-      row: element.row,
-      visualColumn: element.col,
-      direction:
-        element.direction === 1
-          ? "left-to-right"
-          : "right-to-left",
-      x: element.x,
-      y: element.y,
-    }))
+function assignElementPosition(
+  element,
+  index,
+  columns
+) {
+  const row = Math.floor(
+    index / columns
   );
 
-  return {
-    placed,
-    canvasWidth: Math.max(
-      900,
-      canvasWidth
-    ),
-    canvasHeight: Math.max(
-      550,
-      canvasHeight
-    ),
-  };
+  const indexInRow =
+    index % columns;
+
+  const direction = 1;
+
+  const column =
+    direction === 1
+      ? indexInRow
+      : columns - 1 - indexInRow;
+
+  element.row = row;
+  element.column = column;
+  element.direction = direction;
+
+  console.log(
+    `Element ${element.raw} placed in ` +
+    `layout cell ${element.layout_cell}: ` +
+    `row ${row}, column ${column}`
+  );
+
+  return element;
 }
 
 function orthogonalPath(a, b) {
@@ -280,3 +268,403 @@ function setupPanZoom(svg, fullWidth, fullHeight) {
 
   applyViewBox();
 }
+
+
+
+function isElementPlaced(element) {
+  return (
+    Number.isInteger(element.row) &&
+    Number.isInteger(element.column)
+  );
+}
+
+function getPositionKey(row, column) {
+  return `${row}:${column}`;
+}
+
+function isInsideGrid(
+  row,
+  column,
+  rows,
+  columns
+) {
+  return (
+    row >= 0 &&
+    row < rows &&
+    column >= 0 &&
+    column < columns
+  );
+}
+
+function isPositionFree(
+  occupied,
+  row,
+  column,
+  rows,
+  columns
+) {
+  return (
+    isInsideGrid(
+      row,
+      column,
+      rows,
+      columns
+    ) &&
+    !occupied.has(
+      getPositionKey(row, column)
+    )
+  );
+}
+
+function assignPosition(
+  element,
+  row,
+  column,
+  occupied
+) {
+  element.row = row;
+  element.column = column;
+  element.direction = 1;
+
+  occupied.add(
+    getPositionKey(row, column)
+  );
+
+  console.log(
+    `${element.raw} placed at ` +
+    `row ${row}, column ${column}`
+  );
+}
+
+
+
+function setElementsPositions(
+  resolvedElements,
+  rows,
+  columns
+) {
+  const occupied = new Set();
+  const connections = [];
+  const connectionKeys = new Set();
+
+  function saveConnection(
+    current,
+    target,
+    net
+  ) {
+    const key =
+      `${current.id}->${target.id}:${net}`;
+
+    if (connectionKeys.has(key)) {
+      return;
+    }
+
+    connectionKeys.add(key);
+
+    connections.push({
+      from: current.id,
+      to: target.id,
+      net,
+    });
+  }
+
+  for (
+    let i = 0;
+    i < resolvedElements.length;
+    i++
+  ) {
+    const current =
+      resolvedElements[i];
+
+    /*
+     * Position current if it has not already
+     * been positioned by another connection.
+     */
+    if (!isElementPlaced(current)) {
+      const fallback =
+        findAnyFreeSpot(
+          occupied,
+          rows,
+          columns
+        );
+
+      if (!fallback) {
+        console.error(
+          `No position available for ${current.raw}`
+        );
+
+        continue;
+      }
+
+      assignPosition(
+        current,
+        fallback.row,
+        fallback.column,
+        occupied
+      );
+    }
+
+    const next =
+      resolvedElements[i + 1];
+
+    let connectedElements = [];
+
+    /*
+     * First use the next ordered element
+     * when current.net_out matches next.net_in.
+     */
+    if (
+      next &&
+      current.net_out &&
+      current.net_out === next.net_in
+    ) {
+      connectedElements = [next];
+    } else {
+      /*
+       * Otherwise search this layout cell
+       * for connected branches/leaves.
+       */
+      connectedElements =
+        findLeafConnections(
+          current,
+          resolvedElements
+        );
+    }
+
+    for (
+      const connected of
+      connectedElements
+    ) {
+      saveConnection(
+        current,
+        connected,
+        current.net_out
+      );
+
+      /*
+       * Do not move an element that another
+       * connection has already positioned.
+       */
+      if (isElementPlaced(connected)) {
+        continue;
+      }
+
+      let position =
+        findFirstFreeSpot(
+          current,
+          occupied,
+          rows,
+          columns
+        );
+
+      /*
+       * If all four neighboring positions
+       * are occupied, use another free cell.
+       */
+      if (!position) {
+        position =
+          findAnyFreeSpot(
+            occupied,
+            rows,
+            columns
+          );
+      }
+
+      if (!position) {
+        console.error(
+          `No position available for ${connected.raw}`
+        );
+
+        continue;
+      }
+
+      assignPosition(
+        connected,
+        position.row,
+        position.column,
+        occupied
+      );
+    }
+  }
+
+  console.table(
+    resolvedElements.map(
+      (element) => ({
+        element: element.raw,
+        layoutCell:
+          element.layout_cell,
+        row: element.row,
+        column: element.column,
+        netIn: element.net_in,
+        netOut: element.net_out,
+      })
+    )
+  );
+
+  console.table(connections);
+
+  return {
+    elements: resolvedElements,
+    connections,
+  };
+}
+
+function setElementPosition(elements, currentElement, columns) {
+  return elements.map(
+    (element, index) => {   // depends on the elements position in the list
+      if (element.raw != currentElement.raw) {return }
+      const row = Math.floor(
+        index / columns
+      );
+
+      const indexInRow =
+        index % columns;
+
+      const direction =
+        row % 2 === 0
+          ? 1
+          : -1;
+
+      const column =
+        direction === 1
+          ? indexInRow
+          : columns -
+            1 -
+            indexInRow;
+
+      /*
+       * Store the values directly on the
+       * original circuit element.
+       */
+      currentElement.row = row;
+      currentElement.column = column;
+      currentElement.direction = direction;
+
+      console.log(
+        `Element ${currentElement.raw} placed in ` +
+        `layout cell ${currentElement.layout_cell}: ` +
+        `row ${row}, column ${column}`
+      );
+    }
+  );
+}
+
+function findFirstFreeSpot(
+  current,
+  occupied,
+  rows,
+  columns
+) {
+  const candidates = [
+    // Prefer the right side.
+    {
+      row: current.row,
+      column: current.column + 1,
+    },
+
+        // Finally left.
+    {
+      row: current.row,
+      column: current.column - 1,
+    },
+
+    // Then above.
+    {
+      row: current.row - 1,
+      column: current.column,
+    },
+
+    // Then below.
+    {
+      row: current.row + 1,
+      column: current.column,
+    },
+  ];
+
+  for (const candidate of candidates) {
+    if (
+      isPositionFree(
+        occupied,
+        candidate.row,
+        candidate.column,
+        rows,
+        columns
+      )
+    ) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function checkOccupancy(currentElem, candidateElemRow, candidateElemColumn, elements) {
+  for (let elem of elements) {
+    if (candidateElemColumn == elem.column && candidateElemRow == elem.row) {
+      return false
+    }
+  }
+  return true
+}
+
+function findLeafConnections(current, resolvedElements) {
+  if (
+    !current.net_out ||
+    current.net_out === "GND!" ||
+    current.net_out === "VDD"
+  ) {
+    return [];
+  }
+
+  return resolvedElements.filter(
+    (element) => {
+      if (element === current) {
+        return false;
+      }
+
+      return (
+        element.net_in ===
+          current.net_out ||
+        element.net_out ===
+          current.net_out
+      );
+    }
+  );
+}
+
+
+function findAnyFreeSpot(
+  occupied,
+  rows,
+  columns
+) {
+  for (
+    let row = 0;
+    row < rows;
+    row++
+  ) {
+    for (
+      let column = 0;
+      column < columns;
+      column++
+    ) {
+      if (
+        isPositionFree(
+          occupied,
+          row,
+          column,
+          rows,
+          columns
+        )
+      ) {
+        return {
+          row,
+          column,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
