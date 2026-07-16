@@ -139,50 +139,50 @@ function drawComponent(layer, element) {
 }
 
 
-// function drawConnectionsBetweenOrderedElements(
-//   wireLayer,
-//   labelLayer,
-//   placed
-// ) {
-//   for (let i = 0; i < placed.length - 1; i++) {
-//     const current = placed[i];
-//     const next = placed[i + 1];
+function drawConnectionsBetweenOrderedElements(
+  wireLayer,
+  labelLayer,
+  placed
+) {
+  for (let i = 0; i < placed.length - 1; i++) {
+    const current = placed[i];
+    const next = placed[i + 1];
 
-//     if (
-//       current.net_out &&
-//       current.net_out === next.net_in
-//     ) {
-//       const a = current.outputPin;
-//       const b = next.inputPin;
+    if (
+      current.net_out &&
+      current.net_out === next.net_in
+    ) {
+      const a = current.outputPin;
+      const b = next.inputPin;
 
-//       drawPath(
-//         wireLayer,
-//         a,
-//         b
-//       );
+      drawPath(
+        wireLayer,
+        a,
+        b
+      );
 
-//       const middleY = (a.y + b.y) / 2;
+      const middleY = (a.y + b.y) / 2;
 
-//       // Center of the long horizontal wire.
-//       const labelX = (a.x + b.x) / 2;
-//       const labelY = middleY;
+      // Center of the long horizontal wire.
+      const labelX = (a.x + b.x) / 2;
+      const labelY = middleY;
 
-//       drawLabel(
-//         labelLayer,
-//         current.net_out,
-//         labelX,
-//         labelY,
-//         {
-//           size: "8.5px",
-//           fill:
-//             current.net_out === "GND!"
-//               ? "#dc2626"
-//               : "#334155",
-//         }
-//       );
-//     }
-//   }
-// }
+      drawLabel(
+        labelLayer,
+        current.net_out,
+        labelX,
+        labelY,
+        {
+          size: "8.5px",
+          fill:
+            current.net_out === "GND!"
+              ? "#dc2626"
+              : "#334155",
+        }
+      );
+    }
+  }
+}
 
 function drawCircuit(data) {
   const board = document.getElementById("drawing_board");
@@ -210,6 +210,12 @@ function drawCircuit(data) {
     canvasWidth,
     canvasHeight,
   } = buildLayoutCellLayout(data);
+
+  // const {
+  //   placed,
+  //   canvasWidth,
+  //   canvasHeight,
+  // } = buildOrderedLayout(data.elements);
 
   const placed =
     buildPlacedElements(
@@ -291,37 +297,13 @@ function drawCircuit(data) {
   svg.appendChild(componentLayer);
   svg.appendChild(labelLayer);
 
-  drawLayoutCellBoundaries(
-  layoutCellLayer,
-  placedCells
-  );
+  drawLayoutCellBoundaries(layoutCellLayer, placedCells);
 
-  const routers =
-    createLayoutCellRouters(
-      placedCells
-    );
+  drawConnectionsBetweenOrderedElements(wireLayer, labelLayer, placed);
 
-  drawSubcircuits(
-    placed,
-    componentLayer,
-    wireLayer,
-    labelLayer,
-    routers
-  );
+  drawSubcircuits(placed, componentLayer, wireLayer, labelLayer)
 
-  drawLayoutCellConnections(
-    wireLayer,
-    dotLayer,
-    labelLayer,
-    placedCells,
-    routers
-  );
-
-  setupPanZoom(
-    svg,
-    canvasWidth,
-    canvasHeight
-  );
+  setupPanZoom(svg, canvasWidth, canvasHeight);
 }
 
 function drawHangerLine(
@@ -344,25 +326,6 @@ function drawHangerLine(
         x: b.x,
         y: a.y - rise,
     };
-
-    const router =
-      options.router;
-
-    const net =
-      options.net ??
-      options.label;
-
-    if (router && net) {
-      router.reservePolyline(
-        [
-          a,
-          topLeft,
-          topRight,
-          b,
-        ],
-        net
-      );
-    }
 
     // Short vertical line upward.
     drawLine(
@@ -450,420 +413,83 @@ function drawHangerLine(
     };
   }
 
-function drawJRpairs(
-  current,
-  next,
-  componentLayer,
-  wireLayer,
-  labelLayer,
-  router
-) {
-  const jjComponent =
-    drawComponent(
-      componentLayer,
-      current
-    );
-
-  const resistorComponent =
-    drawComponent(
-      componentLayer,
-      next
-    );
-
-  drawHangerLine(
-    wireLayer,
-    labelLayer,
-    current,
-    jjComponent.top,
-    resistorComponent.top,
-    {
-      rise: 25,
-      margin: 10,
-
-      router,
-      net: current.net_in,
-
-      label:
-        current.net_in,
-    }
-  );
-
-  drawHangerLine(
-    wireLayer,
-    labelLayer,
-    current,
-    jjComponent.bottom,
-    resistorComponent.bottom,
-    {
-      rise: -25,
-      margin: 10,
-
-      router,
-      net:
-        current.net_out,
-
-      label:
-        current.net_out,
-
-      labelFill:
-        current.net_out === "GND!"
-          ? "#dc2626"
-          : "#334155",
-    }
-  );
-}
-
-function isJJResistorPair(
-  current,
-  next
-) {
-  if (!current || !next) {
-    return false;
-  }
-
-  const currentType =
-    Array.isArray(current.type)
-      ? current.type[0]
-      : current.type;
-
-  const nextType =
-    Array.isArray(next.type)
-      ? next.type[0]
-      : next.type;
-
-  return (
-    currentType === "JJ" &&
-    nextType === "R" &&
-    (
-      next.source_component ===
-        current.id ||
-      (
-        next.path === current.path &&
-        next.pid === current.pid
-      )
-    )
-  );
-}
-
-
-function drawSubcircuits(
-  placed,
-  componentLayer,
-  wireLayer,
-  labelLayer,
-  routers
-) {
-  for (
-    let index = 0;
-    index < placed.length;
-    index++
-  ) {
-    const current =
-      placed[index];
-
-    const next =
-      placed[index + 1];
-
-    if (
-      isJJResistorPair(
-        current,
-        next
-      )
-    ) {
-      const router =
-        routers.get(
-          current.layout_cell
-        );
-
-      drawJRpairs(
-        current,
-        next,
-        componentLayer,
-        wireLayer,
-        labelLayer,
-        router
-      );
-
-      index++;
-      continue;
-    }
-
-    drawComponent(
-      componentLayer,
-      current
-    );
-  }
-}
-
-
-function drawLayoutCellConnections(
-  wireLayer,
-  dotLayer,
-  labelLayer,
-  placedCells,
-  routers
-) {
-  for (const cell of placedCells) {
-    const router =
-      routers.get(
-        cell.layout_cell
-      );
-
-    if (!router) {
-      console.error(
-        `No router found for ${cell.layout_cell}`
-      );
-
-      continue;
-    }
-
-    const elementMap = new Map();
-
-    for (const element of cell.elements) {
-      if (element.id) {
-        elementMap.set(
-          element.id,
-          element
-        );
-      }
-
-      if (element.raw) {
-        elementMap.set(
-          element.raw,
-          element
-        );
-      }
-    }
-
-    /*
-     * One entry for every net in this
-     * particular layout cell.
-     */
-    const netJunctions = new Map();
-
-    for (
-      const connection of
-      cell.connections || []
-    ) {
-      const current =
-        elementMap.get(
-          connection.from
-        );
-
-      const next =
-        elementMap.get(
-          connection.to
-        );
-
-      if (!current || !next) {
-        console.warn(
-          "Connection references a missing element:",
-          connection
-        );
-
-        continue;
-      }
-
-      if (
-        isJJResistorPair(
-          current,
-          next
-        )
-      ) {
-        continue;
-      }
-
-      const net =
-        connection.net;
-
-      if (!net) {
-        continue;
-      }
-
-      let netEntry =
-        netJunctions.get(net);
-
-      /*
-       * First connection on this net:
-       * connect the two components normally,
-       * then store the label/junction point.
-       */
-      if (!netEntry) {
-        const start =
-          getElementPinForNet(
-            current,
-            net,
-            true
-          );
-
-        const end =
-          getElementPinForNet(
-            next,
-            net,
-            false
-          );
-
-        if (!start || !end) {
-          console.warn(
-            `Cannot find pins for net "${net}"`,
-            current,
-            next
-          );
-
-          continue;
-        }
-
-        const route =
-          drawRoutedPath(
-            wireLayer,
-            start,
-            end,
-            net,
-            router,
-            {
-              sourceElement:
-                current,
-
-              targetElement:
-                next,
-            }
-          );
-
-        if (
-          !route ||
-          !route.labelPoint
-        ) {
-          continue;
-        }
-
-        netEntry = {
-          net,
-
-          junctionPoint: {
-            x: route.labelPoint.x,
-            y: route.labelPoint.y,
-          },
-
-          connectedElementIds:
-            new Set(),
-        };
-
-        addConnectedElement(
-          netEntry,
+function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
+      const jjComponent = drawComponent(
+          componentLayer,
           current
         );
 
-        addConnectedElement(
-          netEntry,
+        const resistorComponent = drawComponent(
+          componentLayer,
           next
         );
 
-        netJunctions.set(
-          net,
-          netEntry
-        );
-
-        /*
-         * Draw the junction on the actual wire.
-         */
-        drawDot(
-          dotLayer,
-          netEntry.junctionPoint,
-          {
-            radius: 3.5,
-
-            fill:
-              net === "GND!"
-                ? "#dc2626"
-                : "#ffffff",
-
-            stroke:
-              net === "GND!"
-                ? "#7f1d1d"
-                : "#334155",
-          }
-        );
-
-        /*
-         * Put the text slightly above the
-         * junction so that it does not hide
-         * the branch intersection.
-         */
-        drawLabel(
+        // Upper hanger
+        drawHangerLine(
+          wireLayer,
           labelLayer,
-          net,
-          netEntry.junctionPoint.x,
-          netEntry.junctionPoint.y - 10,
+          current,
+          jjComponent.top,
+          resistorComponent.top,
           {
-            size: "8.5px",
+            rise: 25,
+            margin: 10,
+            label: current.net_in,
+          }
+        );
 
-            fill:
-              net === "GND!"
+        // Lower hanger
+        // A negative rise makes the hanger extend downward.
+        drawHangerLine(
+          wireLayer,
+          labelLayer,
+          current,
+          jjComponent.bottom,
+          resistorComponent.bottom,
+          {
+            rise: -25,
+            margin: 10,
+            label: current.net_out,
+            labelFill:
+              current.net_out === "GND!"
                 ? "#dc2626"
                 : "#334155",
           }
         );
+}
 
-        continue;
-      }
 
-      /*
-       * This net already has a main wire
-       * and a junction point.
-       *
-       * Any new element is connected directly
-       * to that existing junction.
-       */
-      const connectionElements = [
-        current,
-        next,
-      ];
+function drawSubcircuits(placed, componentLayer, wireLayer, labelLayer) {
+  for (let i = 0; i < placed.length; i++) {
+    const current = placed[i];
+    const next = placed[i + 1];
 
-      for (
-        const element of
-        connectionElements
-      ) {
-        if (
-          isElementConnectedToNet(
-            netEntry,
-            element
+    const currentType = Array.isArray(current.type)
+      ? current.type[0]
+      : current.type;
+
+    const nextType =
+      next && Array.isArray(next.type)
+        ? next.type[0]
+        : next?.type;
+
+    const isJJResistorPair =
+        currentType === "JJ" &&
+        nextType === "R" &&
+        (
+          next.source_component === current.id ||
+          (
+            next.path === current.path &&
+            next.pid === current.pid
           )
-        ) {
-          continue;
-        }
-
-        const branchRoute =
-          drawBranchToNetJunction(
-            wireLayer,
-            element,
-            net,
-            netEntry.junctionPoint,
-            router
-          );
-
-        if (!branchRoute) {
-          continue;
-        }
-
-        addConnectedElement(
-          netEntry,
-          element
         );
 
-        console.log(
-          `${element.id} connected to existing ` +
-          `net "${net}" at`,
-          netEntry.junctionPoint
-        );
-      }
+    if (isJJResistorPair) {
+        drawJRpairs(current, next, componentLayer, wireLayer, labelLayer)
+        i++;
+        continue;
     }
-
-    /*
-     * Keep the junction information available
-     * for debugging or later interactions.
-     */
-    cell.netJunctions =
-      netJunctions;
+    drawComponent(componentLayer, current);
   }
 }
 
