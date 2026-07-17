@@ -594,11 +594,7 @@ function drawTerminalTree(
           bestConnection.toPoint.x
         ) / 2;
 
-      const labelY =
-        (
-          bestConnection.fromPoint.y +
-          bestConnection.toPoint.y
-        ) / 2;
+      const labelY =bestConnection.fromPoint.y 
 
       drawLabel(
         labelLayer,

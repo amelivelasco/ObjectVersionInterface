@@ -181,53 +181,6 @@ function drawComponent(layer, element) {
   };
 }
 
-
-// function drawConnectionsBetweenOrderedElements(
-//   wireLayer,
-//   labelLayer,
-//   placed
-// ) {
-//   for (let i = 0; i < placed.length - 1; i++) {
-//     const current = placed[i];
-//     const next = placed[i + 1];
-
-//     if (
-//       current.net_out &&
-//       current.net_out === next.net_in
-//     ) {
-//       const a = current.outputPin;
-//       const b = next.inputPin;
-
-//       drawPath(
-//         wireLayer,
-//         a,
-//         b
-//       );
-
-//       const middleY = (a.y + b.y) / 2;
-
-//       // Center of the long horizontal wire.
-//       const labelX = (a.x + b.x) / 2;
-//       const labelY = middleY;
-
-//       drawLabel(
-//         labelLayer,
-//         current.net_out,
-//         labelX,
-//         labelY,
-//         {
-//           size: "8.5px",
-//           fill:
-//             current.net_out === "GND!"
-//               ? "#dc2626"
-//               : "#334155",
-//         }
-//       );
-//     }
-//   }
-// }
-
-
 function drawCircuit(data) {
   const board = document.getElementById("drawing_board");
   board.innerHTML = "";
@@ -254,12 +207,6 @@ function drawCircuit(data) {
     canvasWidth,
     canvasHeight,
   } = buildLayoutCellLayout(data);
-
-  // const {
-  //   placed,
-  //   canvasWidth,
-  //   canvasHeight,
-  // } = buildOrderedLayout(data.elements);
 
   const placed =
     buildPlacedElements(
