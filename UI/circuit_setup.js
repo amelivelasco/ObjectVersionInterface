@@ -1,14 +1,6 @@
 const drawConfig = {
   imageSize: 44,
 
-  marginX: 80,
-  marginY: 70,
-
-  gapX: 135,
-  gapY: 105,
-
-  pinOffset: 22,
-
   wireStroke: "#475569",
   wireStrokeWidth: 2,
 
@@ -22,26 +14,11 @@ const drawConfig = {
   groundStroke: "#7f1d1d",
 
   fontFamily: "Arial, sans-serif",
-  
-  // Layout-cell configuration
-  layoutCellMarginX: 70,
-  layoutCellMarginY: 70,
 
-  layoutCellGapX: 70,
-  layoutCellGapY: 70,
+  externalPortLength: 45,
 
-  layoutCellPaddingX: 45,
-  layoutCellPaddingTop: 75,
-  layoutCellPaddingBottom: 40,
-
-  layoutCellElementGapX: 105,
-  layoutCellElementGapY: 95,
-
-  layoutCellMinWidth: 320,
-  layoutCellMinHeight: 230,
-
-  // Start a new row of layout cells after this width.
-  layoutCellRowWidth: 1500,
+  // Python currently generates left/right pins.
+  rotateResistors: true,
 };
 
 function createSvg(width, height) {
@@ -67,119 +44,120 @@ function createSvgElement(name, attrs = {}) {
   return el;
 }
 
-function estimateColumns(elementCount) {
-  if (elementCount <= 0) {
-    return 1;
-  }
-
-  return Math.ceil(Math.sqrt(elementCount * 1.8));
+function routePointsToPath(points) {
+  return points
+    .map(
+      (point, index) =>
+        `${index === 0 ? "M" : "L"} ` +
+        `${point.x} ${point.y}`
+    )
+    .join(" ");
 }
 
-function buildOrderedLayout(elements) {
-  const count = elements.length;
-  const columns = estimateColumns(count);
-  const rows = Math.ceil(count / columns);
-
-  const canvasWidth =
-    drawConfig.marginX * 2 +
-    Math.max(0, columns - 1) * drawConfig.gapX;
-
-  const canvasHeight =
-    drawConfig.marginY * 2 +
-    Math.max(0, rows - 1) * drawConfig.gapY;
-
-  const placed = elements.map((element, index) => {
-    const row = Math.floor(index / columns);
-    const indexInRow = index % columns;
-
-    /*
-     * Even rows run left-to-right.
-     * Odd rows run right-to-left.
-     */
-    const direction =
-      row % 2 === 0 ? 1 : -1;
-
-    const col =
-      direction === 1
-        ? indexInRow
-        : columns - 1 - indexInRow;
-
-    const x =
-      drawConfig.marginX +
-      col * drawConfig.gapX;
-
-    const y =
-      drawConfig.marginY +
-      row * drawConfig.gapY;
-
-    const inputPin = {
-      x:
-        x -
-        direction * drawConfig.pinOffset,
-      y,
-      net: element.net_in,
-    };
-
-    const outputPin = {
-      x:
-        x +
-        direction * drawConfig.pinOffset,
-      y,
-      net: element.net_out,
-    };
-
-    return {
-      ...element,
-      index,
-      x,
-      y,
-      row,
-      col,
-      direction,
-      inputPin,
-      outputPin,
-    };
-  });
-
-  console.table(
-    placed.map((element) => ({
-      index: element.index,
-      path: element.path,
-      row: element.row,
-      visualColumn: element.col,
-      direction:
-        element.direction === 1
-          ? "left-to-right"
-          : "right-to-left",
-      x: element.x,
-      y: element.y,
-    }))
+function drawGeneratedRoutes(
+  wireLayer,
+  routes
+) {
+  const orderedRoutes = [
+    ...(routes || []),
+  ].sort(
+    (first, second) =>
+      Number(first.routing_layer ?? 0) -
+      Number(second.routing_layer ?? 0)
   );
 
-  return {
-    placed,
-    canvasWidth: Math.max(
-      900,
-      canvasWidth
-    ),
-    canvasHeight: Math.max(
-      550,
-      canvasHeight
-    ),
-  };
+  for (const route of orderedRoutes) {
+    if (!route.routed) {
+      console.warn(
+        `Unrouted net: ${route.net}`
+      );
+
+      continue;
+    }
+
+    if (route.external) {
+      continue;
+    }
+
+    const routingLayer = Number(
+      route.routing_layer ?? 0
+    );
+
+    for (const points of route.paths || []) {
+      if (
+        !Array.isArray(points) ||
+        points.length < 2
+      ) {
+        continue;
+      }
+
+      const pathData =
+        routePointsToPath(points);
+
+      /*
+       * A higher routing layer receives a white
+       * underlay. This makes crossings look like
+       * insulated wire crossings rather than
+       * electrical junctions.
+       */
+      if (routingLayer > 0) {
+        const underlay =
+          createSvgElement("path", {
+            d: pathData,
+
+            fill: "none",
+            stroke: "#ffffff",
+
+            "stroke-width":
+              drawConfig.wireStrokeWidth + 6,
+
+            "stroke-linecap": "round",
+            "stroke-linejoin": "round",
+
+            class:
+              "edge routed-edge-underlay",
+
+            "data-net": route.net,
+
+            "data-routing-layer":
+              routingLayer,
+          });
+
+        wireLayer.appendChild(
+          underlay
+        );
+      }
+
+      const path =
+        createSvgElement("path", {
+          d: pathData,
+
+          fill: "none",
+
+          stroke:
+            route.net === "GND!"
+              ? drawConfig.groundFill
+              : drawConfig.wireStroke,
+
+          "stroke-width":
+            drawConfig.wireStrokeWidth,
+
+          "stroke-linecap": "round",
+          "stroke-linejoin": "round",
+
+          class:
+            "edge routed-edge",
+
+          "data-net": route.net,
+
+          "data-routing-layer":
+            routingLayer,
+        });
+
+      wireLayer.appendChild(path);
+    }
+  }
 }
-
-function orthogonalPath(a, b) {
-  const middleY = (a.y + b.y) / 2;
-
-  return [
-    `M ${a.x} ${a.y}`,
-    `V ${middleY}`,
-    `H ${b.x}`,
-    `V ${b.y}`,
-  ].join(" ");
-}
-
 
 function setupPanZoom(svg, fullWidth, fullHeight) {
   let viewBox = {
