@@ -235,17 +235,24 @@ function buildLayoutCellLayout(data) {
 function placeElementsInsideLayoutCell(
   cell
 ) {
+  const orderedElements =
+    optimizeElementOrderByConnectivity(
+      cell.elements,
+      cell.columns
+    );
+
   const contentStartX =
     cell.x +
-    (cell.width -
-      cell.contentWidth) /
-      2;
+    (
+      cell.width -
+      cell.contentWidth
+    ) / 2;
 
   const contentStartY =
     cell.y +
     drawConfig.layoutCellPaddingTop;
 
-  return cell.elements.map(
+  return orderedElements.map(
     (element, index) => {
       const row = Math.floor(
         index / cell.columns
@@ -254,11 +261,6 @@ function placeElementsInsideLayoutCell(
       const indexInRow =
         index % cell.columns;
 
-      /*
-       * Snake layout:
-       * even rows: left to right
-       * odd rows: right to left
-       */
       const direction =
         row % 2 === 0
           ? 1

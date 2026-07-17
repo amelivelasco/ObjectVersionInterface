@@ -81,7 +81,7 @@ function drawComponent(layer, element) {
     height: drawConfig.imageSize,
     class: "component-image",
   });
-  
+
   if (element.type[0] === "R") {
     image.setAttribute(
       "transform",
@@ -132,50 +132,51 @@ function drawComponent(layer, element) {
 }
 
 
-function drawConnectionsBetweenOrderedElements(
-  wireLayer,
-  labelLayer,
-  placed
-) {
-  for (let i = 0; i < placed.length - 1; i++) {
-    const current = placed[i];
-    const next = placed[i + 1];
+// function drawConnectionsBetweenOrderedElements(
+//   wireLayer,
+//   labelLayer,
+//   placed
+// ) {
+//   for (let i = 0; i < placed.length - 1; i++) {
+//     const current = placed[i];
+//     const next = placed[i + 1];
 
-    if (
-      current.net_out &&
-      current.net_out === next.net_in
-    ) {
-      const a = current.outputPin;
-      const b = next.inputPin;
+//     if (
+//       current.net_out &&
+//       current.net_out === next.net_in
+//     ) {
+//       const a = current.outputPin;
+//       const b = next.inputPin;
 
-      drawPath(
-        wireLayer,
-        a,
-        b
-      );
+//       drawPath(
+//         wireLayer,
+//         a,
+//         b
+//       );
 
-      const middleY = (a.y + b.y) / 2;
+//       const middleY = (a.y + b.y) / 2;
 
-      // Center of the long horizontal wire.
-      const labelX = (a.x + b.x) / 2;
-      const labelY = middleY;
+//       // Center of the long horizontal wire.
+//       const labelX = (a.x + b.x) / 2;
+//       const labelY = middleY;
 
-      drawLabel(
-        labelLayer,
-        current.net_out,
-        labelX,
-        labelY,
-        {
-          size: "8.5px",
-          fill:
-            current.net_out === "GND!"
-              ? "#dc2626"
-              : "#334155",
-        }
-      );
-    }
-  }
-}
+//       drawLabel(
+//         labelLayer,
+//         current.net_out,
+//         labelX,
+//         labelY,
+//         {
+//           size: "8.5px",
+//           fill:
+//             current.net_out === "GND!"
+//               ? "#dc2626"
+//               : "#334155",
+//         }
+//       );
+//     }
+//   }
+// }
+
 
 function drawCircuit(data) {
   const board = document.getElementById("drawing_board");
@@ -279,22 +280,62 @@ function drawCircuit(data) {
   const svg = createSvg(canvasWidth, canvasHeight);
   board.appendChild(svg);
   const layoutCellLayer =createSvgElement("g",{class:"layout-cell-layer"});
-  const wireLayer = createSvgElement("g", { class: "wire-layer" });
+  const internalWireLayer =
+    createSvgElement(
+      "g",
+      {
+        class:
+          "internal-wire-layer",
+      }
+    );
+
+  const externalWireLayer =
+    createSvgElement(
+      "g",
+      {
+        class:
+          "external-wire-layer",
+      }
+    );
   const dotLayer = createSvgElement("g", { class: "dot-layer" });
   const componentLayer = createSvgElement("g", { class: "component-layer" });
   const labelLayer = createSvgElement("g", { class: "label-layer" });
 
   svg.appendChild(layoutCellLayer);
-  svg.appendChild(wireLayer);
+  svg.appendChild(
+    internalWireLayer
+  );
+
+  svg.appendChild(
+    externalWireLayer
+  );
   svg.appendChild(dotLayer);
   svg.appendChild(componentLayer);
   svg.appendChild(labelLayer);
 
   drawLayoutCellBoundaries(layoutCellLayer, placedCells);
 
-  drawConnectionsBetweenOrderedElements(wireLayer, labelLayer, placed);
+  /*
+  * Pass 1: complete all connections inside
+  * each distinct layout-cell instance.
+  */
+  drawConnectionsInsideLayoutCells(
+    internalWireLayer,
+    labelLayer,
+    placed
+  );
 
-  drawSubcircuits(placed, componentLayer, wireLayer, labelLayer)
+  // /*
+  // * Pass 2: connect nets that cross from one
+  // * layout-cell instance into another.
+  // */
+  // drawConnectionsBetweenLayoutCells(
+  //   externalWireLayer,
+  //   labelLayer,
+  //   placed
+  // );
+
+  drawSubcircuits(placed, componentLayer, internalWireLayer, labelLayer)
 
   setupPanZoom(svg, canvasWidth, canvasHeight);
 }
@@ -406,49 +447,105 @@ function drawHangerLine(
     };
   }
 
-function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
-      const jjComponent = drawComponent(
-          componentLayer,
-          current
-        );
+function drawJRpairs(
+  current,
+  next,
+  componentLayer,
+  wireLayer,
+  labelLayer
+) {
+  drawComponent(
+    componentLayer,
+    current
+  );
 
-        const resistorComponent = drawComponent(
-          componentLayer,
-          next
-        );
+  drawComponent(
+    componentLayer,
+    next
+  );
 
-        // Upper hanger
-        drawHangerLine(
-          wireLayer,
-          labelLayer,
-          current,
-          jjComponent.top,
-          resistorComponent.top,
-          {
-            rise: 25,
-            margin: 10,
-            label: current.net_in,
-          }
-        );
+  const geometry =
+    getJJPairGeometry(
+      current,
+      next,
+      25
+    );
 
-        // Lower hanger
-        // A negative rise makes the hanger extend downward.
-        drawHangerLine(
-          wireLayer,
-          labelLayer,
-          current,
-          jjComponent.bottom,
-          resistorComponent.bottom,
-          {
-            rise: -25,
-            margin: 10,
-            label: current.net_out,
-            labelFill:
-              current.net_out === "GND!"
-                ? "#dc2626"
-                : "#334155",
-          }
-        );
+  /*
+   * Top input hanger.
+   */
+  drawLine(
+    wireLayer,
+    labelLayer,
+    current,
+    geometry.jjTop,
+    geometry.topAtJJ
+  );
+
+  drawLine(
+    wireLayer,
+    labelLayer,
+    current,
+    geometry.topAtJJ,
+    geometry.topAtResistor
+  );
+
+  drawLine(
+    wireLayer,
+    labelLayer,
+    current,
+    geometry.topAtResistor,
+    geometry.resistorTop
+  );
+
+  drawLabel(
+    labelLayer,
+    current.net_in,
+    geometry.topMiddle.x,
+    geometry.topMiddle.y,
+    {
+      size: "8.5px",
+      fill: "#334155",
+    }
+  );
+
+  /*
+   * Bottom output hanger.
+   */
+  drawLine(
+    wireLayer,
+    labelLayer,
+    current,
+    geometry.jjBottom,
+    geometry.bottomAtJJ
+  );
+
+  drawLine(
+    wireLayer,
+    labelLayer,
+    current,
+    geometry.bottomAtJJ,
+    geometry.bottomAtResistor
+  );
+
+  drawLine(
+    wireLayer,
+    labelLayer,
+    current,
+    geometry.bottomAtResistor,
+    geometry.resistorBottom
+  );
+
+  drawLabel(
+    labelLayer,
+    current.net_out,
+    geometry.bottomMiddle.x,
+    geometry.bottomMiddle.y,
+    {
+      size: "8.5px",
+      fill: "#334155",
+    }
+  );
 }
 
 
