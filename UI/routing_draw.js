@@ -4,6 +4,10 @@ function getElementType(element) {
     : element.type;
 }
 
+function isBiasElement(element) {
+  return getElementType(element) === "IB";
+}
+
 function getLayoutInstance(element) {
   return (
     element.parentLayoutCell ||
@@ -297,82 +301,123 @@ function collectNetTerminals(elements) {
    * Add regular element terminals.
    * Skip both members of every JJ/resistor pair.
    */
-  for (const element of elements) {
+    for (const element of elements) {
     if (
-      elementsInPairs.has(
+        elementsInPairs.has(
         element.id
-      )
+        )
     ) {
-      continue;
+        continue;
     }
 
     if (
-      getElementType(element) === "R"
+        getElementType(element) === "R"
     ) {
-      continue;
+        continue;
     }
 
     const layoutInstance =
-      getLayoutInstance(element);
+        getLayoutInstance(element);
 
+    /*
+    * A bias input is a private VDD stub.
+    * Only its output participates in normal
+    * circuit-net routing.
+    */
+    if (isBiasElement(element)) {
+        if (
+        element.net_out &&
+        element.outputPin
+        ) {
+        addTerminal(
+            element.net_out,
+            {
+            net:
+                element.net_out,
+
+            kind: "out",
+
+            point:
+                element.outputPin,
+
+            candidatePoints: [
+                element.outputPin,
+            ],
+
+            element,
+
+            ownerId:
+                element.id,
+
+            layoutInstance,
+            }
+        );
+        }
+
+        continue;
+    }
+
+    /*
+    * Normal non-bias element terminals.
+    */
     if (
-      element.net_in &&
-      element.inputPin
+        element.net_in &&
+        element.inputPin
     ) {
-      addTerminal(
+        addTerminal(
         element.net_in,
         {
-          net:
+            net:
             element.net_in,
 
-          kind: "in",
+            kind: "in",
 
-          point:
+            point:
             element.inputPin,
 
-          candidatePoints: [
+            candidatePoints: [
             element.inputPin,
-          ],
+            ],
 
-          element,
+            element,
 
-          ownerId:
+            ownerId:
             element.id,
 
-          layoutInstance,
+            layoutInstance,
         }
-      );
+        );
     }
 
     if (
-      element.net_out &&
-      element.outputPin
+        element.net_out &&
+        element.outputPin
     ) {
-      addTerminal(
+        addTerminal(
         element.net_out,
         {
-          net:
+            net:
             element.net_out,
 
-          kind: "out",
+            kind: "out",
 
-          point:
+            point:
             element.outputPin,
 
-          candidatePoints: [
+            candidatePoints: [
             element.outputPin,
-          ],
+            ],
 
-          element,
+            element,
 
-          ownerId:
+            ownerId:
             element.id,
 
-          layoutInstance,
+            layoutInstance,
         }
-      );
+        );
+        }       
     }
-  }
 
   return terminalsByNet;
 }

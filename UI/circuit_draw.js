@@ -82,10 +82,29 @@ function drawComponent(layer, element) {
     class: "component-image",
   });
 
-  if (element.type[0] === "R") {
+  const componentType =
+    getElementType(element);
+
+  if (componentType === "R") {
     image.setAttribute(
       "transform",
       `rotate(90 ${element.x} ${element.y})`
+    );
+  }
+
+  if (
+    componentType === "IB" &&
+    Number.isFinite(
+      element.biasRotation
+    )
+  ) {
+    image.setAttribute(
+      "transform",
+      `rotate(
+        ${element.biasRotation}
+        ${element.x}
+        ${element.y}
+      )`
     );
   }
 
@@ -217,6 +236,10 @@ function drawCircuit(data) {
       placedCells
     );
 
+  prepareBiasElements(
+    placed
+  );
+
   console.table(
     placedCells.map(
       (cell) => ({
@@ -313,6 +336,10 @@ function drawCircuit(data) {
   svg.appendChild(componentLayer);
   svg.appendChild(labelLayer);
 
+  prepareBiasElements(
+    placed
+  );
+
   drawLayoutCellBoundaries(layoutCellLayer, placedCells);
 
   /*
@@ -334,6 +361,12 @@ function drawCircuit(data) {
   //   labelLayer,
   //   placed
   // );
+
+  drawBiasSupplyStubs(
+    internalWireLayer,
+    labelLayer,
+    placed
+  );
 
   drawSubcircuits(placed, componentLayer, internalWireLayer, labelLayer)
 

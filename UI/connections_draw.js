@@ -75,12 +75,31 @@ function getBlockTerminals(block) {
       : block.elements;
 
   for (const element of relevantElements) {
+    /*
+    * The bias supply is private and should
+    * not affect placement. Only its output
+    * connects it to the circuit graph.
+    */
+    if (isBiasElement(element)) {
+      if (element.net_out) {
+        outputs.add(
+          element.net_out
+        );
+      }
+
+      continue;
+    }
+
     if (element.net_in) {
-      inputs.add(element.net_in);
+      inputs.add(
+        element.net_in
+      );
     }
 
     if (element.net_out) {
-      outputs.add(element.net_out);
+      outputs.add(
+        element.net_out
+      );
     }
   }
 
