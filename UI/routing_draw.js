@@ -330,11 +330,22 @@ function collectNetTerminals(elements) {
 
         const layoutInstance =
             getLayoutInstance(element);
+        
+
+        const parallelBranch =
+          element.parallelInductorBranch;
+
+        const customSharedNet =
+          parallelBranch
+            ? parallelBranch.sharedNet
+            : null;
 
         if (
-            element.net_in &&
-            element.inputPin
-        ) {
+          element.net_in &&
+          element.inputPin &&
+          element.net_in !==
+            customSharedNet
+        ){
             addTerminal(
             element.net_in,
             {
@@ -354,8 +365,10 @@ function collectNetTerminals(elements) {
         }
 
         if (
-            element.net_out &&
-            element.outputPin
+          element.net_out &&
+          element.outputPin &&
+          element.net_out !==
+            customSharedNet
         ) {
             addTerminal(
             element.net_out,
