@@ -452,6 +452,170 @@ function findBestTerminalConnection(
   return best;
 }
 
+function segmentCrossesBox(
+  a,
+  b,
+  box
+) {
+  const horizontal =
+    Math.abs(a.y - b.y) < 0.5;
+
+  if (horizontal) {
+    const minX =
+      Math.min(a.x, b.x);
+
+    const maxX =
+      Math.max(a.x, b.x);
+
+    return (
+      a.y >= box.top &&
+      a.y <= box.bottom &&
+      maxX >= box.left &&
+      minX <= box.right
+    );
+  }
+
+  const vertical =
+    Math.abs(a.x - b.x) < 0.5;
+
+  if (vertical) {
+    const minY =
+      Math.min(a.y, b.y);
+
+    const maxY =
+      Math.max(a.y, b.y);
+
+    return (
+      a.x >= box.left &&
+      a.x <= box.right &&
+      maxY >= box.top &&
+      minY <= box.bottom
+    );
+  }
+
+  return false;
+}
+
+function getJJPairRoutingBox(
+  jj,
+  resistor,
+  padding = 10
+) {
+  const geometry =
+    getJJPairGeometry(
+      jj,
+      resistor,
+      25
+    );
+
+  const halfSize =
+    drawConfig.imageSize / 2;
+
+  return {
+    left:
+      Math.min(
+        jj.x - halfSize,
+        resistor.x - halfSize,
+        geometry.topAtJJ.x,
+        geometry.topAtResistor.x,
+        geometry.bottomAtJJ.x,
+        geometry.bottomAtResistor.x
+      ) - padding,
+
+    right:
+      Math.max(
+        jj.x + halfSize,
+        resistor.x + halfSize,
+        geometry.topAtJJ.x,
+        geometry.topAtResistor.x,
+        geometry.bottomAtJJ.x,
+        geometry.bottomAtResistor.x
+      ) + padding,
+
+    top:
+      Math.min(
+        geometry.topMiddle.y,
+        jj.y - halfSize,
+        resistor.y - halfSize
+      ) - padding,
+
+    bottom:
+      Math.max(
+        geometry.bottomMiddle.y,
+        jj.y + halfSize,
+        resistor.y + halfSize
+      ) + padding,
+  };
+}
+
+function findBlockingJJPairBox(
+  a,
+  b,
+  placed,
+  net
+) {
+  /*
+   * Keep ground handling unchanged.
+   */
+  if (
+    typeof isGroundNet === "function" &&
+    isGroundNet(net)
+  ) {
+    return null;
+  }
+
+  for (
+    let index = 0;
+    index < placed.length - 1;
+    index++
+  ) {
+    const current =
+      placed[index];
+
+    const next =
+      placed[index + 1];
+
+    if (
+      !isJJResistorPair(
+        current,
+        next
+      )
+    ) {
+      continue;
+    }
+
+    const box =
+      getJJPairRoutingBox(
+        current,
+        next
+      );
+
+    const corner = {
+      x: b.x,
+      y: a.y,
+    };
+
+    if (
+      segmentCrossesBox(
+        a,
+        corner,
+        box
+      ) ||
+      segmentCrossesBox(
+        corner,
+        b,
+        box
+      )
+    ) {
+      return box;
+    }
+
+    index++;
+  }
+
+  return null;
+}
+
 
 function drawTerminalTree(
   wireLayer,
@@ -574,14 +738,19 @@ function drawTerminalTree(
           bestConnection.toPoint;
     }
 
-    drawPath(
+    const blockingJRBox =
+      findBlockingJJPairBox(
+        bestConnection.fromPoint,
+        bestConnection.toPoint,
+        options.placed || [],
+        net
+      );
+
+    drawAroundOrFallbackRed(
       wireLayer,
       bestConnection.fromPoint,
       bestConnection.toPoint,
-      {
-        stroke:
-          drawConfig.wireStroke,
-      }
+      blockingJRBox
     );
 
     if (
@@ -676,6 +845,7 @@ function drawConnectionsInsideLayoutCells(
         net,
         terminals,
         {
+          placed,
           drawLabel: true,
         }
       );
@@ -764,6 +934,7 @@ function drawConnectionsBetweenLayoutCells(
       net,
       cellAnchors,
       {
+        placed,
         drawLabel: true,
       }
     );

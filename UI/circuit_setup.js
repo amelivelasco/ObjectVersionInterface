@@ -40,7 +40,6 @@ const drawConfig = {
 
   layoutCellMinWidth: 320,
   layoutCellMinHeight: 230,
-
   // Start a new row of layout cells after this width.
   layoutCellRowWidth: 1500,
 
@@ -118,10 +117,15 @@ function buildOrderedLayout(elements) {
       drawConfig.marginY +
       row * drawConfig.gapY;
 
+    const pinOffset =
+      getElementType(element) === "L"
+        ? drawConfig.imageSize / 2
+        : drawConfig.pinOffset;
+
     const inputPin = {
       x:
         x -
-        direction * drawConfig.pinOffset,
+        direction * pinOffset,
       y,
       net: element.net_in,
     };
@@ -129,7 +133,7 @@ function buildOrderedLayout(elements) {
     const outputPin = {
       x:
         x +
-        direction * drawConfig.pinOffset,
+        direction * pinOffset,
       y,
       net: element.net_out,
     };

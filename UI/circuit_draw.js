@@ -1,16 +1,240 @@
-function drawPath(layer, a, b, options = {}) {
-  const path = createSvgElement("path", {
-    d: orthogonalPath(a, b),
-    fill: "none",
-    stroke: options.stroke || drawConfig.wireStroke,
-    "stroke-width": options.strokeWidth || drawConfig.wireStrokeWidth,
-    "stroke-linecap": "round",
-    "stroke-linejoin": "round",
-    "stroke-dasharray": options.dash || "",
-    class: "edge",
-  });
+function drawPath(
+  layer,
+  a,
+  b,
+  options = {}
+) {
+  const stroke =
+    options.stroke ||
+    drawConfig.wireStroke;
+
+  const path =
+    createSvgElement("path", {
+      d:
+        options.pathData ||
+        orthogonalPath(a, b),
+
+      fill: "none",
+      stroke,
+
+      "stroke-width":
+        options.strokeWidth ||
+        drawConfig.wireStrokeWidth,
+
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      class:
+        options.className ||
+        "edge",
+          });
+
+  /*
+   * Prevent the .edge CSS class from replacing
+   * the red fallback color.
+   */
+  if (options.forceStroke) {
+    path.style.setProperty(
+      "stroke",
+      stroke,
+      "important"
+    );
+  }
 
   layer.appendChild(path);
+}
+
+function detourCausesCross(
+  wireLayer,
+  a,
+  b,
+  detourX
+) {
+  const pathData = [
+    `M ${a.x} ${a.y}`,
+    `H ${detourX}`,
+    `V ${b.y}`,
+    `H ${b.x}`,
+  ].join(" ");
+
+  const existingWires = [
+    ...wireLayer.querySelectorAll(
+      ".edge"
+    ),
+  ];
+
+  const probe =
+    createSvgElement("path", {
+      d: pathData,
+      fill: "none",
+      stroke: "transparent",
+      "stroke-width":
+        drawConfig.wireStrokeWidth,
+    });
+
+  wireLayer.appendChild(probe);
+
+  const length =
+    probe.getTotalLength();
+
+  /*
+   * Ignore the endpoints because touching a
+   * wire at a valid connection is allowed.
+   */
+  for (
+    let distance = 5;
+    distance < length - 5;
+    distance += 1
+  ) {
+    const point =
+      probe.getPointAtLength(
+        distance
+      );
+
+    const svgPoint =
+      new DOMPoint(
+        point.x,
+        point.y
+      );
+
+    const crosses =
+      existingWires.some(
+        (wire) =>
+          typeof wire.isPointInStroke ===
+            "function" &&
+          wire.isPointInStroke(
+            svgPoint
+          )
+      );
+
+    if (crosses) {
+      probe.remove();
+      return true;
+    }
+  }
+
+  probe.remove();
+  return false;
+}
+
+function drawAroundOrFallbackRed(
+  wireLayer,
+  a,
+  b,
+  obstacleBox
+) {
+  /*
+   * No obstacle: use the normal route.
+   */
+  if (!obstacleBox) {
+    drawPath(
+      wireLayer,
+      a,
+      b
+    );
+
+    return;
+  }
+
+  const clearance = 18;
+
+  const leftX =
+    obstacleBox.left -
+    clearance;
+
+  const rightX =
+    obstacleBox.right +
+    clearance;
+
+  const leftLength =
+    Math.abs(a.x - leftX) +
+    Math.abs(a.y - b.y) +
+    Math.abs(b.x - leftX);
+
+  const rightLength =
+    Math.abs(a.x - rightX) +
+    Math.abs(a.y - b.y) +
+    Math.abs(b.x - rightX);
+
+  const detourX =
+    leftLength <= rightLength
+      ? leftX
+      : rightX;
+
+  const detourLength =
+    Math.min(
+      leftLength,
+      rightLength
+    );
+
+  const normalLength =
+    Math.abs(a.x - b.x) +
+    Math.abs(a.y - b.y);
+
+  /*
+   * When going around the component would make
+   * the path excessively long, use a direct red
+   * fallback that may overlap other wires.
+   */
+  const routeTooLong =
+    detourLength >
+    normalLength + 100;
+
+  const detourCrosses =
+    detourCausesCross(
+      wireLayer,
+      a,
+      b,
+      detourX
+    );
+
+  if (routeTooLong) {
+    drawPath(
+      wireLayer,
+      a,
+      b,
+      {
+        pathData:
+          `M ${a.x} ${a.y} ` +
+          `H ${b.x}` +
+          `V ${b.y}`,
+
+        stroke: "#dc2626",
+        forceStroke: true,
+
+        className:
+          "edge fallback-edge",
+      }
+    );
+
+    return;
+  }
+
+  drawPath(
+  wireLayer,
+  a,
+  b,
+  {
+    pathData: [
+      `M ${a.x} ${a.y}`,
+      `H ${detourX}`,
+      `V ${b.y}`,
+      `H ${b.x}`,
+    ].join(" "),
+
+    stroke:
+      detourCrosses
+        ? "#dc2626"
+        : drawConfig.wireStroke,
+
+    forceStroke:
+      detourCrosses,
+
+    className:
+      detourCrosses
+        ? "edge fallback-edge"
+        : "edge",
+  }
+)
 }
 
 function drawLine(lineLayer, labelLayer, element, a, b, options = {}) {
@@ -350,6 +574,16 @@ function drawCircuit(data) {
   );
 
   drawSubcircuits(placed, componentLayer, internalWireLayer, labelLayer)
+
+  internalWireLayer
+  .querySelectorAll(
+    ".fallback-edge"
+  )
+  .forEach((path) => {
+    internalWireLayer.appendChild(
+      path
+    );
+  });
 
   setupPanZoom(svg, canvasWidth, canvasHeight);
 }
