@@ -8,6 +8,7 @@ const drawConfig = {
   gapY: 105,
 
   pinOffset: 22,
+  inductorPinOffset: 15,
 
   wireStroke: "#475569",
   wireStrokeWidth: 2,
@@ -42,6 +43,12 @@ const drawConfig = {
 
   // Start a new row of layout cells after this width.
   layoutCellRowWidth: 1500,
+
+  biasOutputGap: 10,
+  biasVddStubLength: 24,
+  biasBranchOffset: 42,
+  biasPlacementSpacing: 55,
+  biasCollisionMargin: 8,
 };
 
 function createSvg(width, height) {
@@ -174,7 +181,6 @@ function orthogonalPath(a, b) {
 
   return [
     `M ${a.x} ${a.y}`,
-    `V ${middleY}`,
     `H ${b.x}`,
     `V ${b.y}`,
   ].join(" ");

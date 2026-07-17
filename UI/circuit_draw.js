@@ -119,6 +119,37 @@ function drawComponent(layer, element) {
   ].join("\n");
 
   g.appendChild(title);
+
+  if (componentType === "L") {
+    const baseline =
+      createSvgElement("line", {
+        x1: element.inputPin.x,
+        y1: element.y,
+
+        x2: element.outputPin.x,
+        y2: element.y,
+
+        stroke:
+          drawConfig.wireStroke,
+
+        "stroke-width":
+          drawConfig.wireStrokeWidth,
+
+        "stroke-linecap":
+          "round",
+
+        class:
+          "inductor-wire-underlay",
+      });
+
+    /*
+    * Append the line first so the red inductor
+    * image is rendered over it.
+    */
+    g.appendChild(baseline);
+  }
+
+
   g.appendChild(image);
 
   const halfSize = drawConfig.imageSize / 2;

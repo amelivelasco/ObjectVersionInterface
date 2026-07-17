@@ -304,3 +304,51 @@ function drawBiasSupplyStubs(
     );
   }
 }
+
+
+function isBiasElement(element) {
+  return getElementType(element) === "IB";
+}
+
+function findBiasTarget(
+  bias,
+  placed
+) {
+  const layoutInstance =
+    getLayoutInstance(bias);
+
+  const candidates = placed.filter(
+    (element) =>
+      element.id !== bias.id &&
+      getLayoutInstance(element) ===
+        layoutInstance &&
+      getElementType(element) !== "R" &&
+      element.net_in === bias.net_out
+  );
+
+  if (candidates.length === 0) {
+    console.warn(
+      `No target found for bias ${bias.id}`,
+      bias.net_out
+    );
+
+    return null;
+  }
+
+  return candidates.reduce(
+    (closest, candidate) => {
+      const closestDistance =
+        Math.abs(closest.x - bias.x) +
+        Math.abs(closest.y - bias.y);
+
+      const candidateDistance =
+        Math.abs(candidate.x - bias.x) +
+        Math.abs(candidate.y - bias.y);
+
+      return candidateDistance <
+        closestDistance
+        ? candidate
+        : closest;
+    }
+  );
+}

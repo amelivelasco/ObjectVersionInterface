@@ -285,11 +285,14 @@ function placeElementsInsideLayoutCell(
         row *
           drawConfig.layoutCellElementGapY;
 
+      const pinOffset =
+        getPinOffsetForElement(element);
+
       const inputPin = {
         x:
           x -
           direction *
-            drawConfig.pinOffset,
+            pinOffset,
 
         y,
         net: element.net_in,
@@ -299,7 +302,7 @@ function placeElementsInsideLayoutCell(
         x:
           x +
           direction *
-            drawConfig.pinOffset,
+            pinOffset,
 
         y,
         net: element.net_out,

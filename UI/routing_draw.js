@@ -1,7 +1,7 @@
-function getElementType(element) {
-  return Array.isArray(element.type)
-    ? element.type[0]
-    : element.type;
+function getPinOffsetForElement(element) {
+  return getElementType(element) === "L"
+    ? drawConfig.inductorPinOffset
+    : drawConfig.pinOffset;
 }
 
 function isBiasElement(element) {
