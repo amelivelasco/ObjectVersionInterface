@@ -116,7 +116,6 @@ function findFreeBiasX(
   return desiredX;
 }
 
-
 function placeBiasElementsAboveNetOut(placed) {
   const halfSize =
     drawConfig.imageSize / 2;
@@ -284,6 +283,268 @@ function drawBiasLocalConnections(
       {
         net: bias.net_out,
         kind: "bias-output-stub",
+        stroke:
+          drawConfig.wireStroke,
+      }
+    );
+  }
+}
+
+
+function findBiasInductorTarget(
+  bias,
+  placed
+) {
+  const layoutInstance =
+    getLayoutInstance(bias);
+
+  const candidates =
+    placed.filter((element) => {
+      if (
+        element.id === bias.id ||
+        getElementType(element) !== "L" ||
+        getLayoutInstance(element) !==
+          layoutInstance
+      ) {
+        return false;
+      }
+
+      return (
+        element.net_in === bias.net_out ||
+        element.net_out === bias.net_out
+      );
+    });
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  /*
+   * Prefer an inductor whose input consumes
+   * the bias output.
+   */
+  candidates.sort(
+    (first, second) => {
+      const firstPriority =
+        first.net_in === bias.net_out
+          ? 0
+          : 1;
+
+      const secondPriority =
+        second.net_in === bias.net_out
+          ? 0
+          : 1;
+
+      if (
+        firstPriority !==
+        secondPriority
+      ) {
+        return (
+          firstPriority -
+          secondPriority
+        );
+      }
+
+      const firstPin =
+        first.net_in === bias.net_out
+          ? first.inputPin
+          : first.outputPin;
+
+      const secondPin =
+        second.net_in === bias.net_out
+          ? second.inputPin
+          : second.outputPin;
+
+      const firstDistance =
+        Math.abs(
+          firstPin.x -
+          bias.biasNetJoin.x
+        ) +
+        Math.abs(
+          firstPin.y -
+          bias.biasNetJoin.y
+        );
+
+      const secondDistance =
+        Math.abs(
+          secondPin.x -
+          bias.biasNetJoin.x
+        ) +
+        Math.abs(
+          secondPin.y -
+          bias.biasNetJoin.y
+        );
+
+      return (
+        firstDistance -
+        secondDistance
+      );
+    }
+  );
+
+  return candidates[0];
+}
+
+function connectBiasStubsToInductors(
+  wireLayer,
+  labelLayer,
+  placed
+) {
+  for (const bias of placed) {
+    if (
+      !isBiasElement(bias) ||
+      !bias.biasNetJoin ||
+      !bias.net_out
+    ) {
+      continue;
+    }
+
+    /*
+     * First try the target already selected during
+     * bias placement.
+     */
+    let inductor =
+      placed.find(
+        (element) =>
+          element.id ===
+            bias.biasTarget &&
+          getElementType(element) ===
+            "L"
+      );
+
+    /*
+     * Otherwise find the nearest inductor sharing
+     * the bias output net.
+     */
+    if (!inductor) {
+      inductor =
+        findBiasInductorTarget(
+          bias,
+          placed
+        );
+    }
+
+    if (!inductor) {
+      continue;
+    }
+
+    /*
+     * Usually bias.net_out connects to the
+     * inductor input. Support the output side too
+     * in case the exported net direction differs.
+     */
+    const targetPin =
+      inductor.net_in === bias.net_out
+        ? inductor.inputPin
+        : inductor.outputPin;
+
+    if (!targetPin) {
+      console.warn(
+        `Inductor ${inductor.id} has no matching pin`,
+        {
+          bias:
+            bias.id,
+
+          net:
+            bias.net_out,
+        }
+      );
+
+      continue;
+    }
+
+    const start =
+      bias.biasNetJoin;
+
+    /*
+     * Already at the same point.
+     */
+    if (
+      Math.abs(
+        start.x -
+        targetPin.x
+      ) < 0.5 &&
+      Math.abs(
+        start.y -
+        targetPin.y
+      ) < 0.5
+    ) {
+      continue;
+    }
+
+    /*
+     * Straight line when the bias junction and
+     * inductor pin are horizontally aligned.
+     */
+    if (
+      Math.abs(
+        start.y -
+        targetPin.y
+      ) < 0.5
+    ) {
+      drawLine(
+        wireLayer,
+        labelLayer,
+        bias,
+        start,
+        targetPin,
+        {
+          net:
+            bias.net_out,
+
+          kind:
+            "bias-to-inductor",
+
+          stroke:
+            drawConfig.wireStroke,
+        }
+      );
+
+      continue;
+    }
+
+    /*
+     * Otherwise use one right-angle bend.
+     */
+    const corner = {
+      x:
+        targetPin.x,
+
+      y:
+        start.y,
+    };
+
+    drawLine(
+      wireLayer,
+      labelLayer,
+      bias,
+      start,
+      corner,
+      {
+        net:
+          bias.net_out,
+
+        kind:
+          "bias-to-inductor",
+
+        stroke:
+          drawConfig.wireStroke,
+      }
+    );
+
+    drawLine(
+      wireLayer,
+      labelLayer,
+      bias,
+      corner,
+      targetPin,
+      {
+        net:
+          bias.net_out,
+
+        kind:
+          "bias-to-inductor",
+
         stroke:
           drawConfig.wireStroke,
       }

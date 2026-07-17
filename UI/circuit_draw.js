@@ -396,6 +396,12 @@ function drawCircuit(data) {
     placed
   );
 
+  connectBiasStubsToInductors(
+    internalWireLayer,
+    labelLayer,
+    placed
+  );
+
   drawSubcircuits(placed, componentLayer, internalWireLayer, labelLayer)
 
   setupPanZoom(svg, canvasWidth, canvasHeight);

@@ -185,6 +185,10 @@ function collectNetTerminals(elements) {
       return;
     }
 
+    if (isGroundNet(net)) {
+      return;
+    }
+
     if (!terminalsByNet.has(net)) {
       terminalsByNet.set(
         net,

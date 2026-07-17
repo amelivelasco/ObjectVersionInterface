@@ -661,3 +661,18 @@ function optimizeElementOrderByConnectivity(
     (block) => block.elements
   );
 }
+
+function isGroundNet(net) {
+  const normalized =
+    String(net || "")
+      .trim()
+      .toUpperCase()
+      .replace(/!+$/, "");
+
+  return (
+    normalized === "GND" ||
+    normalized === "GROUND" ||
+    normalized === "VSS" ||
+    normalized === "0"
+  );
+}
