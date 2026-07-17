@@ -302,121 +302,74 @@ function collectNetTerminals(elements) {
    * Skip both members of every JJ/resistor pair.
    */
     for (const element of elements) {
-    if (
-        elementsInPairs.has(
-        element.id
-        )
-    ) {
-        continue;
-    }
-
-    if (
-        getElementType(element) === "R"
-    ) {
-        continue;
-    }
-
-    const layoutInstance =
-        getLayoutInstance(element);
-
-    /*
-    * A bias input is a private VDD stub.
-    * Only its output participates in normal
-    * circuit-net routing.
-    */
-    if (isBiasElement(element)) {
         if (
-        element.net_out &&
-        element.outputPin
+            elementsInPairs.has(
+            element.id
+            )
         ) {
-        addTerminal(
+            continue;
+        }
+
+        if (
+            getElementType(element) === "R"
+        ) {
+            continue;
+        }
+
+        /*
+        * The bias connects itself through
+        * drawBiasLocalConnections().
+        */
+        if (isBiasElement(element)) {
+            continue;
+        }
+
+        const layoutInstance =
+            getLayoutInstance(element);
+
+        if (
+            element.net_in &&
+            element.inputPin
+        ) {
+            addTerminal(
+            element.net_in,
+            {
+                net: element.net_in,
+                kind: "in",
+                point: element.inputPin,
+
+                candidatePoints: [
+                element.inputPin,
+                ],
+
+                element,
+                ownerId: element.id,
+                layoutInstance,
+            }
+            );
+        }
+
+        if (
+            element.net_out &&
+            element.outputPin
+        ) {
+            addTerminal(
             element.net_out,
             {
-            net:
-                element.net_out,
+                net: element.net_out,
+                kind: "out",
+                point: element.outputPin,
 
-            kind: "out",
-
-            point:
+                candidatePoints: [
                 element.outputPin,
+                ],
 
-            candidatePoints: [
-                element.outputPin,
-            ],
-
-            element,
-
-            ownerId:
-                element.id,
-
-            layoutInstance,
+                element,
+                ownerId: element.id,
+                layoutInstance,
             }
-        );
+            );
         }
-
-        continue;
-    }
-
-    /*
-    * Normal non-bias element terminals.
-    */
-    if (
-        element.net_in &&
-        element.inputPin
-    ) {
-        addTerminal(
-        element.net_in,
-        {
-            net:
-            element.net_in,
-
-            kind: "in",
-
-            point:
-            element.inputPin,
-
-            candidatePoints: [
-            element.inputPin,
-            ],
-
-            element,
-
-            ownerId:
-            element.id,
-
-            layoutInstance,
-        }
-        );
-    }
-
-    if (
-        element.net_out &&
-        element.outputPin
-    ) {
-        addTerminal(
-        element.net_out,
-        {
-            net:
-            element.net_out,
-
-            kind: "out",
-
-            point:
-            element.outputPin,
-
-            candidatePoints: [
-            element.outputPin,
-            ],
-
-            element,
-
-            ownerId:
-            element.id,
-
-            layoutInstance,
-        }
-        );
-        }       
     }
 
   return terminalsByNet;

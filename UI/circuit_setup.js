@@ -44,11 +44,10 @@ const drawConfig = {
   // Start a new row of layout cells after this width.
   layoutCellRowWidth: 1500,
 
-  biasOutputGap: 10,
-  biasVddStubLength: 24,
-  biasBranchOffset: 42,
+
+  biasBranchOffset: 45,
+  biasOutputGap: 12,
   biasPlacementSpacing: 55,
-  biasCollisionMargin: 8,
 };
 
 function createSvg(width, height) {
@@ -286,3 +285,5 @@ function setupPanZoom(svg, fullWidth, fullHeight) {
 
   applyViewBox();
 }
+
+

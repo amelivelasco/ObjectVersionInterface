@@ -267,9 +267,6 @@ function drawCircuit(data) {
       placedCells
     );
 
-  prepareBiasElements(
-    placed
-  );
 
   console.table(
     placedCells.map(
@@ -367,7 +364,7 @@ function drawCircuit(data) {
   svg.appendChild(componentLayer);
   svg.appendChild(labelLayer);
 
-  prepareBiasElements(
+  placeBiasElementsAboveNetOut(
     placed
   );
 
@@ -393,7 +390,7 @@ function drawCircuit(data) {
   //   placed
   // );
 
-  drawBiasSupplyStubs(
+  drawBiasLocalConnections(
     internalWireLayer,
     labelLayer,
     placed
