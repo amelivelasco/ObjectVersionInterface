@@ -1,6 +1,6 @@
 function getPinOffsetForElement(element) {
   return getElementType(element) === "L"
-    ? drawConfig.inductorPinOffset
+    ? drawConfig.imageSize / 2
     : drawConfig.pinOffset;
 }
 
@@ -452,170 +452,6 @@ function findBestTerminalConnection(
   return best;
 }
 
-function segmentCrossesBox(
-  a,
-  b,
-  box
-) {
-  const horizontal =
-    Math.abs(a.y - b.y) < 0.5;
-
-  if (horizontal) {
-    const minX =
-      Math.min(a.x, b.x);
-
-    const maxX =
-      Math.max(a.x, b.x);
-
-    return (
-      a.y >= box.top &&
-      a.y <= box.bottom &&
-      maxX >= box.left &&
-      minX <= box.right
-    );
-  }
-
-  const vertical =
-    Math.abs(a.x - b.x) < 0.5;
-
-  if (vertical) {
-    const minY =
-      Math.min(a.y, b.y);
-
-    const maxY =
-      Math.max(a.y, b.y);
-
-    return (
-      a.x >= box.left &&
-      a.x <= box.right &&
-      maxY >= box.top &&
-      minY <= box.bottom
-    );
-  }
-
-  return false;
-}
-
-function getJJPairRoutingBox(
-  jj,
-  resistor,
-  padding = 10
-) {
-  const geometry =
-    getJJPairGeometry(
-      jj,
-      resistor,
-      25
-    );
-
-  const halfSize =
-    drawConfig.imageSize / 2;
-
-  return {
-    left:
-      Math.min(
-        jj.x - halfSize,
-        resistor.x - halfSize,
-        geometry.topAtJJ.x,
-        geometry.topAtResistor.x,
-        geometry.bottomAtJJ.x,
-        geometry.bottomAtResistor.x
-      ) - padding,
-
-    right:
-      Math.max(
-        jj.x + halfSize,
-        resistor.x + halfSize,
-        geometry.topAtJJ.x,
-        geometry.topAtResistor.x,
-        geometry.bottomAtJJ.x,
-        geometry.bottomAtResistor.x
-      ) + padding,
-
-    top:
-      Math.min(
-        geometry.topMiddle.y,
-        jj.y - halfSize,
-        resistor.y - halfSize
-      ) - padding,
-
-    bottom:
-      Math.max(
-        geometry.bottomMiddle.y,
-        jj.y + halfSize,
-        resistor.y + halfSize
-      ) + padding,
-  };
-}
-
-function findBlockingJJPairBox(
-  a,
-  b,
-  placed,
-  net
-) {
-  /*
-   * Keep ground handling unchanged.
-   */
-  if (
-    typeof isGroundNet === "function" &&
-    isGroundNet(net)
-  ) {
-    return null;
-  }
-
-  for (
-    let index = 0;
-    index < placed.length - 1;
-    index++
-  ) {
-    const current =
-      placed[index];
-
-    const next =
-      placed[index + 1];
-
-    if (
-      !isJJResistorPair(
-        current,
-        next
-      )
-    ) {
-      continue;
-    }
-
-    const box =
-      getJJPairRoutingBox(
-        current,
-        next
-      );
-
-    const corner = {
-      x: b.x,
-      y: a.y,
-    };
-
-    if (
-      segmentCrossesBox(
-        a,
-        corner,
-        box
-      ) ||
-      segmentCrossesBox(
-        corner,
-        b,
-        box
-      )
-    ) {
-      return box;
-    }
-
-    index++;
-  }
-
-  return null;
-}
-
 
 function drawTerminalTree(
   wireLayer,
@@ -738,32 +574,164 @@ function drawTerminalTree(
           bestConnection.toPoint;
     }
 
-    const blockingJRBox =
-      findBlockingJJPairBox(
-        bestConnection.fromPoint,
-        bestConnection.toPoint,
-        options.placed || [],
-        net
-      );
+    const fromTerminal =
+      bestConnection.from;
 
-    drawAroundOrFallbackRed(
+    const toTerminal =
+      bestConnection.to;
+
+    const fromElement =
+      fromTerminal.element;
+
+    const toElement =
+      toTerminal.element;
+
+    const fromPoint =
+      bestConnection.fromPoint;
+
+    const toPoint =
+      bestConnection.toPoint;
+
+    const fromIsInductor =
+      fromElement &&
+      getElementType(
+        fromElement
+      ) === "L";
+
+    const toIsInductor =
+      toElement &&
+      getElementType(
+        toElement
+      ) === "L";
+
+    /*
+     * Keep vertical segments outside the
+     * inductor image.
+     */
+    const clearance = 18;
+
+    const fromSideDirection =
+      fromIsInductor
+        ? (
+            fromPoint.x <
+            fromElement.x
+              ? -1
+              : 1
+          )
+        : 0;
+
+    const toSideDirection =
+      toIsInductor
+        ? (
+            toPoint.x <
+            toElement.x
+              ? -1
+              : 1
+          )
+        : 0;
+
+    const fromApproachPoint = {
+      x:
+        fromIsInductor
+          ? fromPoint.x +
+            fromSideDirection *
+              clearance
+          : fromPoint.x,
+
+      y:
+        fromPoint.y,
+    };
+
+    const toApproachPoint = {
+      x:
+        toIsInductor
+          ? toPoint.x +
+            toSideDirection *
+              clearance
+          : toPoint.x,
+
+      y:
+        toPoint.y,
+    };
+
+    let pathData;
+
+    if (
+      fromIsInductor ||
+      toIsInductor
+    ) {
+      /*
+       * The first segment leaving an inductor and
+       * the final segment entering an inductor are
+       * always horizontal.
+       */
+      pathData = [
+        `M ${fromPoint.x} ${fromPoint.y}`,
+
+        /*
+         * Exit the source inductor horizontally.
+         */
+        fromIsInductor
+          ? `H ${fromApproachPoint.x}`
+          : "",
+
+        /*
+         * Move horizontally to the safe vertical
+         * routing position beside the destination.
+         */
+        `H ${toApproachPoint.x}`,
+
+        /*
+         * Vertical movement happens outside the
+         * destination inductor image.
+         */
+        `V ${toApproachPoint.y}`,
+
+        /*
+         * Enter the destination inductor from
+         * its left or right side.
+         */
+        toIsInductor
+          ? `H ${toPoint.x}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+    }
+
+    drawPath(
       wireLayer,
-      bestConnection.fromPoint,
-      bestConnection.toPoint,
-      blockingJRBox
+      fromPoint,
+      toPoint,
+      {
+        stroke:
+          drawConfig.wireStroke,
+
+        pathData,
+      }
     );
 
     if (
       !labelWasDrawn &&
       options.drawLabel !== false
     ) {
+      /*
+       * Put the label on the first horizontal
+       * section of the route.
+       */
+      const labelSegmentEndX =
+        fromIsInductor
+          ? fromApproachPoint.x
+          : toApproachPoint.x;
+
       const labelX =
         (
-          bestConnection.fromPoint.x +
-          bestConnection.toPoint.x
+          fromPoint.x +
+          labelSegmentEndX
         ) / 2;
 
-      const labelY =bestConnection.fromPoint.y 
+      const labelY =
+        fromPoint.y;
 
       drawLabel(
         labelLayer,
@@ -845,7 +813,6 @@ function drawConnectionsInsideLayoutCells(
         net,
         terminals,
         {
-          placed,
           drawLabel: true,
         }
       );
@@ -934,7 +901,6 @@ function drawConnectionsBetweenLayoutCells(
       net,
       cellAnchors,
       {
-        placed,
         drawLabel: true,
       }
     );

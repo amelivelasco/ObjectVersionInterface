@@ -500,55 +500,98 @@ function connectBiasStubsToInductors(
         }
       );
 
+      drawLabel(
+        labelLayer,
+        bias.net_out,
+        (
+          start.x +
+          targetPin.x
+        ) / 2,
+        start.y,
+        {
+          size: "8.5px",
+          fill: "#334155",
+        }
+      );
+
       continue;
     }
 
     /*
      * Otherwise use one right-angle bend.
      */
-    const corner = {
-      x:
-        targetPin.x,
+    /*
+ * Approach the inductor from outside its
+ * left or right side.
+ */
+const sideDirection =
+  targetPin.x < inductor.x
+    ? -1
+    : 1;
 
-      y:
-        start.y,
-    };
+const approachPoint = {
+  x:
+    targetPin.x +
+    sideDirection * 18,
 
-    drawLine(
-      wireLayer,
-      labelLayer,
-      bias,
-      start,
-      corner,
-      {
-        net:
-          bias.net_out,
+  y:
+    targetPin.y,
+};
 
-        kind:
-          "bias-to-inductor",
+  const corner = {
+    x:
+      approachPoint.x,
 
-        stroke:
-          drawConfig.wireStroke,
-      }
-    );
+    y:
+      start.y,
+  };
 
-    drawLine(
-      wireLayer,
-      labelLayer,
-      bias,
-      corner,
-      targetPin,
-      {
-        net:
-          bias.net_out,
+  /*
+  * Horizontal segment from the bias.
+  */
+  drawLine(
+    wireLayer,
+    labelLayer,
+    bias,
+    start,
+    corner,
+    {
+      net: bias.net_out,
+      kind: "bias-to-inductor",
+      stroke: drawConfig.wireStroke,
+    }
+  );
 
-        kind:
-          "bias-to-inductor",
+  /*
+  * Vertical segment outside the inductor.
+  */
+  drawLine(
+    wireLayer,
+    labelLayer,
+    bias,
+    corner,
+    approachPoint,
+    {
+      net: bias.net_out,
+      kind: "bias-to-inductor",
+      stroke: drawConfig.wireStroke,
+    }
+  );
 
-        stroke:
-          drawConfig.wireStroke,
-      }
-    );
+  /*
+  * Final segment enters the inductor horizontally.
+  */
+  drawLine(
+    wireLayer,
+    labelLayer,
+    bias,
+    approachPoint,
+    targetPin,
+    {
+      net: bias.net_out,
+      kind: "bias-to-inductor",
+      stroke: drawConfig.wireStroke,
+    }
+  );
   }
 }
-
