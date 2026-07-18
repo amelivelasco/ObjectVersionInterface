@@ -1,16 +1,36 @@
-function drawPath(layer, a, b, options = {}) {
-  const path = createSvgElement("path", {
-    d:
-      options.pathData ||
-      orthogonalPath(a, b),
-    fill: "none",
-    stroke: options.stroke || drawConfig.wireStroke,
-    "stroke-width": options.strokeWidth || drawConfig.wireStrokeWidth,
-    "stroke-linecap": "round",
-    "stroke-linejoin": "round",
-    "stroke-dasharray": options.dash || "",
-    class: "edge",
-  });
+function drawPath(
+  layer,
+  a,
+  b,
+  options = {}
+) {
+  const path =
+    createSvgElement(
+      "path",
+      {
+        d:
+          options.pathData ||
+          orthogonalPath(a, b),
+
+        fill: "none",
+
+        stroke:
+          options.stroke ||
+          drawConfig.wireStroke,
+
+        "stroke-width":
+          options.strokeWidth ||
+          drawConfig.wireStrokeWidth,
+
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round",
+
+        "stroke-dasharray":
+          options.dash || "",
+
+        class: "edge",
+      }
+    );
 
   layer.appendChild(path);
 }

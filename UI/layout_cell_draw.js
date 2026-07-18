@@ -318,6 +318,8 @@ function placeElementsInsideLayoutCell(
         col: column,
         direction,
 
+        layoutOrder: index,
+
         inputPin,
         outputPin,
 

@@ -331,20 +331,9 @@ function collectNetTerminals(elements) {
         const layoutInstance =
             getLayoutInstance(element);
         
-
-        const parallelBranch =
-          element.parallelInductorBranch;
-
-        const customSharedNet =
-          parallelBranch
-            ? parallelBranch.sharedNet
-            : null;
-
         if (
           element.net_in &&
-          element.inputPin &&
-          element.net_in !==
-            customSharedNet
+          element.inputPin 
         ){
             addTerminal(
             element.net_in,
@@ -366,9 +355,7 @@ function collectNetTerminals(elements) {
 
         if (
           element.net_out &&
-          element.outputPin &&
-          element.net_out !==
-            customSharedNet
+          element.outputPin
         ) {
             addTerminal(
             element.net_out,
@@ -772,70 +759,70 @@ function drawTerminalTree(
 }
 
 
-function drawConnectionsInsideLayoutCells(
-  wireLayer,
-  labelLayer,
-  placed
-) {
-  const elementsByCell = new Map();
+// function drawConnectionsInsideLayoutCells(
+//   wireLayer,
+//   labelLayer,
+//   placed
+// ) {
+//   const elementsByCell = new Map();
 
-  for (const element of placed) {
-    const layoutInstance =
-      getLayoutInstance(element);
+//   for (const element of placed) {
+//     const layoutInstance =
+//       getLayoutInstance(element);
 
-    if (
-      !elementsByCell.has(
-        layoutInstance
-      )
-    ) {
-      elementsByCell.set(
-        layoutInstance,
-        []
-      );
-    }
+//     if (
+//       !elementsByCell.has(
+//         layoutInstance
+//       )
+//     ) {
+//       elementsByCell.set(
+//         layoutInstance,
+//         []
+//       );
+//     }
 
-    elementsByCell
-      .get(layoutInstance)
-      .push(element);
-  }
+//     elementsByCell
+//       .get(layoutInstance)
+//       .push(element);
+//   }
 
-  for (
-    const [
-      layoutInstance,
-      cellElements,
-    ] of elementsByCell
-  ) {
-    const terminalsByNet =
-      collectNetTerminals(
-        cellElements
-      );
+//   for (
+//     const [
+//       layoutInstance,
+//       cellElements,
+//     ] of elementsByCell
+//   ) {
+//     const terminalsByNet =
+//       collectNetTerminals(
+//         cellElements
+//       );
 
-    for (
-      const [
-        net,
-        terminals,
-      ] of terminalsByNet
-    ) {
-      if (terminals.length < 2) {
-        continue;
-      }
+//     for (
+//       const [
+//         net,
+//         terminals,
+//       ] of terminalsByNet
+//     ) {
+//       if (terminals.length < 2) {
+//         continue;
+//       }
 
-      drawTerminalTree(
-        wireLayer,
-        labelLayer,
-        net,
-        terminals,
-        {
-          drawLabel: true,
-        }
-      );
-    }
+//       drawTerminalTree(
+//         wireLayer,
+//         labelLayer,
+//         net,
+//         terminals,
+//         {
+//           drawLabel: true,
+//         }
+//       );
+//     }
 
-    console.log(
-      `Finished internal connections for ${layoutInstance}`
-    );
-  }
-}
+//     console.log(
+//       `Finished internal connections for ${layoutInstance}`
+//     );
+//   }
+// }
 
 
 function chooseCellNetAnchor(
