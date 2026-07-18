@@ -604,10 +604,6 @@ function drawTerminalTree(
         toElement
       ) === "L";
 
-    /*
-     * Keep vertical segments outside the
-     * inductor image.
-     */
     const clearance = 18;
 
     const fromSideDirection =
@@ -654,43 +650,60 @@ function drawTerminalTree(
         toPoint.y,
     };
 
+    let routePoints = null;
     let pathData;
 
+    /*
+     * Use the existing obstacle-aware router whenever
+     * the caller supplies the elements in this cell.
+     * This makes ordinary nets avoid every component
+     * image instead of only protecting shared outputs.
+     */
     if (
+      Array.isArray(
+        options.cellElements
+      ) &&
+      typeof buildShortestFreeRoute ===
+        "function" &&
+      typeof routePointsToPathData ===
+        "function"
+    ) {
+      routePoints =
+        buildShortestFreeRoute(
+          fromPoint,
+          toPoint,
+          fromTerminal,
+          toTerminal,
+          options.cellElements,
+          Array.isArray(
+            options.routedSegments
+          )
+            ? options.routedSegments
+            : []
+        );
+
+      pathData =
+        routePointsToPathData(
+          routePoints
+        );
+    } else if (
       fromIsInductor ||
       toIsInductor
     ) {
       /*
-       * The first segment leaving an inductor and
-       * the final segment entering an inductor are
-       * always horizontal.
+       * Preserve the original inductor-safe fallback
+       * for callers outside the layout-cell router.
        */
       pathData = [
         `M ${fromPoint.x} ${fromPoint.y}`,
 
-        /*
-         * Exit the source inductor horizontally.
-         */
         fromIsInductor
           ? `H ${fromApproachPoint.x}`
           : "",
 
-        /*
-         * Move horizontally to the safe vertical
-         * routing position beside the destination.
-         */
         `H ${toApproachPoint.x}`,
-
-        /*
-         * Vertical movement happens outside the
-         * destination inductor image.
-         */
         `V ${toApproachPoint.y}`,
 
-        /*
-         * Enter the destination inductor from
-         * its left or right side.
-         */
         toIsInductor
           ? `H ${toPoint.x}`
           : "",
@@ -712,26 +725,72 @@ function drawTerminalTree(
     );
 
     if (
+      routePoints &&
+      Array.isArray(
+        options.routedSegments
+      ) &&
+      typeof routePointsToSegments ===
+        "function"
+    ) {
+      options.routedSegments.push(
+        ...routePointsToSegments(
+          routePoints
+        ).map(
+          (segment) => ({
+            ...segment,
+            net,
+          })
+        )
+      );
+    }
+
+    if (
       !labelWasDrawn &&
       options.drawLabel !== false
     ) {
-      /*
-       * Put the label on the first horizontal
-       * section of the route.
-       */
-      const labelSegmentEndX =
-        fromIsInductor
-          ? fromApproachPoint.x
-          : toApproachPoint.x;
+      let labelX;
+      let labelY;
 
-      const labelX =
-        (
-          fromPoint.x +
-          labelSegmentEndX
-        ) / 2;
+      if (
+        routePoints &&
+        typeof getLongestHorizontalSegment ===
+          "function"
+      ) {
+        const labelSegment =
+          getLongestHorizontalSegment(
+            routePoints
+          );
 
-      const labelY =
-        fromPoint.y;
+        if (labelSegment) {
+          labelX =
+            (
+              labelSegment.a.x +
+              labelSegment.b.x
+            ) / 2;
+
+          labelY =
+            labelSegment.a.y;
+        }
+      }
+
+      if (
+        !Number.isFinite(labelX) ||
+        !Number.isFinite(labelY)
+      ) {
+        const labelSegmentEndX =
+          fromIsInductor
+            ? fromApproachPoint.x
+            : toApproachPoint.x;
+
+        labelX =
+          (
+            fromPoint.x +
+            labelSegmentEndX
+          ) / 2;
+
+        labelY =
+          fromPoint.y;
+      }
 
       drawLabel(
         labelLayer,
@@ -757,7 +816,6 @@ function drawTerminalTree(
     );
   }
 }
-
 
 // function drawConnectionsInsideLayoutCells(
 //   wireLayer,

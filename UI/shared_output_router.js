@@ -1,4 +1,4 @@
-function isSharedOutputConflict(terminals) {
+function isSharedOutputConflict(terminals) { 
   const outputs = terminals.filter(
     (terminal) =>
       terminal.kind === "out" &&
@@ -170,23 +170,37 @@ function buildRoutingObstacleBoxes(
       continue;
     }
 
+    /*
+     * Inductors need a slightly wider keep-out box.
+     * Their pins sit at the image edge, and a route
+     * that is technically outside the bitmap can still
+     * visually cover the coil when the stroke is drawn.
+     */
+    const elementPadding =
+      getElementType(element) === "L"
+        ? Math.max(
+            padding,
+            drawConfig.wireStrokeWidth + 14
+          )
+        : padding;
+
     boxes.push({
       left:
         element.x -
         halfSize -
-        padding,
+        elementPadding,
       right:
         element.x +
         halfSize +
-        padding,
+        elementPadding,
       top:
         element.y -
         halfSize -
-        padding,
+        elementPadding,
       bottom:
         element.y +
         halfSize +
-        padding,
+        elementPadding,
       ownerIds: new Set([
         element.id,
       ]),
@@ -1125,12 +1139,17 @@ function drawConnectionsInsideLayoutCells(
     const routedSegments = [];
 
     /*
-     * Draw ordinary nets first. Their SVG paths
-     * become obstacles for the special reroutes.
+     * Draw ordinary nets first, but route them through
+     * the same image-aware shortest-path mechanism.
+     * Their segments then become obstacles for every
+     * later ordinary or shared-output net.
      */
     for (const [net, terminals] of ordinaryEntries) {
       const firstNewChild =
         wireLayer.children.length;
+
+      const routedSegmentCount =
+        routedSegments.length;
 
       drawTerminalTree(
         wireLayer,
@@ -1139,24 +1158,36 @@ function drawConnectionsInsideLayoutCells(
         terminals,
         {
           drawLabel: true,
+          cellElements,
+          routedSegments,
         }
       );
 
-      const newChildren = Array.from(
-        wireLayer.children
-      ).slice(firstNewChild);
+      /*
+       * Compatibility fallback: when drawTerminalTree
+       * was loaded without the obstacle router, recover
+       * the newly drawn SVG segments exactly as before.
+       */
+      if (
+        routedSegments.length ===
+        routedSegmentCount
+      ) {
+        const newChildren = Array.from(
+          wireLayer.children
+        ).slice(firstNewChild);
 
-      for (const child of newChildren) {
-        routedSegments.push(
-          ...extractWireSegmentsFromElement(
-            child
-          ).map(
-            (segment) => ({
-              ...segment,
-              net,
-            })
-          )
-        );
+        for (const child of newChildren) {
+          routedSegments.push(
+            ...extractWireSegmentsFromElement(
+              child
+            ).map(
+              (segment) => ({
+                ...segment,
+                net,
+              })
+            )
+          );
+        }
       }
     }
 
