@@ -399,54 +399,73 @@ function connectBiasStubsToInductors(
       continue;
     }
 
-    /*
-     * First try the target already selected during
-     * bias placement.
-     */
-    let inductor =
-      placed.find(
+    const layoutInstance =
+      getLayoutInstance(bias);
+
+    const cellElements =
+      placed.filter(
         (element) =>
-          element.id ===
-            bias.biasTarget &&
-          getElementType(element) ===
-            "L"
+          getLayoutInstance(element) ===
+          layoutInstance
       );
 
     /*
-     * Otherwise find the nearest inductor sharing
-     * the bias output net.
+     * Find every existing terminal belonging
+     * to the bias output net.
+     *
+     * Bias elements are already skipped by
+     * collectNetTerminals(), so the bias will
+     * not select itself.
      */
-    if (!inductor) {
-      inductor =
-        findBiasInductorTarget(
-          bias,
-          placed
-        );
-    }
+    const terminals =
+      collectNetTerminals(
+        cellElements
+      ).get(
+        bias.net_out
+      ) || [];
 
-    if (!inductor) {
-      continue;
+    let nearestConnection = null;
+
+    for (const terminal of terminals) {
+      const points =
+        getTerminalPoints(
+          terminal
+        );
+
+      for (const point of points) {
+        const distance =
+          Math.abs(
+            bias.biasNetJoin.x -
+            point.x
+          ) +
+          Math.abs(
+            bias.biasNetJoin.y -
+            point.y
+          );
+
+        if (
+          !nearestConnection ||
+          distance <
+            nearestConnection.distance
+        ) {
+          nearestConnection = {
+            terminal,
+            point,
+            distance,
+          };
+        }
+      }
     }
 
     /*
-     * Usually bias.net_out connects to the
-     * inductor input. Support the output side too
-     * in case the exported net direction differs.
+     * There is no existing terminal on this net.
      */
-    const targetPin =
-      inductor.net_in === bias.net_out
-        ? inductor.inputPin
-        : inductor.outputPin;
-
-    if (!targetPin) {
+    if (!nearestConnection) {
       console.warn(
-        `Inductor ${inductor.id} has no matching pin`,
+        `No existing terminal found for bias net ${bias.net_out}`,
         {
           bias:
             bias.id,
-
-          net:
-            bias.net_out,
         }
       );
 
@@ -456,142 +475,133 @@ function connectBiasStubsToInductors(
     const start =
       bias.biasNetJoin;
 
+    const targetPoint =
+      nearestConnection.point;
+
     /*
-     * Already at the same point.
+     * Already connected.
      */
     if (
       Math.abs(
         start.x -
-        targetPin.x
+        targetPoint.x
       ) < 0.5 &&
       Math.abs(
         start.y -
-        targetPin.y
+        targetPoint.y
       ) < 0.5
     ) {
       continue;
     }
 
     /*
-     * Straight line when the bias junction and
-     * inductor pin are horizontally aligned.
+     * Collect the circuit wires that have already
+     * been drawn. They remain obstacles for this
+     * bias connection.
      */
-    if (
-      Math.abs(
-        start.y -
-        targetPin.y
-      ) < 0.5
+    const routedSegments = [];
+
+    for (
+      const child of
+      wireLayer.children
     ) {
-      drawLine(
-        wireLayer,
-        labelLayer,
-        bias,
+      routedSegments.push(
+        ...extractWireSegmentsFromElement(
+          child
+        )
+      );
+    }
+
+    const biasTerminal = {
+      net:
+        bias.net_out,
+
+      kind:
+        "out",
+
+      point:
         start,
-        targetPin,
+
+      candidatePoints: [
+        start,
+      ],
+
+      element:
+        bias,
+
+      ownerId:
+        bias.id,
+
+      layoutInstance,
+    };
+
+    /*
+     * Use the actual existing terminal as the
+     * destination. This preserves special handling
+     * for inductors and JR pairs.
+     */
+    const targetTerminal = {
+      ...nearestConnection.terminal,
+
+      point:
+        targetPoint,
+
+      candidatePoints: [
+        targetPoint,
+      ],
+    };
+
+    const routePoints =
+      buildShortestFreeRoute(
+        start,
+        targetPoint,
+        biasTerminal,
+        targetTerminal,
+        cellElements,
+        routedSegments,
+        bias.net_out
+      );
+
+    if (
+      !Array.isArray(
+        routePoints
+      ) ||
+      routePoints.length < 2
+    ) {
+      console.warn(
+        `No legal route found for bias ${bias.id}`,
         {
           net:
             bias.net_out,
 
-          kind:
-            "bias-to-inductor",
+          start,
 
-          stroke:
-            drawConfig.wireStroke,
-        }
-      );
-
-      drawLabel(
-        labelLayer,
-        bias.net_out,
-        (
-          start.x +
-          targetPin.x
-        ) / 2,
-        start.y,
-        {
-          size: "8.5px",
-          fill: "#334155",
+          targetPoint,
         }
       );
 
       continue;
     }
 
-    /*
-     * Otherwise use one right-angle bend.
-     */
-    /*
- * Approach the inductor from outside its
- * left or right side.
- */
-const sideDirection =
-  targetPin.x < inductor.x
-    ? -1
-    : 1;
+    drawPath(
+      wireLayer,
+      start,
+      targetPoint,
+      {
+        stroke:
+          drawConfig.wireStroke,
 
-const approachPoint = {
-  x:
-    targetPin.x +
-    sideDirection * 18,
+        pathData:
+          routePointsToPathData(
+            routePoints
+          ),
 
-  y:
-    targetPin.y,
-};
+        net:
+          bias.net_out,
 
-  const corner = {
-    x:
-      approachPoint.x,
-
-    y:
-      start.y,
-  };
-
-  /*
-  * Horizontal segment from the bias.
-  */
-  drawLine(
-    wireLayer,
-    labelLayer,
-    bias,
-    start,
-    corner,
-    {
-      net: bias.net_out,
-      kind: "bias-to-inductor",
-      stroke: drawConfig.wireStroke,
-    }
-  );
-
-  /*
-  * Vertical segment outside the inductor.
-  */
-  drawLine(
-    wireLayer,
-    labelLayer,
-    bias,
-    corner,
-    approachPoint,
-    {
-      net: bias.net_out,
-      kind: "bias-to-inductor",
-      stroke: drawConfig.wireStroke,
-    }
-  );
-
-  /*
-  * Final segment enters the inductor horizontally.
-  */
-  drawLine(
-    wireLayer,
-    labelLayer,
-    bias,
-    approachPoint,
-    targetPin,
-    {
-      net: bias.net_out,
-      kind: "bias-to-inductor",
-      stroke: drawConfig.wireStroke,
-    }
-  );
+        kind:
+          "bias-net-join",
+      }
+    );
   }
 }

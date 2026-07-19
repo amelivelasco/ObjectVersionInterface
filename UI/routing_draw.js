@@ -274,8 +274,9 @@ function collectNetTerminals(elements) {
 
         layoutInstance,
 
-        candidatePoints:
-          pair.geometry.inputAnchors,
+        candidatePoints: [
+          pair.geometry.topMiddle,
+        ],
       }
     );
 
@@ -295,8 +296,9 @@ function collectNetTerminals(elements) {
 
         layoutInstance,
 
-        candidatePoints:
-          pair.geometry.outputAnchors,
+        candidatePoints: [
+          pair.geometry.bottomMiddle,
+        ],
       }
     );
   }
@@ -679,7 +681,8 @@ function drawTerminalTree(
             options.routedSegments
           )
             ? options.routedSegments
-            : []
+            : [],
+          net
         );
 
       pathData =

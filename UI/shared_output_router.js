@@ -131,14 +131,6 @@ function buildRoutingObstacleBoxes(
       resistor.id,
     ]);
 
-    if (
-      [...ownerIds].some(
-        (id) => excludedIds.has(id)
-      )
-    ) {
-      continue;
-    }
-
     const geometry = getJJPairGeometry(
       current,
       resistor,
@@ -147,18 +139,36 @@ function buildRoutingObstacleBoxes(
 
     boxes.push({
       left:
-        Math.min(current.x, resistor.x) -
+        Math.min(
+          current.x,
+          resistor.x
+        ) -
         halfSize -
         padding,
+
       right:
-        Math.max(current.x, resistor.x) +
+        Math.max(
+          current.x,
+          resistor.x
+        ) +
         halfSize +
         padding,
+
+      /*
+      * The top and bottom connection anchors lie
+      * exactly on the obstacle boundary. The router
+      * can reach the anchor, but cannot enter the
+      * interior of the JR subcircuit.
+      */
       top:
-        geometry.topMiddle.y - padding,
+        geometry.topMiddle.y,
+
       bottom:
-        geometry.bottomMiddle.y + padding,
+        geometry.bottomMiddle.y,
+
       ownerIds,
+
+      isJRPair: true,
     });
   }
 
@@ -170,12 +180,6 @@ function buildRoutingObstacleBoxes(
       continue;
     }
 
-    /*
-     * Inductors need a slightly wider keep-out box.
-     * Their pins sit at the image edge, and a route
-     * that is technically outside the bitmap can still
-     * visually cover the coil when the stroke is drawn.
-     */
     const elementPadding =
       getElementType(element) === "L"
         ? Math.max(
@@ -566,7 +570,8 @@ function findShortestOrthogonalRoute(
   start,
   end,
   obstacleBoxes,
-  routedSegments
+  routedSegments,
+  currentNet
 ) {
   const wireClearance = 10;
   const bendPenalty = 14;
@@ -617,15 +622,57 @@ function findShortestOrthogonalRoute(
     );
   }
 
-  function segmentAllowed(first, second) {
-    return !obstacleBoxes.some(
-      (box) =>
-        axisAlignedSegmentHitsBox(
-          first,
-          second,
-          box
-        )
-    );
+  function segmentAllowed(
+    first,
+    second
+  ) {
+    const hitsComponent =
+      obstacleBoxes.some(
+        (box) =>
+          axisAlignedSegmentHitsBox(
+            first,
+            second,
+            box
+          )
+      );
+
+    if (hitsComponent) {
+      return false;
+    }
+
+    const candidate = {
+      a: first,
+      b: second,
+    };
+
+    const hitsDifferentNet =
+      routedSegments.some(
+        (existing) => {
+          /*
+          * Parts of the same electrical net may
+          * legally meet or share a route.
+          */
+          if (
+            existing.net ===
+            currentNet
+          ) {
+            return false;
+          }
+
+          const relation =
+            getWireRelation(
+              candidate,
+              existing
+            );
+
+          return (
+            relation === "cross" ||
+            relation === "overlap"
+          );
+        }
+      );
+
+    return !hitsDifferentNet;
   }
 
   function stateKey(xIndex, yIndex, direction) {
@@ -724,11 +771,7 @@ function findShortestOrthogonalRoute(
           ? bendPenalty
           : 0;
 
-      const wireCost = getWirePenalty(
-        currentPoint,
-        nextPoint,
-        routedSegments
-      );
+      const wireCost = 0;
 
       const nextDistance =
         currentDistance +
@@ -832,7 +875,8 @@ function buildShortestFreeRoute(
   fromTerminal,
   toTerminal,
   cellElements,
-  routedSegments
+  routedSegments,
+  net
 ) {
   const fromApproach =
     getInductorApproachPoint(
@@ -848,9 +892,20 @@ function buildShortestFreeRoute(
 
   const excludedIds = new Set(
     [
-      fromTerminal.element?.id,
-      toTerminal.element?.id,
-    ].filter(Boolean)
+      fromTerminal,
+      toTerminal,
+    ]
+      .filter(
+        (terminal) =>
+          terminal.element &&
+          !String(
+            terminal.ownerId || ""
+          ).startsWith("pair:")
+      )
+      .map(
+        (terminal) =>
+          terminal.element.id
+      )
   );
 
   const obstacleBoxes =
@@ -865,7 +920,8 @@ function buildShortestFreeRoute(
       fromApproach,
       toApproach,
       obstacleBoxes,
-      routedSegments
+      routedSegments,
+      net
     );
 
   return simplifyOrthogonalPoints([
@@ -1137,6 +1193,136 @@ function drawConnectionsInsideLayoutCells(
       );
 
     const routedSegments = [];
+
+    /*
+ * Reserve every JR pair's internal hanger wires
+ * before routing the surrounding circuit.
+ *
+ * These segments are drawn later by drawJRpairs(),
+ * but the router must already know that unrelated
+ * nets cannot cross them.
+ */
+    for (
+      let index = 0;
+      index < cellElements.length - 1;
+      index++
+    ) {
+      const jj =
+        cellElements[index];
+
+      const resistor =
+        cellElements[index + 1];
+
+      if (
+        !isJJResistorPair(
+          jj,
+          resistor
+        )
+      ) {
+        continue;
+      }
+
+      const geometry =
+        getJJPairGeometry(
+          jj,
+          resistor,
+          25
+        );
+
+      routedSegments.push(
+        /*
+        * Input hanger.
+        */
+        {
+          a:
+            geometry.jjTop,
+
+          b:
+            geometry.topAtJJ,
+
+          net:
+            jj.net_in,
+
+          protectedJRSegment:
+            true,
+        },
+
+        {
+          a:
+            geometry.topAtJJ,
+
+          b:
+            geometry.topAtResistor,
+
+          net:
+            jj.net_in,
+
+          protectedJRSegment:
+            true,
+        },
+
+        {
+          a:
+            geometry.topAtResistor,
+
+          b:
+            geometry.resistorTop,
+
+          net:
+            jj.net_in,
+
+          protectedJRSegment:
+            true,
+        },
+
+        /*
+        * Output hanger.
+        */
+        {
+          a:
+            geometry.jjBottom,
+
+          b:
+            geometry.bottomAtJJ,
+
+          net:
+            jj.net_out,
+
+          protectedJRSegment:
+            true,
+        },
+
+        {
+          a:
+            geometry.bottomAtJJ,
+
+          b:
+            geometry.bottomAtResistor,
+
+          net:
+            jj.net_out,
+
+          protectedJRSegment:
+            true,
+        },
+
+        {
+          a:
+            geometry.bottomAtResistor,
+
+          b:
+            geometry.resistorBottom,
+
+          net:
+            jj.net_out,
+
+          protectedJRSegment:
+            true,
+        }
+      );
+
+      index++;
+    }
 
     /*
      * Draw ordinary nets first, but route them through
