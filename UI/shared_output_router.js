@@ -898,9 +898,22 @@ function buildShortestFreeRoute(
       .filter(
         (terminal) =>
           terminal.element &&
+
+          /*
+          * JR pairs remain protected.
+          */
           !String(
             terminal.ownerId || ""
-          ).startsWith("pair:")
+          ).startsWith("pair:") &&
+
+          /*
+          * Inductors also remain protected.
+          * The router must approach them only through
+          * getInductorApproachPoint().
+          */
+          getElementType(
+            terminal.element
+          ) !== "L"
       )
       .map(
         (terminal) =>
@@ -1041,7 +1054,8 @@ function drawSharedOutputNet(
         bestConnection.from,
         bestConnection.to,
         cellElements,
-        routedSegments
+        routedSegments,
+        net
       );
 
     drawPath(

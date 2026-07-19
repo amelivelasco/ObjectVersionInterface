@@ -252,62 +252,71 @@ function placeElementsInsideLayoutCell(
     cell.y +
     drawConfig.layoutCellPaddingTop;
 
-  return orderedElements.map(
-    (element, index) => {
-      const row = Math.floor(
-        index / cell.columns
-      );
+    const placed =
+      orderedElements.map(
+      (element, index) => {
+        const row = Math.floor(
+          index / cell.columns
+        );
 
-      const indexInRow =
-        index % cell.columns;
+        const indexInRow =
+          index % cell.columns;
 
-      const direction =
-        row % 2 === 0
-          ? 1
-          : -1;
+        const direction =
+          row % 2 === 0
+            ? 1
+            : -1;
 
-      const column =
-        direction === 1
-          ? indexInRow
-          : cell.columns -
-            1 -
-            indexInRow;
+        const column =
+          direction === 1
+            ? indexInRow
+            : cell.columns -
+              1 -
+              indexInRow;
 
-      const x =
-        contentStartX +
-        drawConfig.imageSize / 2 +
-        column *
-          drawConfig.layoutCellElementGapX;
+        const x =
+          contentStartX +
+          drawConfig.imageSize / 2 +
+          column *
+            drawConfig.layoutCellElementGapX;
 
-      const y =
-        contentStartY +
-        drawConfig.imageSize / 2 +
-        row *
-          drawConfig.layoutCellElementGapY;
+        const y =
+          contentStartY +
+          drawConfig.imageSize / 2 +
+          row *
+            drawConfig.layoutCellElementGapY;
 
-      const pinOffset =
-        getPinOffsetForElement(element);
+        const pinOffset =
+          getPinOffsetForElement(element);
 
-      const inputPin = {
-        x:
-          x -
-          direction *
-            pinOffset,
+        const isInductor =
+          getElementType(element) === "L";
 
-        y,
-        net: element.net_in,
-      };
+        /*
+        * Inductors must keep a fixed electrical orientation:
+        * net_in on the left side, net_out on the right side.
+        *
+        * Other components may still follow the snake row direction.
+        */
+        const inputPin = {
+          x:
+            isInductor
+              ? x - pinOffset
+              : x - direction * pinOffset,
 
-      const outputPin = {
-        x:
-          x +
-          direction *
-            pinOffset,
+          y,
+          net: element.net_in,
+        };
 
-        y,
-        net: element.net_out,
-      };
+        const outputPin = {
+          x:
+            isInductor
+              ? x + pinOffset
+              : x + direction * pinOffset,
 
+          y,
+          net: element.net_out,
+        };
       return {
         ...element,
 
@@ -335,6 +344,266 @@ function placeElementsInsideLayoutCell(
       };
     }
   );
+
+  /*
+ * orientation = 1:
+ *   input is left, output is right.
+ *
+ * orientation = -1:
+ *   input is right, output is left.
+ */
+const requiredOrientation =
+  new Map();
+
+function requireOrientation(
+  element,
+  orientation,
+  sharedNet
+) {
+  const existing =
+    requiredOrientation.get(
+      element
+    );
+
+  /*
+   * A middle inductor may be checked against
+   * both its left and right neighbors.
+   */
+  if (
+    existing &&
+    existing.orientation !==
+      orientation
+  ) {
+    console.warn(
+      `Conflicting inductor orientation for ${element.id}`,
+      {
+        firstNet:
+          existing.sharedNet,
+
+        secondNet:
+          sharedNet,
+      }
+    );
+
+    return;
+  }
+
+  requiredOrientation.set(
+    element,
+    {
+      orientation,
+      sharedNet,
+    }
+  );
+}
+
+/*
+ * Inspect physically adjacent inductors,
+ * rather than relying on their order in the
+ * snake traversal.
+ */
+for (
+  let firstIndex = 0;
+  firstIndex < placed.length;
+  firstIndex++
+) {
+  const first =
+    placed[firstIndex];
+
+  if (
+    getElementType(first) !== "L"
+  ) {
+    continue;
+  }
+
+  for (
+    let secondIndex =
+      firstIndex + 1;
+    secondIndex <
+      placed.length;
+    secondIndex++
+  ) {
+    const second =
+      placed[secondIndex];
+
+    if (
+      getElementType(second) !== "L"
+    ) {
+      continue;
+    }
+
+    const sameRow =
+      first.row === second.row;
+
+    const neighboringColumns =
+      Math.abs(
+        first.col -
+        second.col
+      ) === 1;
+
+    if (
+      !sameRow ||
+      !neighboringColumns
+    ) {
+      continue;
+    }
+
+    const left =
+      first.x < second.x
+        ? first
+        : second;
+
+    const right =
+      first.x < second.x
+        ? second
+        : first;
+
+    /*
+     * Prefer an output-to-input connection,
+     * because that is the normal serial
+     * inductor relationship.
+     */
+    let sharedNet = null;
+
+    if (
+      left.net_out &&
+      left.net_out ===
+        right.net_in
+    ) {
+      sharedNet =
+        left.net_out;
+    } else if (
+      left.net_in &&
+      left.net_in ===
+        right.net_out
+    ) {
+      sharedNet =
+        left.net_in;
+    } else {
+      sharedNet =
+        [
+          left.net_in,
+          left.net_out,
+        ].find(
+          (net) =>
+            net &&
+            (
+              net === right.net_in ||
+              net === right.net_out
+            )
+        ) || null;
+    }
+
+    if (!sharedNet) {
+      continue;
+    }
+
+    const leftSharedTerminal =
+      left.net_in === sharedNet
+        ? "input"
+        : "output";
+
+    const rightSharedTerminal =
+      right.net_in === sharedNet
+        ? "input"
+        : "output";
+
+    /*
+     * The left inductor's shared terminal
+     * must face right.
+     */
+    requireOrientation(
+      left,
+
+      leftSharedTerminal === "input"
+        ? -1
+        : 1,
+
+      sharedNet
+    );
+
+    /*
+     * The right inductor's shared terminal
+     * must face left.
+     */
+    requireOrientation(
+      right,
+
+      rightSharedTerminal === "input"
+        ? 1
+        : -1,
+
+      sharedNet
+    );
+  }
+}
+
+/*
+ * Apply only the required inductor flips.
+ * All other elements and the snake positions
+ * remain unchanged.
+ */
+for (const element of placed) {
+  if (
+    getElementType(element) !== "L"
+  ) {
+    continue;
+  }
+
+  const requirement =
+    requiredOrientation.get(
+      element
+    );
+
+    /*
+    * Default orientation remains:
+    * input left, output right.
+    */
+    const electricalDirection =
+      requirement?.orientation ??
+      1;
+
+    const pinOffset =
+      getPinOffsetForElement(
+        element
+      );
+
+    element.inputPin = {
+      x:
+        element.x -
+        electricalDirection *
+          pinOffset,
+
+      y:
+        element.y,
+
+      net:
+        element.net_in,
+    };
+
+    element.outputPin = {
+      x:
+        element.x +
+        electricalDirection *
+          pinOffset,
+
+      y:
+        element.y,
+
+      net:
+        element.net_out,
+    };
+
+    /*
+    * Preserve the snake direction separately.
+    * This value represents only the inductor's
+    * electrical orientation.
+    */
+    element.electricalDirection =
+      electricalDirection;
+  }
+
+  return placed;
 }
 
 
