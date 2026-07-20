@@ -722,10 +722,23 @@ function drawTerminalTree(
         continue;
       }
 
+      /*
+      * Apply the same JR-wire separation to ordinary
+      * nets as is applied to shared-output nets.
+      */
+      routePoints =
+        separateRouteFromJR(
+          routePoints,
+          net,
+          options.jrRails || [],
+          options.jrMargin ?? 12
+        );
+
       pathData =
         routePointsToPathData(
           routePoints
         );
+        
     } else if (
       fromIsInductor ||
       toIsInductor

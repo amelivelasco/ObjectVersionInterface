@@ -379,14 +379,233 @@ function getLongestHorizontalSegment(points) {
     )[0] || null;
 }
 
+
+  function separateRouteFromJR(
+    points,
+    net,
+    jrRails = [],
+    jrMargin = 12
+  ) {
+    if (
+      !Array.isArray(points) ||
+      points.length < 2 ||
+      jrRails.length === 0
+    ) {
+      return points;
+    }
+
+    const epsilon = 0.5;
+    const adjusted = [];
+
+    function pushPoint(point) {
+      const previous =
+        adjusted[
+          adjusted.length - 1
+        ];
+
+      if (
+        previous &&
+        Math.abs(
+          previous.x - point.x
+        ) < epsilon &&
+        Math.abs(
+          previous.y - point.y
+        ) < epsilon
+      ) {
+        return;
+      }
+
+      adjusted.push({
+        x: point.x,
+        y: point.y,
+      });
+    }
+
+    pushPoint(points[0]);
+
+    for (
+      let index = 1;
+      index < points.length;
+      index++
+    ) {
+      const first =
+        points[index - 1];
+
+      const second =
+        points[index];
+
+      const horizontal =
+        Math.abs(
+          first.y - second.y
+        ) < epsilon;
+
+      if (!horizontal) {
+        pushPoint(second);
+        continue;
+      }
+
+      const segmentMinX =
+        Math.min(
+          first.x,
+          second.x
+        );
+
+      const segmentMaxX =
+        Math.max(
+          first.x,
+          second.x
+        );
+
+      /*
+       * Find one different-net JR rail that overlaps
+       * this horizontal segment and is too close.
+       */
+      const conflictingRail =
+        jrRails.find(
+          (rail) => {
+            if (
+              net &&
+              rail.net === net
+            ) {
+              return false;
+            }
+
+            const overlap =
+              Math.min(
+                segmentMaxX,
+                rail.maxX
+              ) -
+              Math.max(
+                segmentMinX,
+                rail.minX
+              );
+
+            if (
+              overlap <= epsilon
+            ) {
+              return false;
+            }
+
+            return (
+              Math.abs(
+                first.y -
+                rail.y
+              ) < jrMargin
+            );
+          }
+        );
+
+      if (!conflictingRail) {
+        pushPoint(second);
+        continue;
+      }
+
+      /*
+       * Move away from the JR subcircuit.
+       *
+       * Top rails move upward.
+       * Bottom rails move downward.
+       *
+       * When already slightly above or below the
+       * rail, continue moving in that direction.
+       */
+      let verticalDirection;
+
+      if (
+        first.y <
+        conflictingRail.y -
+          epsilon
+      ) {
+        verticalDirection = -1;
+      } else if (
+        first.y >
+        conflictingRail.y +
+          epsilon
+      ) {
+        verticalDirection = 1;
+      } else {
+        verticalDirection =
+          conflictingRail.side ===
+          "top"
+            ? -1
+            : 1;
+      }
+
+      const detourY =
+        conflictingRail.y +
+        verticalDirection *
+          jrMargin;
+
+      /*
+       * Limit the detour to the portion that passes
+       * beside the JR rail.
+       */
+      const detourMinX =
+        Math.max(
+          segmentMinX,
+          conflictingRail.minX -
+            jrMargin
+        );
+
+      const detourMaxX =
+        Math.min(
+          segmentMaxX,
+          conflictingRail.maxX +
+            jrMargin
+        );
+
+      const movingRight =
+        second.x >= first.x;
+
+      const entryX =
+        movingRight
+          ? detourMinX
+          : detourMaxX;
+
+      const exitX =
+        movingRight
+          ? detourMaxX
+          : detourMinX;
+
+      pushPoint({
+        x: entryX,
+        y: first.y,
+      });
+
+      pushPoint({
+        x: entryX,
+        y: detourY,
+      });
+
+      pushPoint({
+        x: exitX,
+        y: detourY,
+      });
+
+      pushPoint({
+        x: exitX,
+        y: first.y,
+      });
+
+      pushPoint(second);
+    }
+
+    return simplifyOrthogonalPoints(
+      adjusted
+    );
+  }
+
 function drawSharedOutputNet(
   wireLayer,
   labelLayer,
   net,
   terminals,
   cellElements,
-  routedSegments
+  routedSegments,
+  jrRails = [],
+  jrMargin = 12
 ) {
+  
   const outputs = terminals
     .filter(
       (terminal) =>
@@ -394,28 +613,53 @@ function drawSharedOutputNet(
     )
     .sort(
       (first, second) =>
-        (first.element?.layoutOrder ?? Infinity) -
-        (second.element?.layoutOrder ?? Infinity)
+        (
+          first.element
+            ?.layoutOrder ??
+          Infinity
+        ) -
+        (
+          second.element
+            ?.layoutOrder ??
+          Infinity
+        )
     );
 
-  const root = outputs[0] || terminals[0];
-  const connected = [root];
-  const remaining = terminals.filter(
-    (terminal) => terminal !== root
-  );
+  const root =
+    outputs[0] ||
+    terminals[0];
 
-  let labelWasDrawn = false;
+  const connected = [
+    root,
+  ];
 
-  while (remaining.length > 0) {
-    let bestConnection = null;
+  const remaining =
+    terminals.filter(
+      (terminal) =>
+        terminal !== root
+    );
 
-    for (const connectedTerminal of connected) {
+  let labelWasDrawn =
+    false;
+
+  while (
+    remaining.length > 0
+  ) {
+    let bestConnection =
+      null;
+
+    for (
+      const connectedTerminal
+      of connected
+    ) {
       for (
         let index = 0;
-        index < remaining.length;
+        index <
+          remaining.length;
         index++
       ) {
-        const candidate = remaining[index];
+        const candidate =
+          remaining[index];
 
         if (
           candidate.ownerId ===
@@ -435,7 +679,8 @@ function drawSharedOutputNet(
         }
 
         const sameKindPenalty =
-          connectedTerminal.kind === candidate.kind
+          connectedTerminal.kind ===
+          candidate.kind
             ? 1000000
             : 0;
 
@@ -445,16 +690,27 @@ function drawSharedOutputNet(
 
         if (
           !bestConnection ||
-          score < bestConnection.score
+          score <
+            bestConnection.score
         ) {
           bestConnection = {
-            from: connectedTerminal,
-            to: candidate,
+            from:
+              connectedTerminal,
+
+            to:
+              candidate,
+
             fromPoint:
-              pointConnection.firstPoint,
+              pointConnection
+                .firstPoint,
+
             toPoint:
-              pointConnection.secondPoint,
-            remainingIndex: index,
+              pointConnection
+                .secondPoint,
+
+            remainingIndex:
+              index,
+
             score,
           };
         }
@@ -465,7 +721,7 @@ function drawSharedOutputNet(
       break;
     }
 
-    const routePoints =
+    let routePoints =
       buildShortestFreeRoute(
         bestConnection.fromPoint,
         bestConnection.toPoint,
@@ -477,37 +733,52 @@ function drawSharedOutputNet(
       );
 
     if (
-      !Array.isArray(routePoints) ||
+      !Array.isArray(
+        routePoints
+      ) ||
       routePoints.length < 2
     ) {
       console.warn(
         `Skipping unroutable shared connection for ${net}`,
         {
           from:
-            bestConnection.fromPoint,
+            bestConnection
+              .fromPoint,
 
           to:
-            bestConnection.toPoint,
+            bestConnection
+              .toPoint,
 
           fromOwner:
-            bestConnection.from.ownerId,
+            bestConnection
+              .from.ownerId,
 
           toOwner:
-            bestConnection.to.ownerId,
+            bestConnection
+              .to.ownerId,
         }
       );
 
-      /*
-      * Prevent repeatedly selecting the same failed
-      * destination.
-      */
       remaining.splice(
-        bestConnection.remainingIndex,
+        bestConnection
+          .remainingIndex,
         1
       );
 
       continue;
     }
+
+    /*
+     * Apply JR parallel-wire separation only after
+     * the router found a valid connection.
+     */
+    routePoints =
+      separateRouteFromJR(
+        routePoints,
+        net,
+        jrRails,
+        jrMargin
+      );
 
     drawPath(
       wireLayer,
@@ -516,15 +787,17 @@ function drawSharedOutputNet(
       {
         stroke:
           drawConfig.wireStroke,
+
         pathData:
           routePointsToPathData(
             routePoints
           ),
+
         net,
+
         kind:
           "shared-net-route",
-      },
-      
+      }
     );
 
     const newSegments =
@@ -557,22 +830,31 @@ function drawSharedOutputNet(
           ) / 2,
           labelSegment.a.y,
           {
-            size: "8.5px",
-            fill: "#334155",
+            size:
+              "8.5px",
+
+            fill:
+              "#334155",
           }
         );
 
-        labelWasDrawn = true;
+        labelWasDrawn =
+          true;
       }
     }
 
-    connected.push(bestConnection.to);
+    connected.push(
+      bestConnection.to
+    );
+
     remaining.splice(
-      bestConnection.remainingIndex,
+      bestConnection
+        .remainingIndex,
       1
     );
   }
 }
+
 function getTerminalSpan(terminals) {
   const points = terminals.flatMap(
     (terminal) =>
@@ -597,13 +879,20 @@ function drawConnectionsInsideLayoutCells(
   labelLayer,
   placed
 ) {
-  const elementsByCell = new Map();
+  const elementsByCell =
+    new Map();
 
   for (const element of placed) {
     const layoutInstance =
-      getLayoutInstance(element);
+      getLayoutInstance(
+        element
+      );
 
-    if (!elementsByCell.has(layoutInstance)) {
+    if (
+      !elementsByCell.has(
+        layoutInstance
+      )
+    ) {
       elementsByCell.set(
         layoutInstance,
         []
@@ -620,7 +909,9 @@ function drawConnectionsInsideLayoutCells(
     cellElements,
   ] of elementsByCell) {
     const terminalsByNet =
-      collectNetTerminals(cellElements);
+      collectNetTerminals(
+        cellElements
+      );
 
     const entries = [
       ...terminalsByNet.entries(),
@@ -629,76 +920,214 @@ function drawConnectionsInsideLayoutCells(
         terminals.length >= 2
     );
 
-    const ordinaryEntries = entries
-      .filter(
-        ([, terminals]) =>
-          !isSharedOutputConflict(
-            terminals
-          )
-      )
-      .sort(
-        (
-          [, firstTerminals],
-          [, secondTerminals]
-        ) =>
-          getTerminalSpan(firstTerminals) -
-          getTerminalSpan(secondTerminals)
-      );
+    const ordinaryEntries =
+      entries
+        .filter(
+          ([, terminals]) =>
+            !isSharedOutputConflict(
+              terminals
+            )
+        )
+        .sort(
+          (
+            [, firstTerminals],
+            [, secondTerminals]
+          ) =>
+            getTerminalSpan(
+              firstTerminals
+            ) -
+            getTerminalSpan(
+              secondTerminals
+            )
+        );
 
-    const sharedOutputEntries = entries
-      .filter(
-        ([, terminals]) =>
-          isSharedOutputConflict(
-            terminals
-          )
-      )
-      .sort(
-        (
-          [, firstTerminals],
-          [, secondTerminals]
-        ) =>
-          getTerminalSpan(firstTerminals) -
-          getTerminalSpan(secondTerminals)
-      );
+    const sharedOutputEntries =
+      entries
+        .filter(
+          ([, terminals]) =>
+            isSharedOutputConflict(
+              terminals
+            )
+        )
+        .sort(
+          (
+            [, firstTerminals],
+            [, secondTerminals]
+          ) =>
+            getTerminalSpan(
+              firstTerminals
+            ) -
+            getTerminalSpan(
+              secondTerminals
+            )
+        );
 
-    const routedSegments = [];
+    const routedSegments =
+      [];
 
-    for (const element of cellElements) {
-        if (
-            getElementType(element) !== "L"
-        ) {
-            continue;
+    /*
+     * Horizontal JR wires that shared-output routes
+     * should remain separated from.
+     *
+     * These are only guides for the final visual
+     * adjustment. They are not added as router
+     * obstacles, so they cannot disconnect anything.
+     */
+    const jrRails = [];
+
+    const jrMargin = 12;
+
+    for (
+      let index = 0;
+      index <
+        cellElements.length - 1;
+      index++
+    ) {
+      const current =
+        cellElements[index];
+
+      const next =
+        cellElements[index + 1];
+
+      if (
+        !isJJResistorPair(
+          current,
+          next
+        )
+      ) {
+        continue;
+      }
+
+      const geometry =
+        getJJPairGeometry(
+          current,
+          next,
+          25
+        );
+
+      jrRails.push(
+        {
+          minX:
+            Math.min(
+              geometry.topAtJJ.x,
+              geometry
+                .topAtResistor.x
+            ),
+
+          maxX:
+            Math.max(
+              geometry.topAtJJ.x,
+              geometry
+                .topAtResistor.x
+            ),
+
+          y:
+            geometry.topAtJJ.y,
+
+          net:
+            current.net_in,
+
+          side:
+            "top",
+        },
+
+        {
+          minX:
+            Math.min(
+              geometry.bottomAtJJ.x,
+              geometry
+                .bottomAtResistor.x
+            ),
+
+          maxX:
+            Math.max(
+              geometry.bottomAtJJ.x,
+              geometry
+                .bottomAtResistor.x
+            ),
+
+          y:
+            geometry.bottomAtJJ.y,
+
+          net:
+            current.net_out,
+
+          side:
+            "bottom",
         }
+      );
 
-        if (
+      /*
+       * Skip the resistor member.
+       */
+      index++;
+    }
+
+    /*
+     * Register terminal leads normally.
+     */
+    for (
+      const element
+      of cellElements
+    ) {
+      if (
+        getElementType(element) !==
+        "L"
+      ) {
+        continue;
+      }
+
+      if (
         element.inputNeedsLead &&
         element.net_in &&
         element.inputPin &&
         element.inputLeadPoint
-        ) {
-            routedSegments.push({
-            a: element.inputPin,
-            b: element.inputLeadPoint,
-            net: element.net_in,
-            protectedInductorLead: true,
-            });
-        }
+      ) {
+        routedSegments.push({
+          a:
+            element.inputPin,
 
-        if (
+          b:
+            element
+              .inputLeadPoint,
+
+          net:
+            element.net_in,
+
+          protectedInductorLead:
+            true,
+        });
+      }
+
+      if (
         element.outputNeedsLead &&
         element.net_out &&
         element.outputPin &&
         element.outputLeadPoint
-        ) {
-            routedSegments.push({
-            a: element.outputPin,
-            b: element.outputLeadPoint,
-            net: element.net_out,
-            protectedInductorLead: true,
-            });
-        }
+      ) {
+        routedSegments.push({
+          a:
+            element.outputPin,
+
+          b:
+            element
+              .outputLeadPoint,
+
+          net:
+            element.net_out,
+
+          protectedInductorLead:
+            true,
+        });
+      }
     }
-    for (const [net, terminals] of ordinaryEntries) {
+
+    for (
+      const [
+        net,
+        terminals,
+      ] of ordinaryEntries
+    ) {
       const firstNewChild =
         wireLayer.children.length;
 
@@ -714,17 +1143,26 @@ function drawConnectionsInsideLayoutCells(
           drawLabel: true,
           cellElements,
           routedSegments,
+          jrRails,
+          jrMargin,
         }
       );
+
       if (
         routedSegments.length ===
         routedSegmentCount
       ) {
-        const newChildren = Array.from(
-          wireLayer.children
-        ).slice(firstNewChild);
+        const newChildren =
+          Array.from(
+            wireLayer.children
+          ).slice(
+            firstNewChild
+          );
 
-        for (const child of newChildren) {
+        for (
+          const child
+          of newChildren
+        ) {
           routedSegments.push(
             ...extractWireSegmentsFromElement(
               child
@@ -749,7 +1187,9 @@ function drawConnectionsInsideLayoutCells(
         net,
         terminals,
         cellElements,
-        routedSegments
+        routedSegments,
+        jrRails,
+        jrMargin
       );
     }
 
@@ -758,8 +1198,12 @@ function drawConnectionsInsideLayoutCells(
       {
         ordinaryNets:
           ordinaryEntries.length,
+
         reroutedSharedOutputs:
           sharedOutputEntries.length,
+
+        jrRails:
+          jrRails.length,
       }
     );
   }
