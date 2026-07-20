@@ -387,6 +387,13 @@ function drawCircuit(data) {
 
   drawLayoutCellBoundaries(layoutCellLayer, placedCells);
 
+  drawTerminalStubs(
+    internalWireLayer,
+    labelLayer,
+    placed,
+    10
+  );
+
   /*
   * Pass 1: complete all connections inside
   * each distinct layout-cell instance.
@@ -677,6 +684,202 @@ function drawSubcircuits(placed, componentLayer, wireLayer, labelLayer) {
         continue;
     }
     drawComponent(componentLayer, current);
+  }
+}
+
+function drawTerminalStubs(
+  wireLayer,
+  labelLayer,
+  placed,
+  stubLength = 45
+) {
+  const netUseCounts =
+    new Map();
+
+  function getNetKey(
+    component,
+    net
+  ) {
+    return [
+      getLayoutInstance(component),
+      net,
+    ].join("|");
+  }
+
+  /*
+   * Count how many ordinary component pins use
+   * each net inside each layout cell.
+   */
+  for (const component of placed) {
+    if (
+      isBiasElement(component) ||
+      getElementType(component) === "R"
+    ) {
+      continue;
+    }
+
+    for (const net of [
+      component.net_in,
+      component.net_out,
+    ]) {
+      if (
+        !net ||
+        isGroundNet(net)
+      ) {
+        continue;
+      }
+
+      const key =
+        getNetKey(
+          component,
+          net
+        );
+
+      netUseCounts.set(
+        key,
+        (
+          netUseCounts.get(key) ??
+          0
+        ) + 1
+      );
+    }
+  }
+
+  function isTerminalNet(
+    component,
+    net
+  ) {
+    if (
+      !net ||
+      isGroundNet(net)
+    ) {
+      return false;
+    }
+
+    /*
+     * Support an explicit "terminal" marker.
+     */
+    if (
+      String(net)
+        .trim()
+        .toLowerCase() ===
+      "terminal"
+    ) {
+      return true;
+    }
+
+    /*
+     * A net used by only one ordinary component pin
+     * is a dangling terminal net.
+     */
+    const key =
+      getNetKey(
+        component,
+        net
+      );
+
+    return (
+      netUseCounts.get(key) ??
+      0
+    ) === 1;
+  }
+
+  function drawStub(
+    component,
+    pin,
+    net,
+    side
+  ) {
+    if (!pin) {
+      return null;
+    }
+
+    /*
+     * Extend outward from whichever physical side
+     * the pin occupies.
+     */
+    const direction =
+      pin.x < component.x
+        ? -1
+        : 1;
+
+    const stubEnd = {
+      x:
+        pin.x +
+        direction *
+          stubLength,
+
+      y:
+        pin.y,
+    };
+
+    drawLine(
+      wireLayer,
+      labelLayer,
+      component,
+      pin,
+      stubEnd,
+      {
+        net,
+
+        kind:
+          `inductor-${side}-terminal-stub`,
+
+        stroke:
+          drawConfig.wireStroke,
+      }
+    );
+
+    return stubEnd;
+  }
+
+  for (const component of placed) {
+    if (
+      getElementType(component) !==
+      "L"
+    ) {
+      continue;
+    }
+
+    if (
+      isTerminalNet(
+        component,
+        component.net_in
+      )
+    ) {
+      component.inputLeadPoint =
+        drawStub(
+          component,
+          component.inputPin,
+          component.net_in,
+          "input"
+        );
+
+      component.inputNeedsLead =
+        Boolean(
+          component.inputLeadPoint
+        );
+    }
+
+    if (
+      isTerminalNet(
+        component,
+        component.net_out
+      )
+    ) {
+      component.outputLeadPoint =
+        drawStub(
+          component,
+          component.outputPin,
+          component.net_out,
+          "output"
+        );
+
+      component.outputNeedsLead =
+        Boolean(
+          component.outputLeadPoint
+        );
+    }
   }
 }
 
