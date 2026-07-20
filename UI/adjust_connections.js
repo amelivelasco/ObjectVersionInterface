@@ -54,15 +54,56 @@ function findShortestOrthogonalRoute(
     );
   }
 
-  function segmentAllowed(first, second) {
-    return !obstacleBoxes.some(
-      (box) =>
-        axisAlignedSegmentHitsBox(
-          first,
-          second,
-          box
-        )
-    );
+  function segmentAllowed(
+    first,
+    second
+  ) {
+    const hitsComponent =
+      obstacleBoxes.some(
+        (box) =>
+          axisAlignedSegmentHitsBox(
+            first,
+            second,
+            box
+          )
+      );
+
+    if (hitsComponent) {
+      return false;
+    }
+
+    const candidate = {
+      a: first,
+      b: second,
+    };
+
+    /*
+    * Different nets may not overlap, cross,
+    * or pass within 8px of one another.
+    */
+    const hitsAnotherNet =
+      routedSegments.some(
+        (existing) => {
+          /*
+          * The same electrical net may merge
+          * with itself.
+          */
+          if (
+            existing.net &&
+            existing.net === net
+          ) {
+            return false;
+          }
+
+          return segmentsWithinClearance(
+            candidate,
+            existing,
+            8
+          );
+        }
+      );
+
+    return !hitsAnotherNet;
   }
 
   function stateKey(xIndex, yIndex, direction) {
@@ -722,4 +763,77 @@ function drawConnectionsInsideLayoutCells(
       }
     );
   }
+}
+
+
+function segmentsWithinClearance(
+  first,
+  second,
+  clearance = 8
+) {
+  const firstBox = {
+    left:
+      Math.min(
+        first.a.x,
+        first.b.x
+      ) - clearance,
+
+    right:
+      Math.max(
+        first.a.x,
+        first.b.x
+      ) + clearance,
+
+    top:
+      Math.min(
+        first.a.y,
+        first.b.y
+      ) - clearance,
+
+    bottom:
+      Math.max(
+        first.a.y,
+        first.b.y
+      ) + clearance,
+  };
+
+  const secondBox = {
+    left:
+      Math.min(
+        second.a.x,
+        second.b.x
+      ),
+
+    right:
+      Math.max(
+        second.a.x,
+        second.b.x
+      ),
+
+    top:
+      Math.min(
+        second.a.y,
+        second.b.y
+      ),
+
+    bottom:
+      Math.max(
+        second.a.y,
+        second.b.y
+      ),
+  };
+
+  return !(
+    firstBox.right <
+      secondBox.left ||
+
+    firstBox.left >
+      secondBox.right ||
+
+    firstBox.bottom <
+      secondBox.top ||
+
+    firstBox.top >
+      secondBox.bottom
+  );
 }
