@@ -390,8 +390,9 @@ function drawCircuit(data) {
   drawTerminalStubs(
     internalWireLayer,
     labelLayer,
+    dotLayer,
     placed,
-    10
+    15
   );
 
   /*
@@ -690,11 +691,18 @@ function drawSubcircuits(placed, componentLayer, wireLayer, labelLayer) {
 function drawTerminalStubs(
   wireLayer,
   labelLayer,
+  dotLayer,
   placed,
   stubLength = 45
 ) {
   const netUseCounts =
     new Map();
+
+  const labeledNets =
+    new Set();
+
+  const drawnDots =
+    new Set();
 
   function getNetKey(
     component,
@@ -756,9 +764,6 @@ function drawTerminalStubs(
       return false;
     }
 
-    /*
-     * Support an explicit "terminal" marker.
-     */
     if (
       String(net)
         .trim()
@@ -768,10 +773,6 @@ function drawTerminalStubs(
       return true;
     }
 
-    /*
-     * A net used by only one ordinary component pin
-     * is a dangling terminal net.
-     */
     const key =
       getNetKey(
         component,
@@ -790,14 +791,13 @@ function drawTerminalStubs(
     net,
     side
   ) {
-    if (!pin) {
+    if (
+      !pin ||
+      !net
+    ) {
       return null;
     }
 
-    /*
-     * Extend outward from whichever physical side
-     * the pin occupies.
-     */
     const direction =
       pin.x < component.x
         ? -1
@@ -829,6 +829,87 @@ function drawTerminalStubs(
           drawConfig.wireStroke,
       }
     );
+
+    /*
+     * Draw a small dot at the open end of the
+     * terminal stub.
+     */
+    const dotKey = [
+      getLayoutInstance(component),
+      net,
+      stubEnd.x.toFixed(3),
+      stubEnd.y.toFixed(3),
+    ].join("|");
+
+    if (
+      !drawnDots.has(
+        dotKey
+      )
+    ) {
+      drawnDots.add(
+        dotKey
+      );
+
+      drawDot(
+        dotLayer,
+        stubEnd,
+        {
+          radius:
+            2.5,
+
+          fill:
+            drawConfig.wireStroke,
+
+          stroke:
+            drawConfig.wireStroke,
+        }
+      );
+    }
+
+    const labelKey =
+      getNetKey(
+        component,
+        net
+      );
+
+    /*
+     * Draw one label per net per layout cell.
+     */
+    if (
+      !labeledNets.has(
+        labelKey
+      )
+    ) {
+      labeledNets.add(
+        labelKey
+      );
+
+      const labelX =
+        (
+          pin.x +
+          stubEnd.x
+        ) / 2;
+
+      const labelY =
+        pin.y - 9;
+
+      drawLabel(
+        labelLayer,
+        net,
+        labelX,
+        labelY,
+        {
+          size:
+            "8.5px",
+
+          fill:
+            "#334155",
+
+          anchor:
+            "middle",
+        }
+      );
+    }
 
     return stubEnd;
   }
