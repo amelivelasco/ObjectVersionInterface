@@ -13,7 +13,13 @@ function findBiasTarget(bias, placed) {
       getElementType(element) !== "R" &&
       getLayoutInstance(element) ===
         layoutInstance &&
-      element.net_in === bias.net_out
+      (
+        element.net_in === bias.net_out ||
+        (
+          getElementType(element) === "L" &&
+          element.net_out === bias.net_out
+        )
+      )
   );
 
   if (candidates.length === 0) {
@@ -116,7 +122,9 @@ function findFreeBiasX(
   return desiredX;
 }
 
-function placeBiasElementsAboveNetOut(placed) {
+function placeBiasElementsAboveNetOut(
+  placed
+) {
   const halfSize =
     drawConfig.imageSize / 2;
 
@@ -131,42 +139,47 @@ function placeBiasElementsAboveNetOut(placed) {
         placed
       );
 
-    if (
-      !target ||
-      !target.inputPin
-    ) {
+    if (!target) {
       continue;
     }
 
     /*
-     * direction = 1:
-     * target input is on the left.
-     *
-     * direction = -1:
-     * target input is on the right.
+     * Clear values that may remain if the circuit
+     * is redrawn using the same data objects.
      */
-    const targetDirection =
-      target.direction ?? 1;
+    bias.biasPlacementLocked =
+      false;
+
+    bias.biasSnappedToNet =
+      false;
+
+    bias.biasNetSegment =
+      null;
 
     /*
-     * Place the bias junction slightly before
-     * the target input.
+     * Original placement behavior for:
+     *
+     * - non-inductor targets;
+     * - inductors without a matching pin;
+     * - cases where there is no free side position.
      */
+    if (!target.inputPin) {
+      continue;
+    }
+
+    const targetDirection =
+      target.electricalDirection ??
+      target.direction ??
+      1;
+
     const desiredJoinX =
       target.inputPin.x -
       targetDirection *
         drawConfig.biasBranchOffset;
 
-    /*
-     * The net_out line is horizontal at the
-     * same Y position as the target input.
-     */
     const netY =
       target.inputPin.y;
 
-    /*
-     * Bias is always above the net.
-     */
     const biasCenterY =
       netY -
       halfSize -
@@ -187,13 +200,10 @@ function placeBiasElementsAboveNetOut(placed) {
       biasCenterY;
 
     /*
-     * Original bias image points downward.
+     * Original arrow points downward.
      */
     bias.biasRotation = 0;
 
-    /*
-     * Bottom/pointing end of the bias image.
-     */
     bias.biasFrontPin = {
       x:
         biasCenterX,
@@ -203,9 +213,6 @@ function placeBiasElementsAboveNetOut(placed) {
         halfSize,
     };
 
-    /*
-     * Junction on the horizontal net_out line.
-     */
     bias.biasNetJoin = {
       x:
         biasCenterX,
@@ -214,12 +221,9 @@ function placeBiasElementsAboveNetOut(placed) {
         netY,
     };
 
-    /*
-     * The bias normal output terminal is the
-     * junction on its net_out line.
-     */
     bias.outputPin = {
       ...bias.biasNetJoin,
+
       net:
         bias.net_out,
     };
@@ -228,7 +232,6 @@ function placeBiasElementsAboveNetOut(placed) {
       target.id;
   }
 }
-
 
 function drawBiasLocalConnections(
   wireLayer,
@@ -395,6 +398,11 @@ function connectBiasStubsToInductors(
       !isBiasElement(bias) ||
       !bias.biasNetJoin ||
       !bias.net_out
+    ) {
+      continue;
+    }
+    if (
+      bias.biasSnappedToNet
     ) {
       continue;
     }
@@ -604,4 +612,425 @@ function connectBiasStubsToInductors(
       }
     );
   }
+}
+
+function snapBiasElementsToNearestNet(
+  wireLayer,
+  placed
+) {
+  const halfSize =
+    drawConfig.imageSize / 2;
+
+  const gap =
+    drawConfig.biasOutputGap;
+
+  for (const bias of placed) {
+    if (
+      !isBiasElement(bias) ||
+      !bias.net_out
+    ) {
+      continue;
+    }
+
+    if (
+      bias.biasPlacementLocked
+    ) {
+      continue;
+    }
+
+    const originalX =
+      bias.x;
+
+    const originalY =
+      bias.y;
+
+    const layoutInstance =
+      getLayoutInstance(bias);
+
+    const cellElements =
+      placed.filter(
+        (element) =>
+          getLayoutInstance(element) ===
+          layoutInstance
+      );
+
+    /*
+    * Reserve the complete JR subcircuit area,
+    * including the space between the JJ and resistor.
+    */
+    const jrObstacleBoxes =
+      buildRoutingObstacleBoxes(
+        cellElements,
+        new Set([
+          bias.id,
+        ]),
+        8
+      ).filter(
+        (box) =>
+          box.isJRPair
+      );
+
+    let best = null;
+
+    for (
+      const child of
+      wireLayer.children
+    ) {
+      const childNet =
+        child.getAttribute(
+          "data-net"
+        );
+
+      const childKind =
+        child.getAttribute(
+          "data-kind"
+        );
+
+      if (
+        childNet !==
+          bias.net_out ||
+        String(
+          childKind || ""
+        ).startsWith("bias-")
+      ) {
+        continue;
+      }
+
+      const segments =
+        extractWireSegmentsFromElement(
+          child
+        );
+
+      for (const segment of segments) {
+        const horizontal =
+          Math.abs(
+            segment.a.y -
+            segment.b.y
+          ) < 0.5;
+
+        const vertical =
+          Math.abs(
+            segment.a.x -
+            segment.b.x
+          ) < 0.5;
+
+        let joinPoint = null;
+
+        if (horizontal) {
+          const minimumX =
+            Math.min(
+              segment.a.x,
+              segment.b.x
+            );
+
+          const maximumX =
+            Math.max(
+              segment.a.x,
+              segment.b.x
+            );
+
+          joinPoint = {
+            x:
+              Math.max(
+                minimumX,
+                Math.min(
+                  originalX,
+                  maximumX
+                )
+              ),
+
+            y:
+              segment.a.y,
+          };
+        } else if (vertical) {
+          const minimumY =
+            Math.min(
+              segment.a.y,
+              segment.b.y
+            );
+
+          const maximumY =
+            Math.max(
+              segment.a.y,
+              segment.b.y
+            );
+
+          joinPoint = {
+            x:
+              segment.a.x,
+
+            y:
+              Math.max(
+                minimumY,
+                Math.min(
+                  originalY,
+                  maximumY
+                )
+              ),
+          };
+        }
+
+        if (!joinPoint) {
+          continue;
+        }
+
+        const candidates = [];
+
+        if (horizontal) {
+          /*
+          * Existing wire:
+          *
+          * ----------------
+          *
+          * Bias can sit above and point downward,
+          * or sit below and point upward.
+          */
+          candidates.push(
+            {
+              x:
+                joinPoint.x,
+
+              y:
+                joinPoint.y -
+                halfSize -
+                gap,
+
+              rotation:
+                0,
+
+              frontPin: {
+                x:
+                  joinPoint.x,
+
+                y:
+                  joinPoint.y -
+                  gap,
+              },
+
+              joinPoint,
+            },
+
+            {
+              x:
+                joinPoint.x,
+
+              y:
+                joinPoint.y +
+                halfSize +
+                gap,
+
+              rotation:
+                180,
+
+              frontPin: {
+                x:
+                  joinPoint.x,
+
+                y:
+                  joinPoint.y +
+                  gap,
+              },
+
+              joinPoint,
+            }
+          );
+        } else if (vertical) {
+          /*
+          * Existing wire:
+          *
+          *       |
+          *       |
+          *
+          * Bias can sit on the left and point right,
+          * or sit on the right and point left.
+          */
+          candidates.push(
+            {
+              x:
+                joinPoint.x -
+                halfSize -
+                gap,
+
+              y:
+                joinPoint.y,
+
+              rotation:
+                -90,
+
+              frontPin: {
+                x:
+                  joinPoint.x -
+                  gap,
+
+                y:
+                  joinPoint.y,
+              },
+
+              joinPoint,
+            },
+
+            {
+              x:
+                joinPoint.x +
+                halfSize +
+                gap,
+
+              y:
+                joinPoint.y,
+
+              rotation:
+                90,
+
+              frontPin: {
+                x:
+                  joinPoint.x +
+                  gap,
+
+                y:
+                  joinPoint.y,
+              },
+
+              joinPoint,
+            }
+          );
+        }
+
+        for (const candidate of candidates) {
+          const halfSize =
+            drawConfig.imageSize / 2;
+
+          /*
+          * Reject any arrow position whose image overlaps
+          * the complete JJ/resistor subcircuit rectangle.
+          */
+          const overlapsJRPair =
+            jrObstacleBoxes.some(
+              (box) =>
+                !(
+                  candidate.x +
+                    halfSize <=
+                      box.left ||
+
+                  candidate.x -
+                    halfSize >=
+                      box.right ||
+
+                  candidate.y +
+                    halfSize <=
+                      box.top ||
+
+                  candidate.y -
+                    halfSize >=
+                      box.bottom
+                )
+            );
+
+          /*
+          * Reject a position when its short connection
+          * stub would pass through the JR rectangle.
+          */
+          const stubCrossesJRPair =
+            jrObstacleBoxes.some(
+              (box) =>
+                axisAlignedSegmentHitsBox(
+                  candidate.frontPin,
+                  joinPoint,
+                  box
+                )
+            );
+
+          if (
+            overlapsJRPair ||
+            stubCrossesJRPair
+          ) {
+            continue;
+          }
+
+          const isFree =
+            isBiasPositionFree(
+              bias,
+              candidate.x,
+              candidate.y,
+              placed
+            );
+
+          const movement =
+            Math.abs(
+              originalX -
+              candidate.x
+            ) +
+            Math.abs(
+              originalY -
+              candidate.y
+            );
+
+          const score =
+            movement +
+            (
+              isFree
+                ? 0
+                : 1000000
+            );
+
+          if (
+            !best ||
+            score < best.score
+          ) {
+            best = {
+              ...candidate,
+              score,
+            };
+          }
+        }
+      }
+    }
+
+    /*
+     * Keep the original target-based behavior when
+     * no already-routed segment exists for this net.
+     */
+    if (!best) {
+      bias.biasSnappedToNet =
+        false;
+
+      continue;
+    }
+
+    bias.x =
+      best.x;
+
+    bias.y =
+      best.y;
+
+    bias.biasRotation =
+      best.rotation;
+
+    bias.biasFrontPin = {
+      ...best.frontPin,
+    };
+
+    bias.biasNetJoin = {
+      ...best.joinPoint,
+    };
+
+    bias.outputPin = {
+      ...best.joinPoint,
+
+      net:
+        bias.net_out,
+    };
+
+    /*
+    * The bias is connected through only its own
+    * perpendicular branch.
+    */
+    bias.biasNetSegment =
+      null;
+
+    bias.biasSnappedToNet =
+      true;
+
+    bias.biasPlacementLocked =
+      true;
+    }
 }

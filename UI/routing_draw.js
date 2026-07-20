@@ -685,6 +685,43 @@ function drawTerminalTree(
           net
         );
 
+      /*
+      * The router returns null when it cannot find
+      * a legal obstacle-free route.
+      */
+      if (
+        !Array.isArray(routePoints) ||
+        routePoints.length < 2
+      ) {
+        console.warn(
+          `Skipping unroutable connection for ${net}`,
+          {
+            from:
+              fromPoint,
+
+            to:
+              toPoint,
+
+            fromOwner:
+              fromTerminal.ownerId,
+
+            toOwner:
+              toTerminal.ownerId,
+          }
+        );
+
+        /*
+        * Remove this target so the while loop does not
+        * attempt the exact same failed connection forever.
+        */
+        remaining.splice(
+          bestConnection.remainingIndex,
+          1
+        );
+
+        continue;
+      }
+
       pathData =
         routePointsToPathData(
           routePoints
@@ -724,6 +761,11 @@ function drawTerminalTree(
           drawConfig.wireStroke,
 
         pathData,
+
+        net,
+
+        kind:
+          "net-route",
       }
     );
 

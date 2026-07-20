@@ -2,7 +2,8 @@ function findShortestOrthogonalRoute(
   start,
   end,
   obstacleBoxes,
-  routedSegments
+  routedSegments,
+  net = null
 ) {
   const wireClearance = 10;
   const bendPenalty = 14;
@@ -204,7 +205,7 @@ function findShortestOrthogonalRoute(
 
   if (!goalKey) {
     console.warn(
-        `No legal route found for ${currentNet}`,
+        `No legal route found for ${net}`,
         {
         start,
         end,
@@ -269,7 +270,8 @@ function buildShortestFreeRoute(
   fromTerminal,
   toTerminal,
   cellElements,
-  routedSegments
+  routedSegments,
+  net
 ) {
   const fromApproach =
     getInductorApproachPoint(
@@ -302,7 +304,8 @@ function buildShortestFreeRoute(
       fromApproach,
       toApproach,
       obstacleBoxes,
-      routedSegments
+      routedSegments,
+      net
     );
     if (
         !Array.isArray(coreRoute) ||
@@ -432,6 +435,39 @@ function drawSharedOutputNet(
         net
       );
 
+    if (
+      !Array.isArray(routePoints) ||
+      routePoints.length < 2
+    ) {
+      console.warn(
+        `Skipping unroutable shared connection for ${net}`,
+        {
+          from:
+            bestConnection.fromPoint,
+
+          to:
+            bestConnection.toPoint,
+
+          fromOwner:
+            bestConnection.from.ownerId,
+
+          toOwner:
+            bestConnection.to.ownerId,
+        }
+      );
+
+      /*
+      * Prevent repeatedly selecting the same failed
+      * destination.
+      */
+      remaining.splice(
+        bestConnection.remainingIndex,
+        1
+      );
+
+      continue;
+    }
+
     drawPath(
       wireLayer,
       bestConnection.fromPoint,
@@ -443,7 +479,11 @@ function drawSharedOutputNet(
           routePointsToPathData(
             routePoints
           ),
-      }
+        net,
+        kind:
+          "shared-net-route",
+      },
+      
     );
 
     const newSegments =

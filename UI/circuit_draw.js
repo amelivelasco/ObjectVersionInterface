@@ -22,32 +22,80 @@ function drawPath(
           options.strokeWidth ||
           drawConfig.wireStrokeWidth,
 
-        "stroke-linecap": "round",
-        "stroke-linejoin": "round",
+        "stroke-linecap":
+          "round",
+
+        "stroke-linejoin":
+          "round",
 
         "stroke-dasharray":
           options.dash || "",
+
+        /*
+         * Required by
+         * snapBiasElementsToNearestNet().
+         */
+        "data-net":
+          options.net || "",
+
+        "data-kind":
+          options.kind || "",
 
         class: "edge",
       }
     );
 
   layer.appendChild(path);
+
+  return path;
 }
 
-function drawLine(lineLayer, labelLayer, element, a, b, options = {}) {
-  const line = createSvgElement("line", {
-    x1: a.x,
-    y1: a.y,
-    x2: b.x,
-    y2: b.y,
-    stroke: options.stroke || drawConfig.wireStroke,
-    "stroke-width": options.strokeWidth || drawConfig.wireStrokeWidth,
-    "stroke-linecap": "round",
-    class: "edge",
-  });
+function drawLine(
+  lineLayer,
+  labelLayer,
+  element,
+  a,
+  b,
+  options = {}
+) {
+  const line =
+    createSvgElement(
+      "line",
+      {
+        x1: a.x,
+        y1: a.y,
+
+        x2: b.x,
+        y2: b.y,
+
+        stroke:
+          options.stroke ||
+          drawConfig.wireStroke,
+
+        "stroke-width":
+          options.strokeWidth ||
+          drawConfig.wireStrokeWidth,
+
+        "stroke-linecap":
+          "round",
+
+        /*
+         * Required when the relevant net is
+         * represented by SVG lines rather than paths.
+         */
+        "data-net":
+          options.net || "",
+
+        "data-kind":
+          options.kind || "",
+
+        class: "edge",
+      }
+    );
 
   lineLayer.appendChild(line);
+
+  return line;
 }
 
 function drawDot(layer, point, options = {}) {
@@ -359,6 +407,12 @@ function drawCircuit(data) {
   //   placed
   // );
 
+  snapBiasElementsToNearestNet(
+    internalWireLayer,
+    placed
+  );
+
+
   drawBiasLocalConnections(
     internalWireLayer,
     labelLayer,
@@ -515,7 +569,14 @@ function drawJRpairs(
     labelLayer,
     current,
     geometry.jjTop,
-    geometry.topAtJJ
+    geometry.topAtJJ,
+    {
+      net:
+        current.net_in,
+
+      kind:
+        "jr-input",
+    }
   );
 
   drawLine(
