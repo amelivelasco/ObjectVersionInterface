@@ -99,10 +99,308 @@ function measureLayoutCell(elementCount) {
 }
  
 function buildLayoutCellLayout(data) {
-  const elementMap = createElementMap(
-    data.elements || []
-  );
+  const elementMap =
+    createElementMap(
+      data.elements || []
+    );
 
+  /*
+   * Resolve and measure every cell before assigning
+   * coordinates.
+   */
+  const measuredCells =
+    (
+      data.layout_cells ||
+      []
+    ).map(
+      (layoutCell) => {
+        const resolvedElements =
+          resolveLayoutCellElements(
+            layoutCell,
+            elementMap
+          );
+
+        const measurement =
+          measureLayoutCell(
+            resolvedElements.length
+          );
+
+        const layoutInstance =
+          layoutCell.layout_instance ||
+          layoutCell.id ||
+          layoutCell.layout_cell;
+
+        return {
+          id:
+            layoutInstance,
+
+          layout_instance:
+            layoutInstance,
+
+          layout_cell:
+            layoutCell.layout_cell,
+
+          instance_path:
+            layoutCell.instance_path ||
+            "",
+
+          display_name:
+            layoutCell.display_name ||
+            (
+              layoutCell.instance_path
+                ? `${layoutCell.layout_cell} (${layoutCell.instance_path})`
+                : layoutCell.layout_cell
+            ),
+
+          net_in:
+            layoutCell.net_in,
+
+          net_out:
+            layoutCell.net_out,
+
+          elementIds: [
+            ...(
+              layoutCell.elements ||
+              []
+            ),
+          ],
+
+          elements:
+            resolvedElements,
+
+          ...measurement,
+
+          /*
+           * Coordinates are assigned below.
+           */
+          x:
+            0,
+
+          y:
+            0,
+        };
+      }
+    );
+
+  /*
+   * Match cells whose base layout-cell name begins
+   * with NDROM2.
+   *
+   * This matches:
+   *   NDROM2
+   *   NDROM2_1
+   *   NDROM2-copy
+   *
+   * It does not use layout_instance because the
+   * instances should remain distinct.
+   */
+  const ndromCells =
+    measuredCells.filter(
+      (cell) =>
+        String(
+          cell.layout_cell ||
+          ""
+        )
+          .trim()
+          .toUpperCase()
+          .startsWith(
+            "NDROM2"
+          )
+    );
+
+  const otherCells =
+    measuredCells.filter(
+      (cell) =>
+        !ndromCells.includes(
+          cell
+        )
+    );
+
+  /*
+   * Use the requested 2-over-1 arrangement when
+   * there are at least two NDROM2 instances and
+   * one other layout cell.
+   */
+  if (
+    ndromCells.length >= 2 &&
+    otherCells.length >= 1
+  ) {
+    const leftCell =
+      ndromCells[0];
+
+    const rightCell =
+      ndromCells[1];
+
+    const bottomCell =
+      otherCells[0];
+
+    const marginX =
+      drawConfig.layoutCellMarginX;
+
+    const marginY =
+      drawConfig.layoutCellMarginY;
+
+    const gapX =
+      drawConfig.layoutCellGapX;
+
+    const gapY =
+      drawConfig.layoutCellGapY;
+
+    const topRowWidth =
+      leftCell.width +
+      gapX +
+      rightCell.width;
+
+    const topRowHeight =
+      Math.max(
+        leftCell.height,
+        rightCell.height
+      );
+
+    /*
+     * The overall group must be wide enough for
+     * either the top row or the bottom cell.
+     */
+    const groupWidth =
+      Math.max(
+        topRowWidth,
+        bottomCell.width
+      );
+
+    /*
+     * Center the two-cell top row as a group.
+     */
+    const topRowX =
+      marginX +
+      (
+        groupWidth -
+        topRowWidth
+      ) / 2;
+
+    leftCell.x =
+      topRowX;
+
+    leftCell.y =
+      marginY;
+
+    rightCell.x =
+      topRowX +
+      leftCell.width +
+      gapX;
+
+    rightCell.y =
+      marginY;
+
+    /*
+     * Center the third cell under the complete
+     * width of the top row.
+     */
+    bottomCell.x =
+      marginX +
+      (
+        groupWidth -
+        bottomCell.width
+      ) / 2;
+
+    bottomCell.y =
+      marginY +
+      topRowHeight +
+      gapY;
+
+    const placedCells = [
+      leftCell,
+      rightCell,
+      bottomCell,
+    ];
+
+    /*
+     * Place any unexpected extra cells below the
+     * requested three-cell arrangement.
+     */
+    const usedCells =
+      new Set(
+        placedCells
+      );
+
+    const extraCells =
+      measuredCells.filter(
+        (cell) =>
+          !usedCells.has(
+            cell
+          )
+      );
+
+    let extraY =
+      bottomCell.y +
+      bottomCell.height +
+      gapY;
+
+    for (
+      const extraCell of
+      extraCells
+    ) {
+      extraCell.x =
+        marginX +
+        (
+          groupWidth -
+          extraCell.width
+        ) / 2;
+
+      extraCell.y =
+        extraY;
+
+      placedCells.push(
+        extraCell
+      );
+
+      extraY +=
+        extraCell.height +
+        gapY;
+    }
+
+    const maximumRight =
+      Math.max(
+        ...placedCells.map(
+          (cell) =>
+            cell.x +
+            cell.width
+        )
+      );
+
+    const maximumBottom =
+      Math.max(
+        ...placedCells.map(
+          (cell) =>
+            cell.y +
+            cell.height
+        )
+      );
+
+    const canvasWidth =
+      Math.max(
+        900,
+        maximumRight +
+        marginX
+      );
+
+    const canvasHeight =
+      Math.max(
+        550,
+        maximumBottom +
+        marginY
+      );
+
+    return {
+      placedCells,
+      canvasWidth,
+      canvasHeight,
+    };
+  }
+
+  /*
+   * Fallback for circuit data that does not contain
+   * the expected two NDROM2 cells and one other cell.
+   */
   const placedCells = [];
 
   let x =
@@ -111,32 +409,24 @@ function buildLayoutCellLayout(data) {
   let y =
     drawConfig.layoutCellMarginY;
 
-  let currentRowHeight = 0;
-  let maximumRight = 0;
+  let currentRowHeight =
+    0;
+
+  let maximumRight =
+    0;
 
   const rowRightLimit =
     drawConfig.layoutCellMarginX +
     drawConfig.layoutCellRowWidth;
 
   for (
-    const layoutCell of
-    data.layout_cells || []
+    const cell of
+    measuredCells
   ) {
-    const resolvedElements =
-      resolveLayoutCellElements(
-        layoutCell,
-        elementMap
-      );
-
-    const measurement =
-      measureLayoutCell(
-        resolvedElements.length
-      );
-
     const shouldStartNewRow =
       x !==
         drawConfig.layoutCellMarginX &&
-      x + measurement.width >
+      x + cell.width >
         rowRightLimit;
 
     if (shouldStartNewRow) {
@@ -147,82 +437,52 @@ function buildLayoutCellLayout(data) {
         currentRowHeight +
         drawConfig.layoutCellGapY;
 
-      currentRowHeight = 0;
+      currentRowHeight =
+        0;
     }
 
-    const layoutInstance =
-      layoutCell.layout_instance ||
-      layoutCell.id ||
-      layoutCell.layout_cell;
+    cell.x =
+      x;
 
-    const placedCell = {
-      id: layoutInstance,
+    cell.y =
+      y;
 
-      layout_instance:
-        layoutInstance,
-
-      layout_cell:
-        layoutCell.layout_cell,
-
-      instance_path:
-        layoutCell.instance_path || "",
-
-      display_name:
-        layoutCell.display_name ||
-        (
-          layoutCell.instance_path
-            ? `${layoutCell.layout_cell} (${layoutCell.instance_path})`
-            : layoutCell.layout_cell
-        ),
-
-      net_in:
-        layoutCell.net_in,
-
-      net_out:
-        layoutCell.net_out,
-
-      elementIds: [
-        ...(layoutCell.elements || []),
-      ],
-
-      elements:
-        resolvedElements,
-
-      x,
-      y,
-
-      ...measurement,
-    };
-
-    placedCells.push(placedCell);
-
-    maximumRight = Math.max(
-      maximumRight,
-      x + measurement.width
+    placedCells.push(
+      cell
     );
 
-    currentRowHeight = Math.max(
-      currentRowHeight,
-      measurement.height
-    );
+    maximumRight =
+      Math.max(
+        maximumRight,
+        cell.x +
+        cell.width
+      );
+
+    currentRowHeight =
+      Math.max(
+        currentRowHeight,
+        cell.height
+      );
 
     x +=
-      measurement.width +
+      cell.width +
       drawConfig.layoutCellGapX;
   }
 
-  const canvasWidth = Math.max(
-    900,
-    maximumRight +
-      drawConfig.layoutCellMarginX
-  );
+  const canvasWidth =
+    Math.max(
+      900,
+      maximumRight +
+        drawConfig.layoutCellMarginX
+    );
 
-  const canvasHeight = Math.max(
-    550,
-    y +
-      currentRowHeight +
-      drawConfig.layoutCellMarginY
-  );
+  const canvasHeight =
+    Math.max(
+      550,
+      y +
+        currentRowHeight +
+        drawConfig.layoutCellMarginY
+    );
 
   return {
     placedCells,
