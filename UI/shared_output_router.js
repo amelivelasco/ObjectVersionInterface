@@ -565,3 +565,43 @@ function routePointsToSegments(points) {
 
   return segments;
 }
+
+
+function getInductorCenterBarrier(
+  element,
+  verticalPadding = 4,
+  barrierHalfWidth = 3
+) {
+  const halfSize =
+    drawConfig.imageSize / 2;
+
+  return {
+    /*
+     * Thin vertical blocker through the middle
+     * of the inductor.
+     */
+    left:
+      element.x -
+      barrierHalfWidth,
+
+    right:
+      element.x +
+      barrierHalfWidth,
+
+    top:
+      element.y -
+      halfSize -
+      verticalPadding,
+
+    bottom:
+      element.y +
+      halfSize +
+      verticalPadding,
+
+    ownerId:
+      element.id,
+
+    kind:
+      "inductor-center-barrier",
+  };
+}

@@ -435,6 +435,15 @@ function drawCircuit(data) {
 
   drawSubcircuits(placed, componentLayer, internalWireLayer, labelLayer)
 
+  drawTerminalStubs(
+    internalWireLayer,
+    labelLayer,
+    dotLayer,
+    placed,
+    10,
+    true
+  );
+
   setupPanZoom(svg, canvasWidth, canvasHeight);
 }
 
@@ -693,7 +702,8 @@ function drawTerminalStubs(
   labelLayer,
   dotLayer,
   placed,
-  stubLength = 45
+  stubLength = 45,
+  repairMissingSides = false
 ) {
   const netUseCounts =
     new Map();
@@ -715,8 +725,7 @@ function drawTerminalStubs(
   }
 
   /*
-   * Count how many ordinary component pins use
-   * each net inside each layout cell.
+   * Count net usage inside each layout cell.
    */
   for (const component of placed) {
     if (
@@ -785,6 +794,588 @@ function drawTerminalStubs(
     ) === 1;
   }
 
+  /*
+   * SECOND PASS:
+   * Repair only missing inductor-side connections.
+   */
+  if (repairMissingSides) {
+    const epsilon = 0.5;
+
+    const segmentsByNet =
+      new Map();
+
+    function addSegment(
+      net,
+      a,
+      b,
+      options = {}
+    ) {
+      if (
+        !net ||
+        !a ||
+        !b
+      ) {
+        return;
+      }
+
+      if (
+        !segmentsByNet.has(net)
+      ) {
+        segmentsByNet.set(
+          net,
+          []
+        );
+      }
+
+      segmentsByNet
+        .get(net)
+        .push({
+          a: {
+            x: a.x,
+            y: a.y,
+          },
+
+          b: {
+            x: b.x,
+            y: b.y,
+          },
+
+          net,
+
+          layoutInstance:
+            options.layoutInstance ??
+            null,
+
+          source:
+            options.source ??
+            "wire",
+        });
+    }
+
+    function pointLiesOnSegment(
+      point,
+      segment
+    ) {
+      const horizontal =
+        Math.abs(
+          segment.a.y -
+          segment.b.y
+        ) < epsilon;
+
+      if (horizontal) {
+        return (
+          Math.abs(
+            point.y -
+            segment.a.y
+          ) < epsilon &&
+          point.x >=
+            Math.min(
+              segment.a.x,
+              segment.b.x
+            ) - epsilon &&
+          point.x <=
+            Math.max(
+              segment.a.x,
+              segment.b.x
+            ) + epsilon
+        );
+      }
+
+      const vertical =
+        Math.abs(
+          segment.a.x -
+          segment.b.x
+        ) < epsilon;
+
+      if (vertical) {
+        return (
+          Math.abs(
+            point.x -
+            segment.a.x
+          ) < epsilon &&
+          point.y >=
+            Math.min(
+              segment.a.y,
+              segment.b.y
+            ) - epsilon &&
+          point.y <=
+            Math.max(
+              segment.a.y,
+              segment.b.y
+            ) + epsilon
+        );
+      }
+
+      return false;
+    }
+
+    function closestPointOnSegment(
+      point,
+      segment
+    ) {
+      const horizontal =
+        Math.abs(
+          segment.a.y -
+          segment.b.y
+        ) < epsilon;
+
+      if (horizontal) {
+        return {
+          x:
+            Math.max(
+              Math.min(
+                segment.a.x,
+                segment.b.x
+              ),
+
+              Math.min(
+                Math.max(
+                  segment.a.x,
+                  segment.b.x
+                ),
+                point.x
+              )
+            ),
+
+          y:
+            segment.a.y,
+        };
+      }
+
+      const vertical =
+        Math.abs(
+          segment.a.x -
+          segment.b.x
+        ) < epsilon;
+
+      if (vertical) {
+        return {
+          x:
+            segment.a.x,
+
+          y:
+            Math.max(
+              Math.min(
+                segment.a.y,
+                segment.b.y
+              ),
+
+              Math.min(
+                Math.max(
+                  segment.a.y,
+                  segment.b.y
+                ),
+                point.y
+              )
+            ),
+        };
+      }
+
+      return null;
+    }
+
+    /*
+     * Collect all already-drawn SVG wires.
+     */
+    for (
+      const child of
+      Array.from(
+        wireLayer.children
+      )
+    ) {
+      const net =
+        child.getAttribute(
+          "data-net"
+        );
+
+      const kind =
+        child.getAttribute(
+          "data-kind"
+        ) || "";
+
+      if (!net) {
+        continue;
+      }
+
+      /*
+       * Open terminal stubs are not valid targets
+       * for missing internal connections.
+       */
+      if (
+        kind.includes(
+          "terminal-stub"
+        )
+      ) {
+        continue;
+      }
+
+      const segments =
+        extractWireSegmentsFromElement(
+          child
+        );
+
+      for (const segment of segments) {
+        addSegment(
+          net,
+          segment.a,
+          segment.b,
+          {
+            source:
+              "svg",
+          }
+        );
+      }
+    }
+
+    /*
+     * Explicitly register horizontal JR rails.
+     */
+    for (
+      let index = 0;
+      index <
+        placed.length - 1;
+      index++
+    ) {
+      const jj =
+        placed[index];
+
+      const resistor =
+        placed[index + 1];
+
+      if (
+        !isJJResistorPair(
+          jj,
+          resistor
+        )
+      ) {
+        continue;
+      }
+
+      const geometry =
+        getJJPairGeometry(
+          jj,
+          resistor,
+          25
+        );
+
+      const layoutInstance =
+        getLayoutInstance(jj);
+
+      addSegment(
+        jj.net_in,
+        geometry.topAtJJ,
+        geometry.topAtResistor,
+        {
+          source:
+            "jr-input-rail",
+
+          layoutInstance,
+        }
+      );
+
+      addSegment(
+        jj.net_out,
+        geometry.bottomAtJJ,
+        geometry.bottomAtResistor,
+        {
+          source:
+            "jr-output-rail",
+
+          layoutInstance,
+        }
+      );
+
+      index++;
+    }
+
+    function sideAlreadyConnected(
+      pin,
+      net
+    ) {
+      const segments =
+        segmentsByNet.get(net) ||
+        [];
+
+      return segments.some(
+        (segment) =>
+          pointLiesOnSegment(
+            pin,
+            segment
+          )
+      );
+    }
+
+    function connectMissingSide(
+      component,
+      pin,
+      oppositePin,
+      net,
+      side
+    ) {
+      if (
+        !pin ||
+        !net ||
+        isGroundNet(net)
+      ) {
+        return;
+      }
+
+      /*
+       * Terminal nets are intentionally left open.
+       */
+      if (
+        isTerminalNet(
+          component,
+          net
+        )
+      ) {
+        return;
+      }
+
+      /*
+       * This exact physical side already touches
+       * its required net.
+       */
+      if (
+        sideAlreadyConnected(
+          pin,
+          net
+        )
+      ) {
+        return;
+      }
+
+      const componentLayout =
+        getLayoutInstance(
+          component
+        );
+
+      const allSegments =
+        segmentsByNet.get(net) ||
+        [];
+
+      /*
+       * Prefer segments belonging to the same
+       * layout-cell instance.
+       */
+      let candidates =
+        allSegments.filter(
+          (segment) =>
+            !segment.layoutInstance ||
+            segment.layoutInstance ===
+              componentLayout
+        );
+
+      /*
+       * Do not attach this missing side to a wire
+       * that already enters the opposite inductor pin.
+       */
+      const segmentsAwayFromOppositePin =
+        candidates.filter(
+          (segment) =>
+            !oppositePin ||
+            !pointLiesOnSegment(
+              oppositePin,
+              segment
+            )
+        );
+
+      if (
+        segmentsAwayFromOppositePin.length >
+        0
+      ) {
+        candidates =
+          segmentsAwayFromOppositePin;
+      }
+
+      if (
+        candidates.length === 0
+      ) {
+        return;
+      }
+
+      /*
+       * Always start outward from the actual physical
+       * side of this pin.
+       */
+      const direction =
+        pin.x < component.x
+          ? -1
+          : 1;
+
+      const outwardPoint = {
+        x:
+          pin.x +
+          direction *
+            stubLength,
+
+        y:
+          pin.y,
+      };
+
+      let bestTarget =
+        null;
+
+      let bestDistance =
+        Infinity;
+
+      for (
+        const segment of
+        candidates
+      ) {
+        const target =
+          closestPointOnSegment(
+            outwardPoint,
+            segment
+          );
+
+        if (!target) {
+          continue;
+        }
+
+        const distance =
+          Math.abs(
+            outwardPoint.x -
+            target.x
+          ) +
+          Math.abs(
+            outwardPoint.y -
+            target.y
+          );
+
+        if (
+          distance <
+          bestDistance
+        ) {
+          bestDistance =
+            distance;
+
+          bestTarget =
+            target;
+        }
+      }
+
+      if (!bestTarget) {
+        return;
+      }
+
+      /*
+       * Correct-side route:
+       *
+       * pin -> outward lead -> vertical/horizontal
+       * connection -> existing same-net wire.
+       */
+      const routePoints =
+        simplifyOrthogonalPoints([
+          {
+            ...pin,
+          },
+
+          outwardPoint,
+
+          {
+            x:
+              outwardPoint.x,
+
+            y:
+              bestTarget.y,
+          },
+
+          bestTarget,
+        ]);
+
+      if (
+        routePoints.length < 2
+      ) {
+        return;
+      }
+
+      drawPath(
+        wireLayer,
+        pin,
+        bestTarget,
+        {
+          stroke:
+            drawConfig.wireStroke,
+
+          pathData:
+            routePointsToPathData(
+              routePoints
+            ),
+
+          net,
+
+          kind:
+            `inductor-${side}-missing-connection`,
+        }
+      );
+
+      /*
+       * Register the repair so later inductors can
+       * connect to it and do not duplicate it.
+       */
+      for (
+        const segment of
+        routePointsToSegments(
+          routePoints
+        )
+      ) {
+        addSegment(
+          net,
+          segment.a,
+          segment.b,
+          {
+            source:
+              "inductor-repair",
+
+            layoutInstance:
+              componentLayout,
+          }
+        );
+      }
+    }
+
+    for (
+      const component of
+      placed
+    ) {
+      if (
+        getElementType(component) !==
+        "L"
+      ) {
+        continue;
+      }
+
+      /*
+       * The exact input pin must touch net_in.
+       */
+      connectMissingSide(
+        component,
+        component.inputPin,
+        component.outputPin,
+        component.net_in,
+        "input"
+      );
+
+      /*
+       * The exact output pin must touch net_out.
+       */
+      connectMissingSide(
+        component,
+        component.outputPin,
+        component.inputPin,
+        component.net_out,
+        "output"
+      );
+    }
+
+    return;
+  }
+
+  /*
+   * FIRST PASS:
+   * Your existing open terminal-net stubs.
+   */
   function drawStub(
     component,
     pin,
@@ -830,10 +1421,6 @@ function drawTerminalStubs(
       }
     );
 
-    /*
-     * Draw a small dot at the open end of the
-     * terminal stub.
-     */
     const dotKey = [
       getLayoutInstance(component),
       net,
@@ -872,9 +1459,6 @@ function drawTerminalStubs(
         net
       );
 
-    /*
-     * Draw one label per net per layout cell.
-     */
     if (
       !labeledNets.has(
         labelKey

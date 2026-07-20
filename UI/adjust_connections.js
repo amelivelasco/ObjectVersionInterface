@@ -314,6 +314,11 @@ function buildShortestFreeRoute(
   routedSegments,
   net
 ) {
+  /*
+   * These approach points force the connection
+   * to leave each inductor pin outward from its
+   * actual physical side.
+   */
   const fromApproach =
     getInductorApproachPoint(
       fromTerminal,
@@ -326,12 +331,20 @@ function buildShortestFreeRoute(
       toPoint
     );
 
-  const excludedIds = new Set(
-    [
-      fromTerminal.element?.id,
-      toTerminal.element?.id,
-    ].filter(Boolean)
-  );
+  /*
+   * Keep endpoint components excluded.
+   *
+   * Do not make the whole inductor an obstacle,
+   * because that can prevent nearby JR routes from
+   * reaching it.
+   */
+  const excludedIds =
+    new Set(
+      [
+        fromTerminal.element?.id,
+        toTerminal.element?.id,
+      ].filter(Boolean)
+    );
 
   const obstacleBoxes =
     buildRoutingObstacleBoxes(
@@ -339,6 +352,48 @@ function buildShortestFreeRoute(
       excludedIds,
       10
     );
+
+  /*
+   * Add only a narrow blocker through the center of
+   * endpoint inductors.
+   *
+   * The left and right pins remain accessible, but
+   * a route cannot pass through the component body
+   * from one side to the other.
+   */
+  const endpointInductors =
+    new Map();
+
+  for (const terminal of [
+    fromTerminal,
+    toTerminal,
+  ]) {
+    const element =
+      terminal.element;
+
+    if (
+      !element ||
+      getElementType(element) !== "L"
+    ) {
+      continue;
+    }
+
+    endpointInductors.set(
+      element.id,
+      element
+    );
+  }
+
+  for (
+    const inductor of
+    endpointInductors.values()
+  ) {
+    obstacleBoxes.push(
+      getInductorCenterBarrier(
+        inductor
+      )
+    );
+  }
 
   const coreRoute =
     findShortestOrthogonalRoute(
@@ -348,12 +403,13 @@ function buildShortestFreeRoute(
       routedSegments,
       net
     );
-    if (
-        !Array.isArray(coreRoute) ||
-        coreRoute.length < 2
-        ) {
-        return null;
-        }
+
+  if (
+    !Array.isArray(coreRoute) ||
+    coreRoute.length < 2
+  ) {
+    return null;
+  }
 
   return simplifyOrthogonalPoints([
     fromPoint,
