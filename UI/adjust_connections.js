@@ -605,25 +605,25 @@ function drawSharedOutputNet(
   jrRails = [],
   jrMargin = 12
 ) {
-  
-  const outputs = terminals
-    .filter(
-      (terminal) =>
-        terminal.kind === "out"
-    )
-    .sort(
-      (first, second) =>
-        (
-          first.element
-            ?.layoutOrder ??
-          Infinity
-        ) -
-        (
-          second.element
-            ?.layoutOrder ??
-          Infinity
-        )
-    );
+  const outputs =
+    terminals
+      .filter(
+        (terminal) =>
+          terminal.kind === "out"
+      )
+      .sort(
+        (first, second) =>
+          (
+            first.element
+              ?.layoutOrder ??
+            Infinity
+          ) -
+          (
+            second.element
+              ?.layoutOrder ??
+            Infinity
+          )
+      );
 
   const root =
     outputs[0] ||
@@ -642,6 +642,218 @@ function drawSharedOutputNet(
   let labelWasDrawn =
     false;
 
+  /*
+   * Contains only the routes already drawn for this
+   * specific net by this function.
+   *
+   * Later branches may begin from any point along
+   * these segments.
+   */
+  const connectedNetSegments =
+    [];
+  
+  function addOwnerRailsToConnectedNet(
+    ownerId
+  ) {
+    if (!ownerId) {
+      return;
+    }
+
+    for (const rail of jrRails) {
+      if (
+        rail.ownerId !== ownerId ||
+        rail.net !== net
+      ) {
+        continue;
+      }
+
+      const alreadyAdded =
+        connectedNetSegments.some(
+          (segment) =>
+            segment.ownerId ===
+              rail.ownerId &&
+            Math.abs(
+              segment.a.y -
+              rail.y
+            ) < 0.5 &&
+            Math.abs(
+              Math.min(
+                segment.a.x,
+                segment.b.x
+              ) -
+              rail.minX
+            ) < 0.5 &&
+            Math.abs(
+              Math.max(
+                segment.a.x,
+                segment.b.x
+              ) -
+              rail.maxX
+            ) < 0.5
+        );
+
+      if (alreadyAdded) {
+        continue;
+      }
+
+      connectedNetSegments.push({
+        a: {
+          x:
+            rail.minX,
+
+          y:
+            rail.y,
+        },
+
+        b: {
+          x:
+            rail.maxX,
+
+          y:
+            rail.y,
+        },
+
+        net,
+
+        ownerId:
+          rail.ownerId,
+
+        isJRRail:
+          true,
+      });
+    }
+  }
+
+  /*
+  * The root component is already connected, so its
+  * JR rail is immediately part of the net tree.
+  */
+  addOwnerRailsToConnectedNet(
+    root.ownerId
+  );
+
+  function closestPointOnSegment(
+    point,
+    segment
+  ) {
+    const epsilon =
+      0.5;
+
+    const horizontal =
+      Math.abs(
+        segment.a.y -
+        segment.b.y
+      ) < epsilon;
+
+    if (horizontal) {
+      const minimumX =
+        Math.min(
+          segment.a.x,
+          segment.b.x
+        );
+
+      const maximumX =
+        Math.max(
+          segment.a.x,
+          segment.b.x
+        );
+
+      return {
+        x:
+          Math.max(
+            minimumX,
+            Math.min(
+              maximumX,
+              point.x
+            )
+          ),
+
+        y:
+          segment.a.y,
+      };
+    }
+
+    const vertical =
+      Math.abs(
+        segment.a.x -
+        segment.b.x
+      ) < epsilon;
+
+    if (vertical) {
+      const minimumY =
+        Math.min(
+          segment.a.y,
+          segment.b.y
+        );
+
+      const maximumY =
+        Math.max(
+          segment.a.y,
+          segment.b.y
+        );
+
+      return {
+        x:
+          segment.a.x,
+
+        y:
+          Math.max(
+            minimumY,
+            Math.min(
+              maximumY,
+              point.y
+            )
+          ),
+      };
+    }
+
+    return null;
+  }
+
+  function findClosestPointOnConnectedNet(
+    destination
+  ) {
+    let best =
+      null;
+
+    connectedNetSegments.forEach(
+      (
+        segment,
+        segmentIndex
+      ) => {
+        const point =
+          closestPointOnSegment(
+            destination,
+            segment
+          );
+
+        if (!point) {
+          return;
+        }
+
+        const distance =
+          getManhattanDistance(
+            point,
+            destination
+          );
+
+        if (
+          !best ||
+          distance <
+            best.distance
+        ) {
+          best = {
+            point,
+            distance,
+            segmentIndex,
+          };
+        }
+      }
+    );
+
+    return best;
+  }
+
   while (
     remaining.length > 0
   ) {
@@ -649,18 +861,23 @@ function drawSharedOutputNet(
       null;
 
     for (
-      const connectedTerminal
-      of connected
+      let index = 0;
+      index <
+        remaining.length;
+      index++
     ) {
-      for (
-        let index = 0;
-        index <
-          remaining.length;
-        index++
-      ) {
-        const candidate =
-          remaining[index];
+      const candidate =
+        remaining[index];
 
+      /*
+       * Option 1:
+       * Draw from one of the original connected
+       * component terminals.
+       */
+      for (
+        const connectedTerminal
+        of connected
+      ) {
         if (
           candidate.ownerId ===
           connectedTerminal.ownerId
@@ -712,13 +929,131 @@ function drawSharedOutputNet(
               index,
 
             score,
+
+            startsFromExistingNet:
+              false,
           };
         }
       }
+
+      /*
+       * Option 2:
+       * Draw from the closest point on a segment
+       * already drawn for this same net.
+       */
+      for (
+        const destinationPoint
+        of getTerminalPoints(
+          candidate
+        )
+      ) {
+        const existingConnection =
+          findClosestPointOnConnectedNet(
+            destinationPoint
+          );
+
+        if (!existingConnection) {
+          continue;
+        }
+
+        /*
+         * Keep the ordinary source when it is closer.
+         */
+        if (
+          bestConnection &&
+          existingConnection.distance >=
+            bestConnection.score
+        ) {
+          continue;
+        }
+
+        const sourcePoint = {
+          ...existingConnection.point,
+        };
+
+        bestConnection = {
+          /*
+           * Synthetic terminal representing a point
+           * on the already-drawn same-net tree.
+           */
+          from: {
+            net,
+
+            kind:
+              "existing-net",
+
+            ownerId:
+              `existing-net:${net}:${existingConnection.segmentIndex}`,
+
+            element:
+              null,
+
+            point:
+              sourcePoint,
+
+            candidatePoints: [
+              sourcePoint,
+            ],
+
+            selectedPoint:
+              sourcePoint,
+          },
+
+          to:
+            candidate,
+
+          fromPoint:
+            sourcePoint,
+
+          toPoint:
+            destinationPoint,
+
+          remainingIndex:
+            index,
+
+          score:
+            existingConnection.distance,
+
+          startsFromExistingNet:
+            true,
+        };
+      }
     }
 
+    /*
+     * Nothing else can be connected.
+     */
     if (!bestConnection) {
       break;
+    }
+
+    /*
+     * The destination already lies on the existing
+     * same-net route. There is no line to draw.
+     */
+    if (
+      bestConnection
+        .startsFromExistingNet &&
+      bestConnection.score < 0.5
+    ) {
+      connected.push(
+        bestConnection.to
+      );
+
+      /*
+      * Once this JR pair has been connected, its rail
+      * becomes a valid starting point for later branches.
+      */
+      addOwnerRailsToConnectedNet(
+        bestConnection.to.ownerId
+      );
+
+      remaining.splice(
+        bestConnection.remainingIndex,
+        1
+      );
+
+      continue;
     }
 
     let routePoints =
@@ -769,8 +1104,7 @@ function drawSharedOutputNet(
     }
 
     /*
-     * Apply JR parallel-wire separation only after
-     * the router found a valid connection.
+     * Preserve your JR rail separation.
      */
     routePoints =
       separateRouteFromJR(
@@ -800,18 +1134,30 @@ function drawSharedOutputNet(
       }
     );
 
-    const newSegments =
+    const taggedSegments =
       routePointsToSegments(
         routePoints
-      );
-
-    routedSegments.push(
-      ...newSegments.map(
+      ).map(
         (segment) => ({
           ...segment,
           net,
         })
-      )
+      );
+
+    /*
+     * Used by the general router.
+     */
+    routedSegments.push(
+      ...taggedSegments
+    );
+
+    /*
+     * Critical:
+     * later connections can now start from the
+     * closest point along these same-net segments.
+     */
+    connectedNetSegments.push(
+      ...taggedSegments
     );
 
     if (!labelWasDrawn) {
@@ -847,9 +1193,16 @@ function drawSharedOutputNet(
       bestConnection.to
     );
 
+    /*
+    * Once this JR pair has been connected, its rail
+    * becomes a valid starting point for later branches.
+    */
+    addOwnerRailsToConnectedNet(
+      bestConnection.to.ownerId
+    );
+
     remaining.splice(
-      bestConnection
-        .remainingIndex,
+      bestConnection.remainingIndex,
       1
     );
   }
@@ -1010,15 +1363,13 @@ function drawConnectionsInsideLayoutCells(
           minX:
             Math.min(
               geometry.topAtJJ.x,
-              geometry
-                .topAtResistor.x
+              geometry.topAtResistor.x
             ),
 
           maxX:
             Math.max(
               geometry.topAtJJ.x,
-              geometry
-                .topAtResistor.x
+              geometry.topAtResistor.x
             ),
 
           y:
@@ -1029,21 +1380,22 @@ function drawConnectionsInsideLayoutCells(
 
           side:
             "top",
+
+          ownerId:
+            `pair:${current.id}`,
         },
 
         {
           minX:
             Math.min(
               geometry.bottomAtJJ.x,
-              geometry
-                .bottomAtResistor.x
+              geometry.bottomAtResistor.x
             ),
 
           maxX:
             Math.max(
               geometry.bottomAtJJ.x,
-              geometry
-                .bottomAtResistor.x
+              geometry.bottomAtResistor.x
             ),
 
           y:
@@ -1054,6 +1406,9 @@ function drawConnectionsInsideLayoutCells(
 
           side:
             "bottom",
+
+          ownerId:
+            `pair:${current.id}`,
         }
       );
 
