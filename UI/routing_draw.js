@@ -890,11 +890,20 @@ function chooseCellNetAnchor(
 function drawConnectionsBetweenLayoutCells(
   wireLayer,
   labelLayer,
-  placed
+  placed,
+  obstacleWireLayers = []
 ) {
   const terminalsByNet =
-    collectNetTerminals(placed);
+    collectNetTerminals(
+      placed
+    );
 
+  const entries = [];
+
+  /*
+   * Find nets that appear in at least two different
+   * layout-cell instances.
+   */
   for (
     const [
       net,
@@ -904,7 +913,10 @@ function drawConnectionsBetweenLayoutCells(
     const terminalsByCell =
       new Map();
 
-    for (const terminal of terminals) {
+    for (
+      const terminal of
+      terminals
+    ) {
       const layoutInstance =
         terminal.layoutInstance;
 
@@ -925,25 +937,281 @@ function drawConnectionsBetweenLayoutCells(
     }
 
     /*
-     * The net exists in only one cell, so its
-     * connections were handled by the first pass.
+     * This net exists only inside one cell.
      */
-    if (terminalsByCell.size < 2) {
+    if (
+      terminalsByCell.size < 2
+    ) {
       continue;
     }
 
+    /*
+     * Use one representative terminal from each
+     * layout-cell instance.
+     */
     const cellAnchors = [];
 
     for (
       const cellTerminals of
       terminalsByCell.values()
     ) {
-      cellAnchors.push(
+      const anchor =
         chooseCellNetAnchor(
           cellTerminals
-        )
-      );
+        );
+
+      if (anchor) {
+        cellAnchors.push(
+          anchor
+        );
+      }
     }
+
+    if (
+      cellAnchors.length < 2
+    ) {
+      continue;
+    }
+
+    entries.push([
+      net,
+      cellAnchors,
+    ]);
+  }
+
+  const ordinaryEntries =
+    entries
+      .filter(
+        ([, terminals]) =>
+          !isSharedOutputConflict(
+            terminals
+          )
+      )
+      .sort(
+        (
+          [, firstTerminals],
+          [, secondTerminals]
+        ) =>
+          getTerminalSpan(
+            firstTerminals
+          ) -
+          getTerminalSpan(
+            secondTerminals
+          )
+      );
+
+  const sharedOutputEntries =
+    entries
+      .filter(
+        ([, terminals]) =>
+          isSharedOutputConflict(
+            terminals
+          )
+      )
+      .sort(
+        (
+          [, firstTerminals],
+          [, secondTerminals]
+        ) =>
+          getTerminalSpan(
+            firstTerminals
+          ) -
+          getTerminalSpan(
+            secondTerminals
+          )
+      );
+
+  /*
+   * Existing internal wires and previously drawn
+   * inter-cell wires become routing obstacles.
+   */
+  const routedSegments = [];
+  routedSegments.allowTightParallelChannels = true;
+
+  for (
+    const obstacleLayer of
+    obstacleWireLayers
+  ) {
+    addWireLayerToRoutedSegments(
+      obstacleLayer,
+      routedSegments
+    );
+  }
+
+  addWireLayerToRoutedSegments(
+    wireLayer,
+    routedSegments
+  );
+
+  /*
+   * Build the same JR guides used by the internal
+   * layout-cell router.
+   */
+  const jrRails = [];
+
+  const jrMargin = 12;
+
+  for (
+    let index = 0;
+    index <
+      placed.length - 1;
+    index++
+  ) {
+    const current =
+      placed[index];
+
+    const next =
+      placed[index + 1];
+
+    if (
+      !isJJResistorPair(
+        current,
+        next
+      )
+    ) {
+      continue;
+    }
+
+    const geometry =
+      getJJPairGeometry(
+        current,
+        next,
+        25
+      );
+
+    jrRails.push(
+      {
+        minX:
+          Math.min(
+            geometry.topAtJJ.x,
+            geometry.topAtResistor.x
+          ),
+
+        maxX:
+          Math.max(
+            geometry.topAtJJ.x,
+            geometry.topAtResistor.x
+          ),
+
+        y:
+          geometry.topAtJJ.y,
+
+        net:
+          current.net_in,
+
+        side:
+          "top",
+
+        ownerId:
+          `pair:${current.id}`,
+      },
+
+      {
+        minX:
+          Math.min(
+            geometry.bottomAtJJ.x,
+            geometry.bottomAtResistor.x
+          ),
+
+        maxX:
+          Math.max(
+            geometry.bottomAtJJ.x,
+            geometry.bottomAtResistor.x
+          ),
+
+        y:
+          geometry.bottomAtJJ.y,
+
+        net:
+          current.net_out,
+
+        side:
+          "bottom",
+
+        ownerId:
+          `pair:${current.id}`,
+      }
+    );
+
+    /*
+     * Skip the generated resistor.
+     */
+    index++;
+  }
+
+  /*
+   * Register the same protected inductor leads used
+   * by the internal router.
+   */
+  for (
+    const element of
+    placed
+  ) {
+    if (
+      getElementType(element) !==
+      "L"
+    ) {
+      continue;
+    }
+
+    if (
+      element.inputNeedsLead &&
+      element.net_in &&
+      element.inputPin &&
+      element.inputLeadPoint
+    ) {
+      routedSegments.push({
+        a:
+          element.inputPin,
+
+        b:
+          element.inputLeadPoint,
+
+        net:
+          element.net_in,
+
+        protectedInductorLead:
+          true,
+      });
+    }
+
+    if (
+      element.outputNeedsLead &&
+      element.net_out &&
+      element.outputPin &&
+      element.outputLeadPoint
+    ) {
+      routedSegments.push({
+        a:
+          element.outputPin,
+
+        b:
+          element.outputLeadPoint,
+
+        net:
+          element.net_out,
+
+        protectedInductorLead:
+          true,
+      });
+    }
+  }
+
+  /*
+   * Route ordinary inter-cell nets using exactly the
+   * same obstacle-aware router as internal nets.
+   */
+  for (
+    const [
+      net,
+      cellAnchors,
+    ] of ordinaryEntries
+  ) {
+    const firstNewChild =
+      wireLayer.children.length;
+
+    const routedSegmentCount =
+      routedSegments.length;
 
     drawTerminalTree(
       wireLayer,
@@ -951,8 +1219,214 @@ function drawConnectionsBetweenLayoutCells(
       net,
       cellAnchors,
       {
-        drawLabel: true,
+        drawLabel:
+          true,
+
+        /*
+         * This is the key difference:
+         *
+         * Every circuit component is an obstacle,
+         * but the individual layout-cell boundary is
+         * not a routing limit.
+         *
+         * The route may therefore leave one cell,
+         * travel through free space, and enter another.
+         */
+        cellElements:
+          placed,
+
+        routedSegments,
+
+        jrRails,
+
+        jrMargin,
       }
     );
+
+    /*
+     * Fallback in case drawTerminalTree() drew the
+     * path without registering its route segments.
+     */
+    if (
+      routedSegments.length ===
+      routedSegmentCount
+    ) {
+      const newChildren =
+        Array.from(
+          wireLayer.children
+        ).slice(
+          firstNewChild
+        );
+
+      for (
+        const child of
+        newChildren
+      ) {
+        const childNet =
+          child.getAttribute(
+            "data-net"
+          ) ||
+          net;
+
+        routedSegments.push(
+          ...extractWireSegmentsFromElement(
+            child
+          ).map(
+            (segment) => ({
+              ...segment,
+
+              net:
+                childNet,
+            })
+          )
+        );
+      }
+    }
+  }
+
+  /*
+   * Route shared-output inter-cell nets using the
+   * same shared-output router as internal nets.
+   */
+  for (
+    const [
+      net,
+      cellAnchors,
+    ] of sharedOutputEntries
+  ) {
+    const firstNewChild =
+      wireLayer.children.length;
+
+    const routedSegmentCount =
+      routedSegments.length;
+
+    drawSharedOutputNet(
+      wireLayer,
+      labelLayer,
+      net,
+      cellAnchors,
+
+      /*
+       * All elements across all cells are obstacles.
+       */
+      placed,
+
+      routedSegments,
+      jrRails,
+      jrMargin
+    );
+
+    if (
+      routedSegments.length ===
+      routedSegmentCount
+    ) {
+      const newChildren =
+        Array.from(
+          wireLayer.children
+        ).slice(
+          firstNewChild
+        );
+
+      for (
+        const child of
+        newChildren
+      ) {
+        const childNet =
+          child.getAttribute(
+            "data-net"
+          ) ||
+          net;
+
+        routedSegments.push(
+          ...extractWireSegmentsFromElement(
+            child
+          ).map(
+            (segment) => ({
+              ...segment,
+
+              net:
+                childNet,
+            })
+          )
+        );
+      }
+    }
+  }
+
+  console.log(
+    "Finished inter-cell connections",
+    {
+      ordinaryNets:
+        ordinaryEntries.length,
+
+      sharedOutputNets:
+        sharedOutputEntries.length,
+
+      routedSegments:
+        routedSegments.length,
+    }
+  );
+}
+
+
+function addWireLayerToRoutedSegments(
+  wireLayer,
+  routedSegments
+) {
+  if (
+    !wireLayer ||
+    !routedSegments
+  ) {
+    return;
+  }
+
+  /*
+   * Read every existing SVG wire in the layer.
+   */
+  const wireElements =
+    wireLayer.querySelectorAll(
+      "path, line, polyline"
+    );
+
+  for (
+    const wireElement of
+    wireElements
+  ) {
+    const net =
+      wireElement.getAttribute(
+        "data-net"
+      ) ||
+      "__existing_wire__";
+
+    const kind =
+      wireElement.getAttribute(
+        "data-kind"
+      ) ||
+      "existing-wire";
+
+    const segments =
+      extractWireSegmentsFromElement(
+        wireElement
+      );
+
+    for (
+      const segment of
+      segments
+    ) {
+      if (
+        !segment?.a ||
+        !segment?.b
+      ) {
+        continue;
+      }
+
+      routedSegments.push({
+        ...segment,
+        net,
+        kind,
+        existingWire:
+          true,
+      });
+    }
   }
 }

@@ -405,16 +405,6 @@ function drawCircuit(data) {
     placed
   );
 
-  // /*
-  // * Pass 2: connect nets that cross from one
-  // * layout-cell instance into another.
-  // */
-  // drawConnectionsBetweenLayoutCells(
-  //   externalWireLayer,
-  //   labelLayer,
-  //   placed
-  // );
-
   snapBiasElementsToNearestNet(
     internalWireLayer,
     placed
@@ -434,6 +424,15 @@ function drawCircuit(data) {
   );
 
   drawSubcircuits(placed, componentLayer, internalWireLayer, labelLayer)
+
+  drawConnectionsBetweenLayoutCells(
+    externalWireLayer,
+    labelLayer,
+    placed,
+    [
+      internalWireLayer,
+    ]
+  );
 
   drawTerminalStubs(
     internalWireLayer,
