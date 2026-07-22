@@ -5,36 +5,106 @@ function findShortestOrthogonalRoute(
   routedSegments,
   net = null
 ) {
-  const wireClearance = 12;
+  const wireClearance = 10;
   const bendPenalty = 14;
 
-  const xValues = [start.x, end.x];
-  const yValues = [start.y, end.y];
+  const xValues = [
+    start.x,
+    end.x,
+  ];
 
-  for (const box of obstacleBoxes) {
-    xValues.push(box.left, box.right);
-    yValues.push(box.top, box.bottom);
+  const yValues = [
+    start.y,
+    end.y,
+  ];
+
+  for (
+    const box of
+    obstacleBoxes
+  ) {
+    xValues.push(
+      box.left,
+      box.right
+    );
+
+    yValues.push(
+      box.top,
+      box.bottom
+    );
   }
 
-  for (const segment of routedSegments) {
+  for (
+    const segment of
+    routedSegments
+  ) {
+    if (
+      !segment?.a ||
+      !segment?.b
+    ) {
+      continue;
+    }
+
     const horizontal =
-      Math.abs(segment.a.y - segment.b.y) < 0.5;
+      Math.abs(
+        segment.a.y -
+        segment.b.y
+      ) < 0.5;
 
     if (horizontal) {
       yValues.push(
-        segment.a.y - wireClearance,
-        segment.a.y + wireClearance
+        segment.a.y -
+          wireClearance,
+
+        segment.a.y +
+          wireClearance
+      );
+
+      /*
+       * Add wire endpoints so routes can enter
+       * and leave nearby channels.
+       */
+      xValues.push(
+        segment.a.x,
+        segment.b.x
       );
     } else {
       xValues.push(
-        segment.a.x - wireClearance,
-        segment.a.x + wireClearance
+        segment.a.x -
+          wireClearance,
+
+        segment.a.x +
+          wireClearance
+      );
+
+      yValues.push(
+        segment.a.y,
+        segment.b.y
       );
     }
   }
 
-  const xs = uniqueSortedNumbers(xValues);
-  const ys = uniqueSortedNumbers(yValues);
+  /*
+   * Add center lanes between overlapping
+   * parallel wire segments.
+   */
+  addParallelChannelMidpoints(
+    routedSegments,
+    xValues,
+    yValues,
+    wireClearance
+  );
+
+  const xs =
+    uniqueSortedNumbers(
+      xValues
+    );
+
+  const ys =
+    uniqueSortedNumbers(
+      yValues
+    );
+
+  // The remainder of your function stays unchanged.
 
   const startX = xs.indexOf(Number(start.x.toFixed(2)));
   const startY = ys.indexOf(Number(start.y.toFixed(3)));
@@ -79,7 +149,7 @@ function findShortestOrthogonalRoute(
 
     /*
     * Different nets may not overlap, cross,
-    * or pass within 8px of one another.
+    * or pass within 3px of one another.
     */
     const hitsAnotherNet =
       routedSegments.some(
@@ -98,7 +168,7 @@ function findShortestOrthogonalRoute(
           return segmentsWithinClearance(
             candidate,
             existing,
-            1
+            3
           );
         }
       );

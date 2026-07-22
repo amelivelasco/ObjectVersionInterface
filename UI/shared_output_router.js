@@ -605,3 +605,315 @@ function getInductorCenterBarrier(
       "inductor-center-barrier",
   };
 }
+
+
+function addParallelChannelMidpoints(
+  routedSegments,
+  xValues,
+  yValues,
+  wireClearance
+) {
+  const epsilon = 0.5;
+
+  /*
+   * Ignore parallel lines farther apart than this.
+   * Increase it if your intended channels are wider.
+   */
+  const maximumChannelGap = 80;
+
+  /*
+   * For each segment, inspect only a few nearby
+   * parallel segments after sorting.
+   */
+  const maximumNeighbors = 6;
+
+  const horizontalSegments = [];
+  const verticalSegments = [];
+
+  for (const segment of routedSegments) {
+    if (
+      !segment?.a ||
+      !segment?.b
+    ) {
+      continue;
+    }
+
+    const horizontal =
+      Math.abs(
+        segment.a.y -
+        segment.b.y
+      ) < epsilon;
+
+    const vertical =
+      Math.abs(
+        segment.a.x -
+        segment.b.x
+      ) < epsilon;
+
+    if (horizontal) {
+      horizontalSegments.push({
+        y: segment.a.y,
+
+        minX:
+          Math.min(
+            segment.a.x,
+            segment.b.x
+          ),
+
+        maxX:
+          Math.max(
+            segment.a.x,
+            segment.b.x
+          ),
+      });
+    } else if (vertical) {
+      verticalSegments.push({
+        x: segment.a.x,
+
+        minY:
+          Math.min(
+            segment.a.y,
+            segment.b.y
+          ),
+
+        maxY:
+          Math.max(
+            segment.a.y,
+            segment.b.y
+          ),
+      });
+    }
+  }
+
+  horizontalSegments.sort(
+    (first, second) =>
+      first.y - second.y
+  );
+
+  verticalSegments.sort(
+    (first, second) =>
+      first.x - second.x
+  );
+
+  const addedMiddleX =
+    new Set();
+
+  const addedMiddleY =
+    new Set();
+
+  /*
+   * Find horizontal channels.
+   */
+  for (
+    let firstIndex = 0;
+    firstIndex <
+      horizontalSegments.length;
+    firstIndex++
+  ) {
+    const first =
+      horizontalSegments[
+        firstIndex
+      ];
+
+    const finalNeighborIndex =
+      Math.min(
+        horizontalSegments.length,
+        firstIndex +
+          maximumNeighbors +
+          1
+      );
+
+    for (
+      let secondIndex =
+        firstIndex + 1;
+      secondIndex <
+        finalNeighborIndex;
+      secondIndex++
+    ) {
+      const second =
+        horizontalSegments[
+          secondIndex
+        ];
+
+      const gap =
+        second.y - first.y;
+
+      if (
+        gap >
+        maximumChannelGap
+      ) {
+        break;
+      }
+
+      /*
+       * The center must maintain clearance
+       * from both parallel wires.
+       */
+      if (
+        gap <
+        wireClearance * 2
+      ) {
+        continue;
+      }
+
+      const overlapStart =
+        Math.max(
+          first.minX,
+          second.minX
+        );
+
+      const overlapEnd =
+        Math.min(
+          first.maxX,
+          second.maxX
+        );
+
+      if (
+        overlapEnd -
+        overlapStart <
+        epsilon
+      ) {
+        continue;
+      }
+
+      const middleY =
+        Number(
+          (
+            (
+              first.y +
+              second.y
+            ) / 2
+          ).toFixed(3)
+        );
+
+      if (
+        !addedMiddleY.has(
+          middleY
+        )
+      ) {
+        addedMiddleY.add(
+          middleY
+        );
+
+        yValues.push(
+          middleY
+        );
+      }
+
+      xValues.push(
+        overlapStart,
+        overlapEnd
+      );
+
+      /*
+       * Use only the nearest valid overlapping
+       * parallel segment for this line.
+       */
+      break;
+    }
+  }
+
+  /*
+   * Find vertical channels.
+   */
+  for (
+    let firstIndex = 0;
+    firstIndex <
+      verticalSegments.length;
+    firstIndex++
+  ) {
+    const first =
+      verticalSegments[
+        firstIndex
+      ];
+
+    const finalNeighborIndex =
+      Math.min(
+        verticalSegments.length,
+        firstIndex +
+          maximumNeighbors +
+          1
+      );
+
+    for (
+      let secondIndex =
+        firstIndex + 1;
+      secondIndex <
+        finalNeighborIndex;
+      secondIndex++
+    ) {
+      const second =
+        verticalSegments[
+          secondIndex
+        ];
+
+      const gap =
+        second.x - first.x;
+
+      if (
+        gap >
+        maximumChannelGap
+      ) {
+        break;
+      }
+
+      if (
+        gap <
+        wireClearance * 2
+      ) {
+        continue;
+      }
+
+      const overlapStart =
+        Math.max(
+          first.minY,
+          second.minY
+        );
+
+      const overlapEnd =
+        Math.min(
+          first.maxY,
+          second.maxY
+        );
+
+      if (
+        overlapEnd -
+        overlapStart <
+        epsilon
+      ) {
+        continue;
+      }
+
+      const middleX =
+        Number(
+          (
+            (
+              first.x +
+              second.x
+            ) / 2
+          ).toFixed(3)
+        );
+
+      if (
+        !addedMiddleX.has(
+          middleX
+        )
+      ) {
+        addedMiddleX.add(
+          middleX
+        );
+
+        xValues.push(
+          middleX
+        );
+      }
+
+      yValues.push(
+        overlapStart,
+        overlapEnd
+      );
+
+      break;
+    }
+  }
+}
