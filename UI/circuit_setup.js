@@ -48,6 +48,12 @@ const drawConfig = {
   biasBranchOffset: 45,
   biasOutputGap: 12,
   biasPlacementSpacing: 55,
+
+  componentValueFontSize: "9px",
+  inductorValueOffsetY: 9,
+
+  jrValueFontSize: "10px",
+  jrValueOffsetY: 0,
 };
 
 function createSvg(width, height) {
@@ -146,21 +152,6 @@ function buildOrderedLayout(elements) {
       outputPin,
     };
   });
-
-  console.table(
-    placed.map((element) => ({
-      index: element.index,
-      path: element.path,
-      row: element.row,
-      visualColumn: element.col,
-      direction:
-        element.direction === 1
-          ? "left-to-right"
-          : "right-to-left",
-      x: element.x,
-      y: element.y,
-    }))
-  );
 
   return {
     placed,

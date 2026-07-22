@@ -138,15 +138,195 @@ function drawLabel(labelLayer, text, x, y, options = {}) {
   labelLayer.appendChild(label);
 }
 
+function formatComponentValue(
+  element
+) {
+  const rawValue =
+    element?.value;
+
+  if (
+    rawValue === null ||
+    rawValue === undefined
+  ) {
+    return "";
+  }
+
+  const value =
+    String(rawValue).trim();
+
+  if (
+    !value ||
+    value.toLowerCase() ===
+      "none" ||
+    value.toLowerCase() ===
+      "null"
+  ) {
+    return "";
+  }
+
+  const componentType =
+    getElementType(element);
+
+  /*
+   * Inductor values are currently stored as numbers
+   * representing pH.
+   */
+  if (
+    componentType === "L"
+  ) {
+    if (
+      /p$/i.test(value)
+    ) {
+      return (
+        `${value.slice(0, -1)} pH`
+      );
+    }
+
+    if (
+      /n$/i.test(value)
+    ) {
+      return (
+        `${value.slice(0, -1)} nH`
+      );
+    }
+
+    /*
+     * The value already includes a unit.
+     */
+    if (
+      /[a-zA-Zµ]$/.test(
+        value
+      )
+    ) {
+      return value;
+    }
+
+    return `${value} pH`;
+  }
+
+  /*
+   * JJ values represent critical current.
+   */
+  if (
+    componentType === "JJ"
+  ) {
+    if (
+      /u$/i.test(value)
+    ) {
+      return (
+        `${value.slice(0, -1)} µA`
+      );
+    }
+
+    if (
+      /µa$/i.test(value)
+    ) {
+      return value;
+    }
+
+    if (
+      /[a-zA-Zµ]$/.test(
+        value
+      )
+    ) {
+      return value;
+    }
+
+    return `${value} µA`;
+  }
+
+  return value;
+}
+
+function drawComponentValueText(
+  parent,
+  text,
+  x,
+  y,
+  options = {}
+) {
+  if (!text) {
+    return null;
+  }
+
+  const valueText =
+    createSvgElement(
+      "text",
+      {
+        x,
+        y,
+
+        "text-anchor":
+          "middle",
+
+        "dominant-baseline":
+          "middle",
+
+        "font-family":
+          drawConfig.fontFamily,
+
+        "font-size":
+          options.size ||
+          drawConfig
+            .componentValueFontSize,
+
+        "font-weight":
+          options.weight ||
+          "700",
+
+        fill:
+          options.fill ||
+          "#334155",
+
+        /*
+         * Small background outline keeps the value
+         * readable when a wire passes behind it.
+         */
+        stroke:
+          options.background ||
+          "#f8fafc",
+
+        "stroke-width":
+          options.backgroundWidth ??
+          3,
+
+        "paint-order":
+          "stroke",
+
+        "stroke-linejoin":
+          "round",
+
+        class:
+          options.className ||
+          "component-value",
+
+        "pointer-events":
+          "none",
+      }
+    );
+
+  valueText.textContent =
+    text;
+
+  parent.appendChild(
+    valueText
+  );
+
+  return valueText;
+}
+
 function drawComponent(layer, element) {
+  const halfSize =
+    drawConfig.imageSize / 2;
+
   const g = createSvgElement("g", {
     class: `component component-${element.type}`,
   });
 
   const image = createSvgElement("image", {
     href: element.image,
-    x: element.x - drawConfig.imageSize / 2,
-    y: element.y - drawConfig.imageSize / 2,
+    x: element.x - halfSize,
+    y: element.y - halfSize,
     width: drawConfig.imageSize,
     height: drawConfig.imageSize,
     class: "component-image",
@@ -222,7 +402,33 @@ function drawComponent(layer, element) {
 
   g.appendChild(image);
 
-  const halfSize = drawConfig.imageSize / 2;
+  /*
+  * Inductor values appear centered immediately above
+  * the inductor image.
+  */
+  if (
+    componentType === "L"
+  ) {
+    drawComponentValueText(
+      g,
+      formatComponentValue(
+        element
+      ),
+      element.x,
+      element.y - 10,
+      {
+        size:
+          drawConfig
+            .componentValueFontSize,
+
+        fill:
+          "#7c2d12",
+
+        className:
+          "inductor-value",
+      }
+    );
+  }
 
   layer.appendChild(g);
   return {
@@ -576,6 +782,60 @@ function drawJRpairs(
       next,
       25
     );
+
+  /*
+  * Place the JJ current value in the center of the
+  * JR pair enclosure.
+  *
+  * `current` is the JJ and `next` is its generated
+  * resistor.
+  */
+  const jrValue =
+    formatComponentValue(
+      current
+    );
+
+  if (jrValue) {
+    const jrCenterX =
+      (
+        current.x +
+        next.x
+      ) / 2;
+
+    const jrCenterY =
+      (
+        geometry.topMiddle.y +
+        geometry.bottomMiddle.y
+      ) / 2 +
+      drawConfig.jrValueOffsetY;
+
+    drawComponentValueText(
+      labelLayer,
+      jrValue,
+      jrCenterX,
+      jrCenterY,
+      {
+        size:
+          drawConfig
+            .jrValueFontSize,
+
+        weight:
+          "700",
+
+        fill:
+          "#7c2d12",
+
+        background:
+          "#f8fafc",
+
+        backgroundWidth:
+          4,
+
+        className:
+          "jr-jj-value",
+      }
+    );
+  }
 
   /*
    * Top input hanger.
