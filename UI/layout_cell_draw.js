@@ -952,15 +952,17 @@ function drawLayoutCellBoundaries(
       }
     );
 
+    const boundaryPadding = 25;
+
     const rectangle =
       createSvgElement(
         "rect",
         {
-          x: cell.x,
-          y: cell.y,
+          x: cell.x - boundaryPadding,
+          y: cell.y - boundaryPadding,
 
-          width: cell.width,
-          height: cell.height,
+          width: cell.width + boundaryPadding * 2,
+          height: cell.height + boundaryPadding * 2,
 
           rx: 16,
           ry: 16,
@@ -983,8 +985,8 @@ function drawLayoutCellBoundaries(
       createSvgElement(
         "text",
         {
-          x: cell.x + 18,
-          y: cell.y + 27,
+          x: cell.x + cell.width/2,
+          y: cell.y + 20,
 
           "font-family":
             drawConfig.fontFamily,
@@ -993,6 +995,8 @@ function drawLayoutCellBoundaries(
           "font-weight": "700",
 
           fill: "#0f172a",
+
+          "text-anchor": "middle",
 
           class:
             "layout-cell-title",
@@ -1010,32 +1014,6 @@ function drawLayoutCellBoundaries(
           : cell.layout_cell
       );
 
-    const details =
-      createSvgElement(
-        "text",
-        {
-          x: cell.x + 18,
-          y: cell.y + 48,
-
-          "font-family":
-            drawConfig.fontFamily,
-
-          "font-size": "11px",
-
-          fill: "#475569",
-
-          class:
-            "layout-cell-details",
-
-          "pointer-events":
-            "none",
-        }
-      );
-
-    details.textContent =
-      `${cell.net_in ?? "none"} → ` +
-      `${cell.net_out ?? "none"} | ` +
-      `${cell.elements.length} elements`;
 
     group.appendChild(
       rectangle
@@ -1043,10 +1021,6 @@ function drawLayoutCellBoundaries(
 
     group.appendChild(
       title
-    );
-
-    group.appendChild(
-      details
     );
 
     layer.appendChild(group);
