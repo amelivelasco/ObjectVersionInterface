@@ -5,383 +5,52 @@ function findShortestOrthogonalRoute(
   routedSegments,
   net = null
 ) {
-  const wireClearance = 10;
+  const wireClearance = 12;
   const bendPenalty = 14;
 
-  const xValues = [
-    start.x,
-    end.x,
-  ];
+  const xValues = [start.x, end.x];
+  const yValues = [start.y, end.y];
 
-  const yValues = [
-    start.y,
-    end.y,
-  ];
-
-  /*
-   * Optional temporary coordinates supplied by
-   * retry or recovery functions.
-   */
-  if (
-    Array.isArray(
-      routedSegments.forcedXValues
-    )
-  ) {
-    for (
-      const forcedX of
-      routedSegments.forcedXValues
-    ) {
-      if (
-        Number.isFinite(
-          forcedX
-        )
-      ) {
-        xValues.push(
-          forcedX
-        );
-      }
-    }
+  for (const box of obstacleBoxes) {
+    xValues.push(box.left, box.right);
+    yValues.push(box.top, box.bottom);
   }
 
-  if (
-    Array.isArray(
-      routedSegments.forcedYValues
-    )
-  ) {
-    for (
-      const forcedY of
-      routedSegments.forcedYValues
-    ) {
-      if (
-        Number.isFinite(
-          forcedY
-        )
-      ) {
-        yValues.push(
-          forcedY
-        );
-      }
-    }
-  }
-
-  /*
-   * Component boundaries become routing lanes.
-   */
-  for (
-    const box of
-    obstacleBoxes
-  ) {
-    xValues.push(
-      box.left,
-      box.right
-    );
-
-    yValues.push(
-      box.top,
-      box.bottom
-    );
-  }
-
-  /*
-   * These properties are set only by the inter-cell
-   * router.
-   */
-  const tightParallelLaneSpacing =
-    Number.isFinite(
-      routedSegments
-        .tightParallelLaneSpacing
-    )
-      ? routedSegments
-          .tightParallelLaneSpacing
-      : null;
-
-  const endpointTurnSpacing =
-    Number.isFinite(
-      routedSegments
-        .endpointTurnSpacing
-    )
-      ? routedSegments
-          .endpointTurnSpacing
-      : null;
-
-  /*
-   * Generate routing coordinates around existing
-   * wires.
-   */
-  for (
-    const segment of
-    routedSegments
-  ) {
-    if (
-      !segment?.a ||
-      !segment?.b
-    ) {
-      continue;
-    }
-
+  for (const segment of routedSegments) {
     const horizontal =
-      Math.abs(
-        segment.a.y -
-        segment.b.y
-      ) < 0.5;
+      Math.abs(segment.a.y - segment.b.y) < 0.5;
 
-    const vertical =
-      Math.abs(
-        segment.a.x -
-        segment.b.x
-      ) < 0.5;
-
-    if (
-      horizontal
-    ) {
-      /*
-       * Very close parallel lanes for inter-cell
-       * routes.
-       */
-      if (
-        tightParallelLaneSpacing !==
-        null
-      ) {
-        yValues.push(
-          segment.a.y -
-            tightParallelLaneSpacing,
-
-          segment.a.y +
-            tightParallelLaneSpacing
-        );
-      }
-
-      /*
-       * Preserve the normal wider lanes.
-       */
+    if (horizontal) {
       yValues.push(
-        segment.a.y -
-          wireClearance,
-
-        segment.a.y +
-          wireClearance
+        segment.a.y - wireClearance,
+        segment.a.y + wireClearance
       );
-
-      /*
-       * Add vertical lanes just beyond both ends of
-       * the horizontal segment.
-       *
-       * This allows the route to travel around the
-       * wire endpoint instead of being trapped by it.
-       */
-      if (
-        endpointTurnSpacing !==
-        null
-      ) {
-        const minimumX =
-          Math.min(
-            segment.a.x,
-            segment.b.x
-          );
-
-        const maximumX =
-          Math.max(
-            segment.a.x,
-            segment.b.x
-          );
-
-        xValues.push(
-          minimumX -
-            endpointTurnSpacing,
-
-          maximumX +
-            endpointTurnSpacing
-        );
-      }
-    } else if (
-      vertical
-    ) {
-      if (
-        tightParallelLaneSpacing !==
-        null
-      ) {
-        xValues.push(
-          segment.a.x -
-            tightParallelLaneSpacing,
-
-          segment.a.x +
-            tightParallelLaneSpacing
-        );
-      }
-
+    } else {
       xValues.push(
-        segment.a.x -
-          wireClearance,
-
-        segment.a.x +
-          wireClearance
+        segment.a.x - wireClearance,
+        segment.a.x + wireClearance
       );
-
-      /*
-       * Add horizontal lanes just beyond both ends
-       * of the vertical segment.
-       */
-      if (
-        endpointTurnSpacing !==
-        null
-      ) {
-        const minimumY =
-          Math.min(
-            segment.a.y,
-            segment.b.y
-          );
-
-        const maximumY =
-          Math.max(
-            segment.a.y,
-            segment.b.y
-          );
-
-        yValues.push(
-          minimumY -
-            endpointTurnSpacing,
-
-          maximumY +
-            endpointTurnSpacing
-        );
-      }
     }
   }
 
-  /*
-   * Give the inter-cell router a route around the
-   * outside of the complete local obstacle graph.
-   *
-   * This creates the upper horizontal lane shown in
-   * your yellow example.
-   */
-  const outsideChannelMargin =
-    Number.isFinite(
-      routedSegments
-        .outsideChannelMargin
-    )
-      ? routedSegments
-          .outsideChannelMargin
-      : null;
+  const xs = uniqueSortedNumbers(xValues);
+  const ys = uniqueSortedNumbers(yValues);
 
-  if (
-    outsideChannelMargin !==
-      null
-  ) {
-    const currentMinimumX =
-      Math.min(
-        ...xValues
-      );
+  const startX = xs.indexOf(Number(start.x.toFixed(2)));
+  const startY = ys.indexOf(Number(start.y.toFixed(3)));
+  const endX = xs.indexOf(Number(end.x.toFixed(3)));
+  const endY = ys.indexOf(Number(end.y.toFixed(3)));
 
-    const currentMaximumX =
-      Math.max(
-        ...xValues
-      );
-
-    const currentMinimumY =
-      Math.min(
-        ...yValues
-      );
-
-    const currentMaximumY =
-      Math.max(
-        ...yValues
-      );
-
-    xValues.push(
-      currentMinimumX -
-        outsideChannelMargin,
-
-      currentMaximumX +
-        outsideChannelMargin
-    );
-
-    yValues.push(
-      currentMinimumY -
-        outsideChannelMargin,
-
-      currentMaximumY +
-        outsideChannelMargin
-    );
-  }
-
-  const xs =
-    uniqueSortedNumbers(
-      xValues
-    );
-
-  const ys =
-    uniqueSortedNumbers(
-      yValues
-    );
-
-  const startX =
-    xs.indexOf(
-      Number(
-        start.x.toFixed(3)
-      )
-    );
-
-  const startY =
-    ys.indexOf(
-      Number(
-        start.y.toFixed(3)
-      )
-    );
-
-  const endX =
-    xs.indexOf(
-      Number(
-        end.x.toFixed(3)
-      )
-    );
-
-  const endY =
-    ys.indexOf(
-      Number(
-        end.y.toFixed(3)
-      )
-    );
-
-  if (
-    startX < 0 ||
-    startY < 0 ||
-    endX < 0 ||
-    endY < 0
-  ) {
-    console.warn(
-      `Invalid routing coordinates for ${net}`,
-      {
-        start,
-        end,
-      }
-    );
-
-    return null;
-  }
-
-  function pointAt(
-    xIndex,
-    yIndex
-  ) {
+  function pointAt(xIndex, yIndex) {
     return {
-      x:
-        xs[xIndex],
-
-      y:
-        ys[yIndex],
+      x: xs[xIndex],
+      y: ys[yIndex],
     };
   }
 
-  function pointAllowed(
-    point
-  ) {
+  function pointAllowed(point) {
     return !obstacleBoxes.some(
-      (box) =>
-        pointInsideBox(
-          point,
-          box
-        )
+      (box) => pointInsideBox(point, box)
     );
   }
 
@@ -399,42 +68,26 @@ function findShortestOrthogonalRoute(
           )
       );
 
-    if (
-      hitsComponent
-    ) {
+    if (hitsComponent) {
       return false;
     }
 
     const candidate = {
-      a:
-        first,
-
-      b:
-        second,
+      a: first,
+      b: second,
     };
 
-    const customConflictChecker =
-      typeof routedSegments
-        .segmentConflictChecker ===
-        "function"
-        ? routedSegments
-            .segmentConflictChecker
-        : null;
-
+    /*
+    * Different nets may not overlap, cross,
+    * or pass within 8px of one another.
+    */
     const hitsAnotherNet =
       routedSegments.some(
         (existing) => {
-          if (
-            !existing?.a ||
-            !existing?.b
-          ) {
-            return false;
-          }
-
           /*
-           * The same electrical net may merge with
-           * itself.
-           */
+          * The same electrical net may merge
+          * with itself.
+          */
           if (
             existing.net &&
             existing.net === net
@@ -442,27 +95,10 @@ function findShortestOrthogonalRoute(
             return false;
           }
 
-          /*
-           * Inter-cell routing uses its dedicated
-           * close-parallel and endpoint checker.
-           */
-          if (
-            customConflictChecker
-          ) {
-            return customConflictChecker(
-              candidate,
-              existing
-            );
-          }
-
-          /*
-           * Internal routing continues using the
-           * original clearance condition.
-           */
           return segmentsWithinClearance(
             candidate,
             existing,
-            8
+            1
           );
         }
       );
@@ -470,210 +106,107 @@ function findShortestOrthogonalRoute(
     return !hitsAnotherNet;
   }
 
-  function stateKey(
-    xIndex,
-    yIndex,
-    direction
-  ) {
+  function stateKey(xIndex, yIndex, direction) {
     return `${xIndex},${yIndex},${direction}`;
   }
 
-  const queue =
-    new RoutingMinHeap();
+  const queue = new RoutingMinHeap();
+  const distances = new Map();
+  const previous = new Map();
 
-  const distances =
-    new Map();
-
-  const previous =
-    new Map();
-
-  const startKey =
-    stateKey(
-      startX,
-      startY,
-      "N"
-    );
-
-  distances.set(
-    startKey,
-    0
+  const startKey = stateKey(
+    startX,
+    startY,
+    "N"
   );
 
+  distances.set(startKey, 0);
+
   queue.push({
-    xIndex:
-      startX,
-
-    yIndex:
-      startY,
-
-    direction:
-      "N",
-
-    distance:
-      0,
-
+    xIndex: startX,
+    yIndex: startY,
+    direction: "N",
     priority:
-      Math.abs(
-        start.x -
-        end.x
-      ) +
-      Math.abs(
-        start.y -
-        end.y
-      ),
+      Math.abs(start.x - end.x) +
+      Math.abs(start.y - end.y),
   });
 
-  let goalKey =
-    null;
+  let goalKey = null;
 
-  while (
-    true
-  ) {
-    const currentState =
-      queue.pop();
+  while (true) {
+    const currentState = queue.pop();
 
-    if (
-      !currentState
-    ) {
+    if (!currentState) {
       break;
     }
 
-    const currentKey =
-      stateKey(
-        currentState.xIndex,
-        currentState.yIndex,
-        currentState.direction
-      );
+    const currentKey = stateKey(
+      currentState.xIndex,
+      currentState.yIndex,
+      currentState.direction
+    );
 
     const currentDistance =
-      distances.get(
-        currentKey
-      );
+      distances.get(currentKey);
 
     if (
-      currentDistance ===
-      undefined
+      currentState.xIndex === endX &&
+      currentState.yIndex === endY
     ) {
-      continue;
-    }
-
-    /*
-     * Ignore stale heap entries.
-     */
-    if (
-      Number.isFinite(
-        currentState.distance
-      ) &&
-      currentState.distance >
-        currentDistance
-    ) {
-      continue;
-    }
-
-    if (
-      currentState.xIndex ===
-        endX &&
-      currentState.yIndex ===
-        endY
-    ) {
-      goalKey =
-        currentKey;
-
+      goalKey = currentKey;
       break;
     }
 
     const neighborIndexes = [
-      [
-        currentState.xIndex - 1,
-        currentState.yIndex,
-        "H",
-      ],
-
-      [
-        currentState.xIndex + 1,
-        currentState.yIndex,
-        "H",
-      ],
-
-      [
-        currentState.xIndex,
-        currentState.yIndex - 1,
-        "V",
-      ],
-
-      [
-        currentState.xIndex,
-        currentState.yIndex + 1,
-        "V",
-      ],
+      [currentState.xIndex - 1, currentState.yIndex, "H"],
+      [currentState.xIndex + 1, currentState.yIndex, "H"],
+      [currentState.xIndex, currentState.yIndex - 1, "V"],
+      [currentState.xIndex, currentState.yIndex + 1, "V"],
     ];
 
-    const currentPoint =
-      pointAt(
-        currentState.xIndex,
-        currentState.yIndex
-      );
+    const currentPoint = pointAt(
+      currentState.xIndex,
+      currentState.yIndex
+    );
 
-    for (
-      const [
-        nextX,
-        nextY,
-        nextDirection,
-      ] of neighborIndexes
-    ) {
+    for (const [
+      nextX,
+      nextY,
+      nextDirection,
+    ] of neighborIndexes) {
       if (
         nextX < 0 ||
         nextY < 0 ||
-        nextX >=
-          xs.length ||
-        nextY >=
-          ys.length
+        nextX >= xs.length ||
+        nextY >= ys.length
       ) {
         continue;
       }
 
-      const nextPoint =
-        pointAt(
-          nextX,
-          nextY
-        );
+      const nextPoint = pointAt(nextX, nextY);
 
       if (
-        !pointAllowed(
-          nextPoint
-        ) ||
-        !segmentAllowed(
-          currentPoint,
-          nextPoint
-        )
+        !pointAllowed(nextPoint) ||
+        !segmentAllowed(currentPoint, nextPoint)
       ) {
         continue;
       }
 
       const length =
-        Math.abs(
-          currentPoint.x -
-          nextPoint.x
-        ) +
-        Math.abs(
-          currentPoint.y -
-          nextPoint.y
-        );
+        Math.abs(currentPoint.x - nextPoint.x) +
+        Math.abs(currentPoint.y - nextPoint.y);
 
       const bendCost =
-        currentState.direction !==
-          "N" &&
-        currentState.direction !==
-          nextDirection
+        currentState.direction !== "N" &&
+        currentState.direction !== nextDirection
           ? bendPenalty
           : 0;
 
-      const wireCost =
-        getWirePenalty(
-          currentPoint,
-          nextPoint,
-          routedSegments
-        );
+      const wireCost = getWirePenalty(
+        currentPoint,
+        nextPoint,
+        routedSegments
+      );
 
       const nextDistance =
         currentDistance +
@@ -681,111 +214,67 @@ function findShortestOrthogonalRoute(
         bendCost +
         wireCost;
 
-      const nextKey =
-        stateKey(
-          nextX,
-          nextY,
-          nextDirection
-        );
+      const nextKey = stateKey(
+        nextX,
+        nextY,
+        nextDirection
+      );
 
       if (
         nextDistance >=
-        (
-          distances.get(
-            nextKey
-          ) ??
-          Infinity
-        )
+        (distances.get(nextKey) ?? Infinity)
       ) {
         continue;
       }
 
-      distances.set(
-        nextKey,
-        nextDistance
-      );
-
-      previous.set(
-        nextKey,
-        currentKey
-      );
+      distances.set(nextKey, nextDistance);
+      previous.set(nextKey, currentKey);
 
       const heuristic =
-        Math.abs(
-          nextPoint.x -
-          end.x
-        ) +
-        Math.abs(
-          nextPoint.y -
-          end.y
-        );
+        Math.abs(nextPoint.x - end.x) +
+        Math.abs(nextPoint.y - end.y);
 
       queue.push({
-        xIndex:
-          nextX,
-
-        yIndex:
-          nextY,
-
-        direction:
-          nextDirection,
-
-        distance:
-          nextDistance,
-
+        xIndex: nextX,
+        yIndex: nextY,
+        direction: nextDirection,
         priority:
-          nextDistance +
-          heuristic,
+          nextDistance + heuristic,
       });
     }
   }
 
-  if (
-    !goalKey
-  ) {
+  if (!goalKey) {
     console.warn(
-      `No legal route found for ${net}`,
-      {
+        `No legal route found for ${net}`,
+        {
         start,
         end,
-      }
+        }
     );
 
     return null;
-  }
+    }
 
   const reversed = [];
+  let currentKey = goalKey;
 
-  let currentKey =
-    goalKey;
-
-  while (
-    currentKey
-  ) {
-    const [
-      xIndex,
-      yIndex,
-    ] =
+  while (currentKey) {
+    const [xIndex, yIndex] =
       currentKey
         .split(",")
         .slice(0, 2)
         .map(Number);
 
     reversed.push(
-      pointAt(
-        xIndex,
-        yIndex
-      )
+      pointAt(xIndex, yIndex)
     );
 
-    currentKey =
-      previous.get(
-        currentKey
-      );
+    currentKey = previous.get(currentKey);
   }
 
   return simplifyOrthogonalPoints(
-    reversed.toReversed()
+    reversed.reverse()
   );
 }
 

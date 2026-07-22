@@ -1026,35 +1026,7 @@ function drawConnectionsBetweenLayoutCells(
    * inter-cell wires become routing obstacles.
    */
   const routedSegments = [];
-
-  const strokeWidth =
-    Number(
-      drawConfig.wireStrokeWidth
-    ) || 2;
-
-  routedSegments.segmentConflictChecker =
-    interCellSegmentsConflict;
-
-  /*
-  * Lane beside an existing parallel wire.
-  */
-  routedSegments.tightParallelLaneSpacing =
-    strokeWidth + 0.5;
-
-  /*
-  * Coordinates just beyond wire endpoints.
-  * This is what allows the yellow vertical section
-  * to turn around the end of horizontal wires.
-  */
-  routedSegments.endpointTurnSpacing =
-    strokeWidth + 1;
-
-  /*
-  * Add one route around the outside of the complete
-  * local routing graph.
-  */
-  routedSegments.outsideChannelMargin =
-    20;
+  routedSegments.allowTightParallelChannels = true;
 
   for (
     const obstacleLayer of
