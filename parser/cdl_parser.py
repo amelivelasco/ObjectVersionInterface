@@ -52,85 +52,214 @@ class CDLParser:
         added_cell.raw_name = head
         self.current_cell.add_cell_instance(added_cell)
     
-    def _handle_xsjj(self, head, tokens):
-        name = re.sub(r"^xsj", "", head, flags=re.I)
+    def _handle_xsjj(
+        self,
+        head,
+        tokens,
+    ):
+        name = re.sub(
+            r"^xsj",
+            "",
+            head,
+            flags=re.I,
+        )
+
         net_in = tokens[1]
         net_out = tokens[2]
 
-        ic = 100.0
-        for t in tokens:
-            if t.lower().startswith(("j=")):
-                ic = float(t.split("=", 1)[1].replace("u", ""))
-                break
-        
-        element = JJElement(name, None, None, ic)
+        raw_value = (
+            self._get_parameter_value(
+                tokens,
+                {
+                    "ics",
+                    "j",
+                },
+            )
+        )
+
+        if raw_value is None:
+            raw_value = "100u"
+
+        numeric_value = float(
+            raw_value
+            .lower()
+            .replace("µ", "u")
+            .removesuffix("u")
+        )
+
+        element = JJElement(
+            name,
+            None,
+            None,
+            numeric_value,
+        )
+
         element.raw_name = head
-        self.current_cell.add_element(element, net_in, net_out, [])
+
+        element.spice_value = raw_value
+
+        self.current_cell.add_element(
+            element,
+            net_in,
+            net_out,
+            [],
+        )
     
-    def _handle_xpcib(self, head, tokens, line_number):
+    def _handle_xpcib(
+        self,
+        head,
+        tokens,
+        line_number,
+    ):
         name = head
+
         if "|" in head:
             name = head.split("|")[-1]
-        name = re.sub(r"^xpc", "", name, flags=re.I)
+
+        name = re.sub(
+            r"^xpc",
+            "",
+            name,
+            flags=re.I,
+        )
 
         net_in = tokens[2]
         net_out = tokens[3]
 
-        ib = None
-        for t in tokens:
-            if t.lower().startswith("ib="):
-                ib = float(t.split("=", 1)[1].replace("u", ""))
-                break
+        raw_value = (
+            self._get_parameter_value(
+                tokens,
+                {"ib"},
+            )
+        )
 
-        if ib is None:
+        if raw_value is None:
             raise ValueError(
-                f"[ligne {line_number}] ib sans ib="
+                f"[line {line_number}] "
+                f"bias element {head} has no ib="
             )
 
-        element = BiasIBElement(name, None, None, ib)
+        numeric_value = float(
+            raw_value
+            .lower()
+            .replace("µ", "u")
+            .removesuffix("u")
+        )
+
+        element = BiasIBElement(
+            name,
+            None,
+            None,
+            numeric_value,
+        )
+
         element.raw_name = head
-        self.current_cell.add_element(element, net_in, net_out, [])
-    def _handle_ll(self, head, tokens, line_number):
-        name = head[1:]
-        net_p = tokens[1]
-        net_n = tokens[2]
+        element.spice_value = raw_value
 
-        lval = None
-        for t in tokens:
-            if t.lower().startswith("l="):
-                lval = float(
-                    t.split("=", 1)[1]
-                    .replace("p", "")
-                    .replace("n", "")
-                )
-                break
-
-        if lval is None:
-            raise ValueError(
-                f"[ligne {line_number}] Inductance sans L="
-            )
-
-        element = InductorElement(name, None, None, lval)
-        element.raw_name = head
-        self.current_cell.add_element(element, net_p, net_n, [])
+        self.current_cell.add_element(
+            element,
+            net_in,
+            net_out,
+            [],
+        )
     
-    def _handle_r(self, head, tokens):
+    def _handle_ll(
+        self,
+        head,
+        tokens,
+        line_number,
+    ):
         name = head[1:]
+
         net_p = tokens[1]
         net_n = tokens[2]
 
-        rval = None
-        for t in tokens[3:]:
-            if t.lower().startswith("r="):
-                rval = float(t.split("=", 1)[1])
-                break
+        raw_value = (
+            self._get_parameter_value(
+                tokens,
+                {"l"},
+            )
+        )
 
-        if rval is None:
-            rval = float(tokens[-1])
+        if raw_value is None:
+            raise ValueError(
+                f"[line {line_number}] "
+                f"inductor {head} has no l="
+            )
 
-        element = ResistorElement(name, None, None, rval)
+        numeric_text = re.sub(
+            r"[a-zA-Zµ]+$",
+            "",
+            raw_value,
+        )
+
+        numeric_value = float(
+            numeric_text
+        )
+
+        element = InductorElement(
+            name,
+            None,
+            None,
+            numeric_value,
+        )
+
         element.raw_name = head
-        self.current_cell.add_element(element, net_p, net_n, [])
+        element.spice_value = raw_value
+
+        self.current_cell.add_element(
+            element,
+            net_p,
+            net_n,
+            [],
+        )
+    
+    def _handle_r(
+        self,
+        head,
+        tokens,
+    ):
+        name = head[1:]
+
+        net_p = tokens[1]
+        net_n = tokens[2]
+
+        raw_value = (
+            self._get_parameter_value(
+                tokens[3:],
+                {"r"},
+            )
+        )
+
+        if raw_value is None:
+            raw_value = tokens[-1]
+
+        numeric_text = re.sub(
+            r"[a-zA-Zµ]+$",
+            "",
+            raw_value,
+        )
+
+        numeric_value = float(
+            numeric_text
+        )
+
+        element = ResistorElement(
+            name,
+            None,
+            None,
+            numeric_value,
+        )
+
+        element.raw_name = head
+        element.spice_value = raw_value
+
+        self.current_cell.add_element(
+            element,
+            net_p,
+            net_n,
+            [],
+        )
     
     def _instructor(self, head, tokens, filename, new_circuit, line_number):
         if head.lower().startswith("xi"):
@@ -643,6 +772,35 @@ class CDLParser:
             print(i)
 
         self._format_b_values(circuit, buffer_values)
+        
+    @staticmethod
+    def _get_parameter_value(
+        tokens,
+        parameter_names,
+    ):
+        normalized_names = {
+            str(name).lower()
+            for name in parameter_names
+        }
+
+        for token in tokens:
+            token = token.strip()
+
+            if "=" not in token:
+                continue
+
+            parameter, value = token.split(
+                "=",
+                1,
+            )
+
+            if (
+                parameter.strip().lower()
+                in normalized_names
+            ):
+                return value.strip()
+
+        return None
                 
     def circuit_to_schematic_data(self, circuit):
         elements = []
@@ -663,15 +821,31 @@ class CDLParser:
                 })
 
         def get_element_value(inst):
+
+            spice_value = getattr(
+                inst,
+                "spice_value",
+                None,
+            )
+
+            if spice_value is not None:
+                return str(
+                    spice_value
+                )
+
             if hasattr(inst, "Ic"):
                 return str(inst.Ic)
+
             if hasattr(inst, "Ib"):
                 return str(inst.Ib)
+
             if hasattr(inst, "L"):
                 return str(inst.L)
+
             if hasattr(inst, "R"):
                 return str(inst.R)
-            return ""
+
+            return None
 
         def get_image(inst):
             inst_type = getattr(inst, "type", "")

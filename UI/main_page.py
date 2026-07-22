@@ -20,9 +20,11 @@ class Schematic:
             r"pid=(?P<pid>[^,]+),\s*"
             r"layout_cell=(?P<layout_cell>[^,]+),\s*"
             r"net_in=(?P<net_in>[^,]+),\s*"
-            r"net_out=(?P<net_out>[^)]+)"
+            r"net_out=(?P<net_out>[^,\)]+)"
+            r"(?:,\s*value=(?P<value>[^)]+))?"
             r"\s*\)\s*$"
         )
+
 
         match = re.match(pattern, line)
 
@@ -30,9 +32,16 @@ class Schematic:
             return None
 
         def clean_value(value):
+            if value is None:
+                return None
+
             value = value.strip()
 
-            if value in {"None", "null", ""}:
+            if value in {
+                "None",
+                "null",
+                "",
+            }:
                 return None
 
             return value
@@ -44,6 +53,7 @@ class Schematic:
             "layout_cell": clean_value(match.group("layout_cell")),
             "net_in": clean_value(match.group("net_in")),
             "net_out": clean_value(match.group("net_out")),
+            "value": clean_value(match.group("value")),
         }
 
     def insert_component_by_net(self, ordered_components, new_component):
@@ -145,6 +155,7 @@ class Schematic:
             element["id"]: {
                 "net_in": element.get("net_in"),
                 "net_out": element.get("net_out"),
+                "value": element.get("value"),
             }
             for element in spice_data["elements"]
         }
@@ -181,6 +192,10 @@ class Schematic:
 
                 if net_out is None:
                     net_out = fallback_nets.get("net_out")
+                    
+                value = parsed["value"]
+
+                if value is None: value = (fallback_nets.get("value"))
 
 
                 component = CircuitComponent(
@@ -190,6 +205,7 @@ class Schematic:
                     layout_cell=parsed["layout_cell"],
                     net_in=net_in,
                     net_out=net_out,
+                    value=value,
                 )
                 
                 self.handle_layout_cell(
@@ -286,6 +302,7 @@ class Schematic:
                     layout_cell=parsed["layout_cell"],
                     net_in=parsed["net_in"],
                     net_out=parsed["net_out"],
+                    value=parsed["value"],
                 )
 
                 ordered_components.append(component)
@@ -445,6 +462,7 @@ class Schematic:
                 "type": (component_type1, component_type2),
                 "net_in": component.net_in,
                 "net_out": component.net_out,
+                "value": component.value,
                 "image": self.get_component_image(
                     component
                 ),

@@ -1,6 +1,6 @@
 window.circuitData = {
   "name": "ordered_elems",
-  "generated_at": "2026-07-17T08:53:40.380047+00:00",
+  "generated_at": "2026-07-22T14:47:47.491752+00:00",
   "nodes": [
     {
       "id": "Sel2",
@@ -222,6 +222,7 @@ window.circuitData = {
       ],
       "net_in": "Sel2",
       "net_out": "I0|net4",
+      "value": "1.8663",
       "image": "../img/ind_draw.png"
     },
     {
@@ -238,6 +239,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net4",
       "net_out": "I0|net136",
+      "value": "1.55",
       "image": "../img/ind_draw.png"
     },
     {
@@ -254,6 +256,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net136",
       "net_out": "I0|net140",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -286,6 +289,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net140",
       "net_out": "I0|net137",
+      "value": "1.55",
       "image": "../img/ind_draw.png"
     },
     {
@@ -302,6 +306,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net137",
       "net_out": "I0|net138",
+      "value": "2.8212",
       "image": "../img/ind_draw.png"
     },
     {
@@ -318,6 +323,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net138",
       "net_out": "I0|net121",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -350,6 +356,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net121",
       "net_out": "I0|net100",
+      "value": "1.4501",
       "image": "../img/ind_draw.png"
     },
     {
@@ -366,6 +373,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net100",
       "net_out": "I0|net145",
+      "value": "2.0153",
       "image": "../img/ind_draw.png"
     },
     {
@@ -382,6 +390,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net145",
       "net_out": "I0|net139",
+      "value": "3.3341",
       "image": "../img/ind_draw.png"
     },
     {
@@ -398,6 +407,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net139",
       "net_out": "net4",
+      "value": "1.6989",
       "image": "../img/ind_draw.png"
     },
     {
@@ -414,6 +424,7 @@ window.circuitData = {
       ],
       "net_in": "net4",
       "net_out": "I6|net27",
+      "value": "2.05",
       "image": "../img/ind_draw.png"
     },
     {
@@ -430,6 +441,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net27",
       "net_out": "I6|net58",
+      "value": "2.5",
       "image": "../img/ind_draw.png"
     },
     {
@@ -446,6 +458,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net58",
       "net_out": "I6|net30",
+      "value": "0.95",
       "image": "../img/ind_draw.png"
     },
     {
@@ -462,6 +475,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net30",
       "net_out": "I6|net38",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -494,6 +508,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net38",
       "net_out": "I6|net37",
+      "value": "0.95",
       "image": "../img/ind_draw.png"
     },
     {
@@ -510,6 +525,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net37",
       "net_out": "I6|net52",
+      "value": "3.68",
       "image": "../img/ind_draw.png"
     },
     {
@@ -526,6 +542,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net52",
       "net_out": "O1",
+      "value": "1.38",
       "image": "../img/ind_draw.png"
     },
     {
@@ -542,6 +559,7 @@ window.circuitData = {
       ],
       "net_in": "Sel1",
       "net_out": "I0|net119",
+      "value": "1.7117",
       "image": "../img/ind_draw.png"
     },
     {
@@ -558,6 +576,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net119",
       "net_out": "I0|net141",
+      "value": "1.7767",
       "image": "../img/ind_draw.png"
     },
     {
@@ -574,6 +593,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net141",
       "net_out": "I0|net142",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -606,6 +626,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net142",
       "net_out": "I0|net127",
+      "value": "1.0",
       "image": "../img/ind_draw.png"
     },
     {
@@ -622,6 +643,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net127",
       "net_out": "I0|net138",
+      "value": "3.6623",
       "image": "../img/ind_draw.png"
     },
     {
@@ -638,6 +660,7 @@ window.circuitData = {
       ],
       "net_in": "S1",
       "net_out": "I0|net110",
+      "value": "1.3783",
       "image": "../img/ind_draw.png"
     },
     {
@@ -654,6 +677,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net110",
       "net_out": "I0|net124",
+      "value": "2.7508",
       "image": "../img/ind_draw.png"
     },
     {
@@ -670,6 +694,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net144",
       "net_out": "I0|net145",
+      "value": "0.5",
       "image": "../img/ind_draw.png"
     },
     {
@@ -686,6 +711,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net145",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -718,6 +744,7 @@ window.circuitData = {
       ],
       "net_in": "Sel1",
       "net_out": "I12|net4",
+      "value": "1.8663",
       "image": "../img/ind_draw.png"
     },
     {
@@ -734,6 +761,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net4",
       "net_out": "I12|net136",
+      "value": "1.55",
       "image": "../img/ind_draw.png"
     },
     {
@@ -750,6 +778,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net136",
       "net_out": "I12|net140",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -782,6 +811,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net140",
       "net_out": "I12|net137",
+      "value": "1.55",
       "image": "../img/ind_draw.png"
     },
     {
@@ -798,6 +828,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net137",
       "net_out": "I12|net138",
+      "value": "2.8212",
       "image": "../img/ind_draw.png"
     },
     {
@@ -814,6 +845,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net138",
       "net_out": "I12|net121",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -846,6 +878,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net121",
       "net_out": "I12|net100",
+      "value": "1.4501",
       "image": "../img/ind_draw.png"
     },
     {
@@ -862,6 +895,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net100",
       "net_out": "I12|net145",
+      "value": "2.0153",
       "image": "../img/ind_draw.png"
     },
     {
@@ -878,6 +912,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net145",
       "net_out": "I12|net139",
+      "value": "3.3341",
       "image": "../img/ind_draw.png"
     },
     {
@@ -894,6 +929,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net139",
       "net_out": "net2",
+      "value": "1.6989",
       "image": "../img/ind_draw.png"
     },
     {
@@ -910,6 +946,7 @@ window.circuitData = {
       ],
       "net_in": "net2",
       "net_out": "I6|net4",
+      "value": "2.05",
       "image": "../img/ind_draw.png"
     },
     {
@@ -926,6 +963,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net4",
       "net_out": "I6|net59",
+      "value": "2.5",
       "image": "../img/ind_draw.png"
     },
     {
@@ -942,6 +980,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net59",
       "net_out": "I6|net53",
+      "value": "0.95",
       "image": "../img/ind_draw.png"
     },
     {
@@ -958,6 +997,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net53",
       "net_out": "I6|net35",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -990,6 +1030,7 @@ window.circuitData = {
       ],
       "net_in": "Sel2",
       "net_out": "I12|net119",
+      "value": "1.7117",
       "image": "../img/ind_draw.png"
     },
     {
@@ -1006,6 +1047,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net119",
       "net_out": "I12|net141",
+      "value": "1.7767",
       "image": "../img/ind_draw.png"
     },
     {
@@ -1022,6 +1064,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net141",
       "net_out": "I12|net142",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1054,6 +1097,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net142",
       "net_out": "I12|net127",
+      "value": "1.0",
       "image": "../img/ind_draw.png"
     },
     {
@@ -1070,6 +1114,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net127",
       "net_out": "I12|net138",
+      "value": "3.6623",
       "image": "../img/ind_draw.png"
     },
     {
@@ -1086,6 +1131,7 @@ window.circuitData = {
       ],
       "net_in": "S2",
       "net_out": "I12|net110",
+      "value": "1.3783",
       "image": "../img/ind_draw.png"
     },
     {
@@ -1102,6 +1148,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net110",
       "net_out": "I12|net124",
+      "value": "2.7508",
       "image": "../img/ind_draw.png"
     },
     {
@@ -1118,6 +1165,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net144",
       "net_out": "I12|net145",
+      "value": "0.5",
       "image": "../img/ind_draw.png"
     },
     {
@@ -1134,6 +1182,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net145",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1166,6 +1215,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net144",
       "net_out": "I0|net124",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1198,6 +1248,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net127",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1230,6 +1281,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net144",
       "net_out": "I12|net124",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1262,6 +1314,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net127",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1294,6 +1347,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net59",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1326,6 +1380,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net58",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1358,6 +1413,7 @@ window.circuitData = {
       ],
       "net_in": "VDD",
       "net_out": "I0|net4",
+      "value": "175.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1374,6 +1430,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net4",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1406,6 +1463,7 @@ window.circuitData = {
       ],
       "net_in": "VDD",
       "net_out": "I0|net137",
+      "value": "139.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1422,6 +1480,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net137",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1454,6 +1513,7 @@ window.circuitData = {
       ],
       "net_in": "VDD",
       "net_out": "I0|net119",
+      "value": "175.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1470,6 +1530,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net119",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1502,6 +1563,7 @@ window.circuitData = {
       ],
       "net_in": "VDD",
       "net_out": "I0|net100",
+      "value": "158.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1518,6 +1580,7 @@ window.circuitData = {
       ],
       "net_in": "VDD",
       "net_out": "I0|net139",
+      "value": "175.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1534,6 +1597,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net139",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1566,6 +1630,7 @@ window.circuitData = {
       ],
       "net_in": "VDD",
       "net_out": "I0|net110",
+      "value": "175.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1582,6 +1647,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net110",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1614,6 +1680,7 @@ window.circuitData = {
       ],
       "net_in": "VDD",
       "net_out": "I12|net4",
+      "value": "175.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1630,6 +1697,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net4",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1662,6 +1730,7 @@ window.circuitData = {
       ],
       "net_in": "VDD",
       "net_out": "I12|net137",
+      "value": "139.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1678,6 +1747,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net137",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1710,6 +1780,7 @@ window.circuitData = {
       ],
       "net_in": "VDD",
       "net_out": "I12|net119",
+      "value": "175.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1726,6 +1797,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net119",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1758,6 +1830,7 @@ window.circuitData = {
       ],
       "net_in": "VDD",
       "net_out": "I12|net100",
+      "value": "158.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1774,6 +1847,7 @@ window.circuitData = {
       ],
       "net_in": "VDD",
       "net_out": "I12|net139",
+      "value": "175.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1790,6 +1864,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net139",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1822,6 +1897,7 @@ window.circuitData = {
       ],
       "net_in": "VDD",
       "net_out": "I12|net110",
+      "value": "175.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1838,6 +1914,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net110",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1870,6 +1947,7 @@ window.circuitData = {
       ],
       "net_in": "VDD",
       "net_out": "I6|net4",
+      "value": "175.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1886,6 +1964,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net4",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1918,6 +1997,7 @@ window.circuitData = {
       ],
       "net_in": "VDD",
       "net_out": "I6|net27",
+      "value": "175.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1934,6 +2014,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net27",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1966,6 +2047,7 @@ window.circuitData = {
       ],
       "net_in": "VDD",
       "net_out": "I6|net37",
+      "value": "183.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1982,6 +2064,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net37",
       "net_out": "I6|net35",
+      "value": "0.95",
       "image": "../img/ind_draw.png"
     },
     {
@@ -1998,6 +2081,7 @@ window.circuitData = {
       ],
       "net_in": "VDD",
       "net_out": "I6|net52",
+      "value": "175.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -2014,6 +2098,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net52",
       "net_out": "GND!",
+      "value": "100.0",
       "image": "../img/jj_draw.png"
     },
     {
