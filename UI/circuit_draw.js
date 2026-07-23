@@ -167,10 +167,7 @@ function formatComponentValue(
   const componentType =
     getElementType(element);
 
-  /*
-   * Inductor values are currently stored as numbers
-   * representing pH.
-   */
+
   if (
     componentType === "L"
   ) {
@@ -208,7 +205,7 @@ function formatComponentValue(
    * JJ values represent critical current.
    */
   if (
-    componentType === "JJ"
+    componentType === "JJ" || componentType === "IB"
   ) {
     if (
       /u$/i.test(value)
@@ -416,10 +413,28 @@ function drawComponent(layer, element) {
 
   g.appendChild(image);
 
-  /*
-  * Inductor values appear centered immediately above
-  * the inductor image.
-  */
+  if (componentType === "IB") {
+    drawComponentValueText(
+      g,
+      formatComponentValue(
+        element
+      ),
+      element.x,
+      element.y - 10,
+      {
+        size:
+          drawConfig
+            .componentValueFontSize,
+
+        fill:
+          "#7c2d12",
+
+        className:
+          "inductor-value",
+      }
+    );
+  }
+
   if (
     componentType === "L"
   ) {
@@ -552,36 +567,6 @@ function drawCircuit(data) {
       })
     )
   );
-
-  console.table(
-    placed.map(
-      (element, index) => ({
-        index,
-
-        id:
-          element.id,
-
-        layoutCell:
-          element.parentLayoutCell,
-
-        x:
-          element.x,
-
-        y:
-          element.y,
-
-        direction:
-          element.direction,
-
-        netIn:
-          element.net_in,
-
-        netOut:
-          element.net_out,
-      })
-    )
-  );
-
 
   const svg = createSvg(canvasWidth, canvasHeight);
   board.appendChild(svg);
@@ -739,10 +724,11 @@ function drawJRpairs(
           "jj-pathname",
       }
     );
+    const res_path = `${(current.path || "").split("/")[0]}/R${(current.pid || "").match(/\d+/)?.[0] || ""}`;
 
     drawComponentValueText(
       labelLayer,
-      next.path,
+      res_path,
       next.x,
       next.y,
       {
@@ -786,9 +772,7 @@ function drawJRpairs(
     );
   }
 
-  /*
-   * Top input hanger.
-   */
+
   drawLine(
     wireLayer,
     labelLayer,
@@ -831,9 +815,7 @@ function drawJRpairs(
     }
   );
 
-  /*
-   * Bottom output hanger.
-   */
+
   drawLine(
     wireLayer,
     labelLayer,
@@ -1227,9 +1209,6 @@ function drawTerminalStubs(
       }
     }
 
-    /*
-     * Explicitly register horizontal JR rails.
-     */
     for (
       let index = 0;
       index <

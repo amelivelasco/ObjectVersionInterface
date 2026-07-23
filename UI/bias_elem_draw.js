@@ -143,10 +143,6 @@ function placeBiasElementsAboveNetOut(
       continue;
     }
 
-    /*
-     * Clear values that may remain if the circuit
-     * is redrawn using the same data objects.
-     */
     bias.biasPlacementLocked =
       false;
 
