@@ -840,6 +840,19 @@ function drawJRpairs(
     geometry.resistorBottom
   );
 
+
+  if (current.net_out === "GND!") {
+
+    drawGNDStub(
+      wireLayer,
+      labelLayer,
+      current,
+      componentLayer,
+      geometry.bottomMiddle.x,
+      geometry.bottomMiddle.y,
+    );
+  }
+
   drawLabel(
     labelLayer,
     current.net_out,
@@ -850,6 +863,60 @@ function drawJRpairs(
       fill: "#334155",
     }
   );
+}
+
+function drawGNDStub(
+  wireLayer,
+  labelLayer,
+  current,
+  componentLayer,
+  x,
+  y
+) {
+  const stubLength = 10;
+
+  const stubEnd = {
+    x: x,
+    y: y + stubLength,
+  };
+
+  drawLine(
+    wireLayer,
+    labelLayer,
+    current,
+    {
+      x,
+      y,
+    },
+    stubEnd,
+    {
+      net: "GND!",
+      kind: "gnd-stub",
+      stroke: drawConfig.nodeStroke,
+    }
+  );
+
+  const img_ref = "../img/gnd_draw.png"
+  const image = createSvgElement("image", {
+    href: img_ref,
+    x: x - 10,
+    y: y,
+    width: drawConfig.imageSize/2,
+    height: drawConfig.imageSize/2,
+    class: "component-image",
+  });
+
+  const g = createSvgElement("g", {
+    class: `component component-gnd`,
+  });
+
+  
+
+  g.appendChild(image)
+
+  componentLayer.appendChild(g);
+
+  return stubEnd;
 }
 
 

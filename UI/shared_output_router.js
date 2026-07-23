@@ -559,6 +559,33 @@ function routePointsToSegments(points) {
   return segments;
 }
 
+function getGNDObstacleBox(
+  x,
+  y,
+  size = 20,
+  padding = 5
+) {
+  return {
+    left:
+      x - size / 2 - padding,
+
+    right:
+      x + size / 2 + padding,
+
+    top:
+      y - padding,
+
+    bottom:
+      y + size + padding,
+
+    ownerIds:
+      new Set(),
+
+    kind:
+      "gnd-symbol",
+  };
+}
+
 
 function getInductorCenterBarrier(
   element,
