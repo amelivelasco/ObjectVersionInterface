@@ -14,6 +14,10 @@ function drawPath(
 
         fill: "none",
 
+        "data-original-stroke":
+          options.stroke ||
+          drawConfig.wireStroke,
+
         stroke:
           options.stroke ||
           drawConfig.wireStroke,
@@ -69,6 +73,10 @@ function drawLine(
         y2: b.y,
 
         stroke:
+          options.stroke ||
+          drawConfig.wireStroke,
+
+        "data-original-stroke":
           options.stroke ||
           drawConfig.wireStroke,
 
@@ -661,7 +669,157 @@ function drawCircuit(data) {
     true
   );
 
+  setupWireSelection(svg);
+
   setupPanZoom(svg, canvasWidth, canvasHeight);
+}
+
+function setupWireSelection(svg) {
+  svg.querySelectorAll(".edge").forEach((wire) => {
+    wire.addEventListener("click", (event) => {
+      event.stopPropagation();
+
+      clearSelectedWires(svg);
+
+      const connected =
+        collectConnectedWireChain(
+          wire,
+          svg.querySelectorAll(".edge")
+        );
+
+      connected.forEach((segment) => {
+        segment.setAttribute(
+          "stroke",
+          "red"
+        );
+
+        segment.setAttribute(
+          "stroke-width",
+          Number(drawConfig.wireStrokeWidth) + 2
+        );
+      });
+    });
+  });
+}
+
+
+function clearSelectedWires(svg) {
+  svg.querySelectorAll(".edge").forEach((wire) => {
+    wire.setAttribute(
+      "stroke",
+        wire.dataset.originalStroke
+    );
+
+    wire.setAttribute(
+      "stroke-width",
+      drawConfig.wireStrokeWidth
+    );
+  });
+}
+
+
+function collectConnectedWireChain(
+  startWire,
+  allWires
+) {
+  const visited = new Set();
+  const result = [];
+
+  const queue = [
+    startWire
+  ];
+
+  const startNet =
+    startWire.getAttribute(
+      "data-net"
+    );
+
+  while (queue.length > 0) {
+    const current =
+      queue.shift();
+
+    if (visited.has(current)) {
+      continue;
+    }
+
+    visited.add(current);
+    result.push(current);
+
+    const currentSegments =
+      extractWireSegmentsFromElement(
+        current
+      );
+
+    for (const other of allWires) {
+      if (
+        visited.has(other)
+      ) {
+        continue;
+      }
+
+      /*
+       * Only follow the same net.
+       */
+      if (
+        other.getAttribute("data-net") !==
+        startNet
+      ) {
+        continue;
+      }
+
+      const otherSegments =
+        extractWireSegmentsFromElement(
+          other
+        );
+
+      if (
+        wiresTouch(
+          currentSegments,
+          otherSegments
+        )
+      ) {
+        queue.push(other);
+      }
+    }
+  }
+
+  return result;
+}
+
+
+function wiresTouch(
+  firstSegments,
+  secondSegments
+) {
+  const epsilon = 0.5;
+
+  for (const first of firstSegments) {
+    for (const second of secondSegments) {
+
+      const points = [
+        first.a,
+        first.b,
+      ];
+
+      const otherPoints = [
+        second.a,
+        second.b,
+      ];
+
+      for (const p of points) {
+        for (const q of otherPoints) {
+          if (
+            Math.abs(p.x - q.x) < epsilon &&
+            Math.abs(p.y - q.y) < epsilon
+          ) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  return false;
 }
 
 function drawJRpairs(
@@ -793,7 +951,11 @@ function drawJRpairs(
     labelLayer,
     current,
     geometry.topAtJJ,
-    geometry.topAtResistor
+    geometry.topAtResistor,
+    {
+      net: current.net_in,
+      kind: "jr-internal",
+    }
   );
 
   drawLine(
@@ -801,7 +963,11 @@ function drawJRpairs(
     labelLayer,
     current,
     geometry.topAtResistor,
-    geometry.resistorTop
+    geometry.resistorTop,
+    {
+      net: current.net_out,
+      kind: "jr-internal",
+    }
   );
 
   drawLabel(
@@ -821,7 +987,7 @@ function drawJRpairs(
     labelLayer,
     current,
     geometry.jjBottom,
-    geometry.bottomAtJJ
+    geometry.bottomAtJJ,
   );
 
   drawLine(
@@ -829,7 +995,11 @@ function drawJRpairs(
     labelLayer,
     current,
     geometry.bottomAtJJ,
-    geometry.bottomAtResistor
+    geometry.bottomAtResistor,
+    {
+      net: current.net_out,
+      kind: "jr-internal",
+    }
   );
 
   drawLine(
@@ -837,7 +1007,11 @@ function drawJRpairs(
     labelLayer,
     current,
     geometry.bottomAtResistor,
-    geometry.resistorBottom
+    geometry.resistorBottom,
+    {
+      net: current.net_out,
+      kind: "jr-internal",
+    }
   );
 
 

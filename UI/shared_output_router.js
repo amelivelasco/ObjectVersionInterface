@@ -937,3 +937,26 @@ function addParallelChannelMidpoints(
     }
   }
 }
+
+function isTerminalNode(node) {
+  /*
+   * Do not stop inside a JJ-R subcircuit.
+   * Those nodes are internal connections.
+   */
+  const hasOnlyJRInternalEdges =
+    node.edges.length > 0 &&
+    node.edges.every(
+      (edge) =>
+        edge.kind === "jr-internal"
+    );
+
+  if (hasOnlyJRInternalEdges) {
+    return false;
+  }
+
+  /*
+   * A terminal is a dangling endpoint:
+   * only one wire segment touches it.
+   */
+  return node.edges.length === 1;
+}
