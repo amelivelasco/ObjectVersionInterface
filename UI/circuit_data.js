@@ -1,6 +1,6 @@
 window.circuitData = {
   "name": "ordered_elems",
-  "generated_at": "2026-07-22T14:47:47.491752+00:00",
+  "generated_at": "2026-07-23T11:21:07.176122+00:00",
   "nodes": [
     {
       "id": "Sel2",
@@ -256,7 +256,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net136",
       "net_out": "I0|net140",
-      "value": "100.0",
+      "value": "180.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -323,7 +323,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net138",
       "net_out": "I0|net121",
-      "value": "100.0",
+      "value": "90.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -475,7 +475,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net30",
       "net_out": "I6|net38",
-      "value": "100.0",
+      "value": "118.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -593,7 +593,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net141",
       "net_out": "I0|net142",
-      "value": "100.0",
+      "value": "180.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -711,7 +711,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net145",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "230.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -778,7 +778,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net136",
       "net_out": "I12|net140",
-      "value": "100.0",
+      "value": "180.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -845,7 +845,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net138",
       "net_out": "I12|net121",
-      "value": "100.0",
+      "value": "90.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -997,7 +997,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net53",
       "net_out": "I6|net35",
-      "value": "100.0",
+      "value": "118.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1064,7 +1064,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net141",
       "net_out": "I12|net142",
-      "value": "100.0",
+      "value": "180.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1182,7 +1182,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net145",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "230.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1215,7 +1215,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net144",
       "net_out": "I0|net124",
-      "value": "100.0",
+      "value": "177.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1248,7 +1248,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net127",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "258.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1281,7 +1281,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net144",
       "net_out": "I12|net124",
-      "value": "100.0",
+      "value": "177.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1314,7 +1314,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net127",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "258.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1347,7 +1347,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net59",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "301.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1380,7 +1380,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net58",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "301.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1430,7 +1430,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net4",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "250.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1480,7 +1480,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net137",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "201.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1530,7 +1530,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net119",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "250.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1597,7 +1597,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net139",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "250.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1647,7 +1647,7 @@ window.circuitData = {
       ],
       "net_in": "I0|net110",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "250.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1697,7 +1697,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net4",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "250.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1747,7 +1747,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net137",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "201.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1797,7 +1797,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net119",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "250.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1864,7 +1864,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net139",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "250.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1914,7 +1914,7 @@ window.circuitData = {
       ],
       "net_in": "I12|net110",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "250.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -1964,7 +1964,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net4",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "250.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -2014,7 +2014,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net27",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "250.0",
       "image": "../img/jj_draw.png"
     },
     {
@@ -2098,7 +2098,7 @@ window.circuitData = {
       ],
       "net_in": "I6|net52",
       "net_out": "GND!",
-      "value": "100.0",
+      "value": "250.0",
       "image": "../img/jj_draw.png"
     },
     {

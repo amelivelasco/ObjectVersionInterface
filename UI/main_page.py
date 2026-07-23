@@ -174,10 +174,13 @@ class Schematic:
                     continue
 
                 parsed = self.parse_mapping_line(line)
-
-                if parsed is None:
-                    raise ValueError(
-                        f"Invalid ordered element on line {line_number}: {line}"
+                    
+                if parsed["raw"].startswith("Xsj"):
+                    print(
+                        "DEBUG JJ FROM FILE:",
+                        parsed["raw"],
+                        "value=",
+                        parsed["value"]
                     )
                 
                 raw = parsed["raw"]
@@ -193,9 +196,10 @@ class Schematic:
                 if net_out is None:
                     net_out = fallback_nets.get("net_out")
                     
-                value = parsed["value"]
+                value = fallback_nets.get("value")
 
-                if value is None: value = (fallback_nets.get("value"))
+                if value is None:
+                    value = parsed["value"]
 
 
                 component = CircuitComponent(
