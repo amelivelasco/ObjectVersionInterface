@@ -1594,13 +1594,13 @@ function drawTerminalStubs(
         stubEnd,
         {
           radius:
-            2.5,
+            5.5,
 
           fill:
-            drawConfig.wireStroke,
+            drawConfig.nodeFill,
 
           stroke:
-            drawConfig.wireStroke,
+            drawConfig.nodeStroke,
         }
       );
     }
@@ -1629,22 +1629,26 @@ function drawTerminalStubs(
       const labelY =
         pin.y - 9;
 
-      drawLabel(
+      drawComponentValueText(
         labelLayer,
         net,
         labelX,
-        labelY,
+        labelY - 15,
         {
           size:
-            "8.5px",
+            drawConfig
+              .componentValueFontSize + 15,
 
           fill:
-            "#334155",
+            "#7c2d12",
 
-          anchor:
-            "middle",
+          className:
+            "inductor-value",
         }
       );
+      
+
+      
     }
 
     return stubEnd;

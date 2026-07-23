@@ -16,8 +16,8 @@ const drawConfig = {
   nodeRadius: 4,
   groundRadius: 6,
 
-  nodeFill: "#ffffff",
-  nodeStroke: "#1f2937",
+  nodeFill: "#dc2626",
+  nodeStroke: "#7f1d1d",
 
   groundFill: "#dc2626",
   groundStroke: "#7f1d1d",
