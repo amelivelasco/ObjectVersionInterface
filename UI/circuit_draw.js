@@ -359,14 +359,28 @@ function drawComponent(layer, element) {
   }
 
   const title = createSvgElement("title");
-  title.textContent = [
-    element.raw || element.id,
+
+  if (element.type[0].toLowerCase() === "r") {
+    title.textContent = [
     `type=${element.type}`,
-    `pid=${element.pid || ""}`,
-    `path=${element.path || ""}`,
+    `pid=${"R" + (element.pid || "").match(/\d+/)?.[0] || ""}`,
+    `path=${(element.path || "").split("/")[0]}/R${(element.pid || "").match(/\d+/)?.[0] || ""}`,
     `net_in=${element.net_in || ""}`,
     `net_out=${element.net_out || ""}`,
+    `value=${(100.0).toFixed(1)}`,
   ].join("\n");
+  }
+
+  else {
+    title.textContent = [
+      `type=${element.type}`,
+      `pid=${element.pid || ""}`,
+      `path=${element.path || ""}`,
+      `net_in=${element.net_in || ""}`,
+      `net_out=${element.net_out || ""}`,
+      `value=${element.value || ""}`,
+    ].join("\n");
+  }
 
   g.appendChild(title);
 
@@ -428,6 +442,24 @@ function drawComponent(layer, element) {
           "inductor-value",
       }
     );
+
+    if (element.path) {
+      drawComponentValueText(
+        g,
+        element.path,
+        element.x,
+        element.y + 12,      // below the image
+        {
+          size:
+            drawConfig
+              .componentValueFontSize,
+
+          fill:
+            "#7c2d12",
+          className: "component-path",
+        }
+      );
+    }
   }
 
   layer.appendChild(g);
@@ -601,10 +633,6 @@ function drawCircuit(data) {
     15
   );
 
-  /*
-  * Pass 1: complete all connections inside
-  * each distinct layout-cell instance.
-  */
   drawConnectionsInsideLayoutCells(
     internalWireLayer,
     labelLayer,
@@ -615,7 +643,6 @@ function drawCircuit(data) {
     internalWireLayer,
     placed
   );
-
 
   drawBiasLocalConnections(
     internalWireLayer,
@@ -652,113 +679,6 @@ function drawCircuit(data) {
   setupPanZoom(svg, canvasWidth, canvasHeight);
 }
 
-function drawHangerLine(
-    lineLayer,
-    labelLayer,
-    element, 
-    a,
-    b,
-    options = {}
-    ) {
-    const rise = options.rise ?? 25;
-    const margin = options.margin ?? 0;
-
-    const topLeft = {
-        x: a.x,
-        y: a.y - rise,
-    };
-
-    const topRight = {
-        x: b.x,
-        y: a.y - rise,
-    };
-
-    // Short vertical line upward.
-    drawLine(
-        lineLayer,
-        labelLayer,
-        element,
-        a,
-        topLeft,
-        options
-    );
-
-    // Longer horizontal line.
-    drawLine(
-        lineLayer,
-        labelLayer,
-        element,
-        topLeft,
-        topRight,
-        options
-    );
-
-    // Short vertical line downward.
-    drawLine(
-        lineLayer,
-        labelLayer,
-        element,
-        topRight,
-        b,
-        options
-    );
-
-    const labelX = (topLeft.x + topRight.x) / 2;
-    const labelY = topLeft.y;
-
-    drawLabel(
-      labelLayer,
-      options.label,
-      labelX,
-      labelY,
-      {
-        size: "8.5px",
-        fill: options.labelFill || "#334155",
-      }
-    );
-
-
-    const minX = Math.min(
-      a.x,
-      b.x,
-      topLeft.x,
-      topRight.x
-    );
-
-    const maxX = Math.max(
-      a.x,
-      b.x,
-      topLeft.x,
-      topRight.x
-    );
-
-    const minY = Math.min(
-      a.y,
-      b.y,
-      topLeft.y,
-      topRight.y
-    );
-
-    const maxY = Math.max(
-      a.y,
-      b.y,
-      topLeft.y,
-      topRight.y
-    );
-
-    return {
-      left: minX - margin,
-      right: maxX + margin,
-
-      // Reserved space outside the hanger.
-      top: minY - margin,
-      bottom: maxY + margin,
-
-      hangerY: topLeft.y,
-      margin,
-    };
-  }
-
 function drawJRpairs(
   current,
   next,
@@ -783,13 +703,6 @@ function drawJRpairs(
       25
     );
 
-  /*
-  * Place the JJ current value in the center of the
-  * JR pair enclosure.
-  *
-  * `current` is the JJ and `next` is its generated
-  * resistor.
-  */
   const jrValue =
     formatComponentValue(
       current
@@ -808,6 +721,42 @@ function drawJRpairs(
         geometry.bottomMiddle.y
       ) / 2 +
       drawConfig.jrValueOffsetY;
+
+    drawComponentValueText(
+      labelLayer,
+      current.path,
+      current.x,
+      current.y,
+      {
+        size:
+          drawConfig
+            .componentValueFontSize,
+
+        fill:
+          "#7c2d12",
+
+        className:
+          "jj-pathname",
+      }
+    );
+
+    drawComponentValueText(
+      labelLayer,
+      next.path,
+      next.x,
+      next.y,
+      {
+        size:
+          drawConfig
+            .componentValueFontSize,
+
+        fill:
+          "#7c2d12",
+
+        className:
+          "jj-pathname",
+      }
+    );
 
     drawComponentValueText(
       labelLayer,
@@ -1053,10 +1002,6 @@ function drawTerminalStubs(
     ) === 1;
   }
 
-  /*
-   * SECOND PASS:
-   * Repair only missing inductor-side connections.
-   */
   if (repairMissingSides) {
     const epsilon = 0.5;
 
@@ -1256,10 +1201,6 @@ function drawTerminalStubs(
         continue;
       }
 
-      /*
-       * Open terminal stubs are not valid targets
-       * for missing internal connections.
-       */
       if (
         kind.includes(
           "terminal-stub"
@@ -1379,9 +1320,7 @@ function drawTerminalStubs(
         return;
       }
 
-      /*
-       * Terminal nets are intentionally left open.
-       */
+
       if (
         isTerminalNet(
           component,
@@ -1391,10 +1330,7 @@ function drawTerminalStubs(
         return;
       }
 
-      /*
-       * This exact physical side already touches
-       * its required net.
-       */
+
       if (
         sideAlreadyConnected(
           pin,
@@ -1413,10 +1349,6 @@ function drawTerminalStubs(
         segmentsByNet.get(net) ||
         [];
 
-      /*
-       * Prefer segments belonging to the same
-       * layout-cell instance.
-       */
       let candidates =
         allSegments.filter(
           (segment) =>
@@ -1425,10 +1357,6 @@ function drawTerminalStubs(
               componentLayout
         );
 
-      /*
-       * Do not attach this missing side to a wire
-       * that already enters the opposite inductor pin.
-       */
       const segmentsAwayFromOppositePin =
         candidates.filter(
           (segment) =>
@@ -1453,10 +1381,6 @@ function drawTerminalStubs(
         return;
       }
 
-      /*
-       * Always start outward from the actual physical
-       * side of this pin.
-       */
       const direction =
         pin.x < component.x
           ? -1
@@ -1518,12 +1442,6 @@ function drawTerminalStubs(
         return;
       }
 
-      /*
-       * Correct-side route:
-       *
-       * pin -> outward lead -> vertical/horizontal
-       * connection -> existing same-net wire.
-       */
       const routePoints =
         simplifyOrthogonalPoints([
           {
@@ -1569,10 +1487,6 @@ function drawTerminalStubs(
         }
       );
 
-      /*
-       * Register the repair so later inductors can
-       * connect to it and do not duplicate it.
-       */
       for (
         const segment of
         routePointsToSegments(
@@ -1819,19 +1733,5 @@ window.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
-  console.table(
-    window.circuitData.elements.map((element, index) => ({
-      index,
-      id: element.id,
-      raw: element.raw,
-      path: element.path,
-      pid: element.pid,
-      layout_cell: element.layout_cell,
-      type: element.type,
-      net_in: element.net_in,
-      net_out: element.net_out,
-      image: element.image
-    }))
-  );
   drawCircuit(window.circuitData);
 });

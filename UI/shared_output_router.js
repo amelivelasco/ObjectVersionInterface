@@ -153,13 +153,6 @@ function buildRoutingObstacleBoxes(
         ) +
         halfSize +
         padding,
-
-      /*
-      * The top and bottom connection anchors lie
-      * exactly on the obstacle boundary. The router
-      * can reach the anchor, but cannot enter the
-      * interior of the JR subcircuit.
-      */
       top:
         geometry.topMiddle.y,
 
