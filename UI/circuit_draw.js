@@ -106,17 +106,78 @@ function drawLine(
   return line;
 }
 
-function drawDot(layer, point, options = {}) {
-  const dot = createSvgElement("circle", {
-    cx: point.x,
-    cy: point.y,
-    r: options.radius || drawConfig.nodeRadius,
-    fill: options.fill || drawConfig.nodeFill,
-    stroke: options.stroke || drawConfig.nodeStroke,
-    "stroke-width": 1.5,
-  });
+function drawDot(
+  layer,
+  point,
+  options = {}
+) {
+  const dot =
+    createSvgElement(
+      "circle",
+      {
+        cx:
+          point.x,
 
-  layer.appendChild(dot);
+        cy:
+          point.y,
+
+        r:
+          options.radius ??
+          drawConfig.nodeRadius,
+
+        fill:
+          options.fill ||
+          drawConfig.nodeFill,
+
+        stroke:
+          options.stroke ||
+          drawConfig.nodeStroke,
+
+        "stroke-width":
+          options.strokeWidth ??
+          1.5,
+
+        class:
+          options.className ||
+          "node-dot",
+      }
+    );
+
+  if (options.net) {
+    dot.setAttribute(
+      "data-net",
+      options.net
+    );
+  }
+
+  if (options.layoutInstance) {
+    dot.setAttribute(
+      "data-layout-instance",
+      options.layoutInstance
+    );
+  }
+
+  if (options.ownerId) {
+    dot.setAttribute(
+      "data-owner-id",
+      options.ownerId
+    );
+  }
+
+  if (
+    options.focusable !== false
+  ) {
+    dot.setAttribute(
+      "tabindex",
+      "0"
+    );
+  }
+
+  layer.appendChild(
+    dot
+  );
+
+  return dot;
 }
 
 function drawLabel(labelLayer, text, x, y, options = {}) {
@@ -651,15 +712,6 @@ function drawCircuit(data) {
 
   drawSubcircuits(placed, componentLayer, internalWireLayer, labelLayer)
 
-  drawConnectionsBetweenLayoutCells(
-    externalWireLayer,
-    labelLayer,
-    placed,
-    [
-      internalWireLayer,
-    ]
-  );
-
   drawTerminalStubs(
     internalWireLayer,
     labelLayer,
@@ -667,6 +719,10 @@ function drawCircuit(data) {
     placed,
     10,
     true
+  );
+
+  setupInterCellTerminalHighlights(
+    svg
   );
 
   setupWireSelection(svg);
@@ -1842,6 +1898,19 @@ function drawTerminalStubs(
 
           stroke:
             drawConfig.nodeStroke,
+
+          className:
+            "terminal-net-dot",
+
+          net,
+
+          layoutInstance:
+            getLayoutInstance(
+              component
+            ),
+
+          ownerId:
+            component.id,
         }
       );
     }
@@ -1870,26 +1939,43 @@ function drawTerminalStubs(
       const labelY =
         pin.y - 9;
 
-      drawComponentValueText(
-        labelLayer,
-        net,
-        labelX,
-        labelY - 15,
-        {
-          size:
-            drawConfig
-              .componentValueFontSize + 15,
+      const terminalLabel =
+        drawComponentValueText(
+          labelLayer,
+          net,
+          labelX,
+          labelY - 15,
+          {
+            size:
+              "11px",
 
-          fill:
-            "#7c2d12",
+            fill:
+              "#7c2d12",
 
-          className:
-            "inductor-value",
-        }
-      );
-      
+            className:
+              "terminal-net-label",
+          }
+        );
 
-      
+      if (terminalLabel) {
+        terminalLabel.setAttribute(
+          "data-net",
+          net
+        );
+
+        terminalLabel.setAttribute(
+          "data-layout-instance",
+          getLayoutInstance(
+            component
+          )
+        );
+
+        terminalLabel.setAttribute(
+          "data-owner-id",
+          component.id || ""
+        );
+      }
+    
     }
 
     return stubEnd;

@@ -960,3 +960,439 @@ function isTerminalNode(node) {
    */
   return node.edges.length === 1;
 }
+
+
+function setupInterCellTerminalHighlights(
+  svg
+) {
+  if (!svg) {
+    return;
+  }
+
+  const terminalDots =
+    Array.from(
+      svg.querySelectorAll(
+        ".terminal-net-dot[data-net][data-layout-instance]"
+      )
+    );
+
+  const terminalLabels =
+    Array.from(
+      svg.querySelectorAll(
+        ".terminal-net-label[data-net][data-layout-instance]"
+      )
+    );
+
+  /*
+   * Determine which nets actually occur in more than
+   * one layout-cell instance.
+   */
+  const instancesByNet =
+    new Map();
+
+  for (
+    const dot of
+    terminalDots
+  ) {
+    const net =
+      dot.getAttribute(
+        "data-net"
+      );
+
+    const layoutInstance =
+      dot.getAttribute(
+        "data-layout-instance"
+      );
+
+    if (
+      !net ||
+      !layoutInstance
+    ) {
+      continue;
+    }
+
+    if (
+      !instancesByNet.has(
+        net
+      )
+    ) {
+      instancesByNet.set(
+        net,
+        new Set()
+      );
+    }
+
+    instancesByNet
+      .get(net)
+      .add(
+        layoutInstance
+      );
+  }
+
+  const interCellNets =
+    new Set(
+      Array.from(
+        instancesByNet.entries()
+      )
+        .filter(
+          (
+            [
+              ,
+              layoutInstances,
+            ]
+          ) =>
+            layoutInstances.size >= 2
+        )
+        .map(
+          ([net]) =>
+            net
+        )
+    );
+
+  /*
+   * Save the original SVG attributes so they can be
+   * restored exactly after the pointer leaves.
+   */
+  const originalAttributes =
+    new Map();
+
+  function saveAttributes(
+    element,
+    attributeNames
+  ) {
+    if (
+      originalAttributes.has(
+        element
+      )
+    ) {
+      return;
+    }
+
+    const values = {};
+
+    for (
+      const attributeName of
+      attributeNames
+    ) {
+      values[attributeName] =
+        element.getAttribute(
+          attributeName
+        );
+    }
+
+    originalAttributes.set(
+      element,
+      values
+    );
+  }
+
+  function restoreElement(
+    element
+  ) {
+    const values =
+      originalAttributes.get(
+        element
+      );
+
+    if (!values) {
+      return;
+    }
+
+    for (
+      const [
+        attributeName,
+        value,
+      ] of Object.entries(
+        values
+      )
+    ) {
+      if (
+        value === null
+      ) {
+        element.removeAttribute(
+          attributeName
+        );
+      } else {
+        element.setAttribute(
+          attributeName,
+          value
+        );
+      }
+    }
+
+    element.style.removeProperty(
+      "filter"
+    );
+
+    element.classList.remove(
+      "is-net-highlighted"
+    );
+  }
+
+  const interCellDots =
+    terminalDots.filter(
+      (dot) =>
+        interCellNets.has(
+          dot.getAttribute(
+            "data-net"
+          )
+        )
+    );
+
+  const interCellLabels =
+    terminalLabels.filter(
+      (label) =>
+        interCellNets.has(
+          label.getAttribute(
+            "data-net"
+          )
+        )
+    );
+
+  for (
+    const dot of
+    interCellDots
+  ) {
+    saveAttributes(
+      dot,
+      [
+        "r",
+        "fill",
+        "stroke",
+        "stroke-width",
+        "opacity",
+      ]
+    );
+
+    dot.style.cursor =
+      "pointer";
+
+    dot.setAttribute(
+      "role",
+      "button"
+    );
+
+    const net =
+      dot.getAttribute(
+        "data-net"
+      );
+
+    const layoutInstance =
+      dot.getAttribute(
+        "data-layout-instance"
+      );
+
+    dot.setAttribute(
+      "aria-label",
+      `${net} terminal in ${layoutInstance}`
+    );
+  }
+
+  for (
+    const label of
+    interCellLabels
+  ) {
+    saveAttributes(
+      label,
+      [
+        "fill",
+        "font-size",
+        "font-weight",
+        "stroke",
+        "stroke-width",
+        "opacity",
+      ]
+    );
+  }
+
+  function clearHighlight() {
+    for (
+      const dot of
+      interCellDots
+    ) {
+      restoreElement(
+        dot
+      );
+    }
+
+    for (
+      const label of
+      interCellLabels
+    ) {
+      restoreElement(
+        label
+      );
+    }
+  }
+
+  function highlightNet(
+    activeNet
+  ) {
+    clearHighlight();
+
+    if (
+      !activeNet ||
+      !interCellNets.has(
+        activeNet
+      )
+    ) {
+      return;
+    }
+
+    for (
+      const dot of
+      interCellDots
+    ) {
+      if (
+        dot.getAttribute(
+          "data-net"
+        ) !== activeNet
+      ) {
+        continue;
+      }
+
+      dot.setAttribute(
+        "r",
+        "9"
+      );
+
+      dot.setAttribute(
+        "fill",
+        "#facc15"
+      );
+
+      dot.setAttribute(
+        "stroke",
+        "#b45309"
+      );
+
+      dot.setAttribute(
+        "stroke-width",
+        "3"
+      );
+
+      dot.style.filter =
+        "drop-shadow(0 0 4px rgba(245, 158, 11, 0.95))";
+
+      dot.classList.add(
+        "is-net-highlighted"
+      );
+    }
+
+    for (
+      const label of
+      interCellLabels
+    ) {
+      if (
+        label.getAttribute(
+          "data-net"
+        ) !== activeNet
+      ) {
+        continue;
+      }
+
+      label.setAttribute(
+        "fill",
+        "#dc2626"
+      );
+
+      label.setAttribute(
+        "font-size",
+        "13px"
+      );
+
+      label.setAttribute(
+        "font-weight",
+        "800"
+      );
+
+      label.setAttribute(
+        "stroke",
+        "#ffffff"
+      );
+
+      label.setAttribute(
+        "stroke-width",
+        "5"
+      );
+
+      label.style.filter =
+        "drop-shadow(0 0 2px rgba(255, 255, 255, 0.9))";
+
+      label.classList.add(
+        "is-net-highlighted"
+      );
+    }
+  }
+
+  for (
+    const dot of
+    interCellDots
+  ) {
+    const net =
+      dot.getAttribute(
+        "data-net"
+      );
+
+    dot.addEventListener(
+      "pointerenter",
+      () => {
+        highlightNet(
+          net
+        );
+      }
+    );
+
+    dot.addEventListener(
+      "pointerleave",
+      (event) => {
+        const relatedDot =
+          event.relatedTarget
+            ?.closest?.(
+              ".terminal-net-dot"
+            );
+
+        if (
+          relatedDot &&
+          relatedDot.getAttribute(
+            "data-net"
+          ) === net
+        ) {
+          return;
+        }
+
+        clearHighlight();
+      }
+    );
+
+    dot.addEventListener(
+      "focus",
+      () => {
+        highlightNet(
+          net
+        );
+      }
+    );
+
+    dot.addEventListener(
+      "blur",
+      clearHighlight
+    );
+  }
+
+  console.log(
+    "Finished inter-cell terminal highlighting",
+    {
+      interCellNets:
+        Array.from(
+          interCellNets
+        ),
+
+      highlightedDots:
+        interCellDots.length,
+
+      highlightedLabels:
+        interCellLabels.length,
+    }
+  );
+}
