@@ -102,41 +102,85 @@ function buildRoutingObstacleBoxes(
   padding = 10
 ) {
   const boxes = [];
-  const consumedIds = new Set();
-  const halfSize = drawConfig.imageSize / 2;
+  const consumedIds =
+    new Set();
 
-  for (const current of elements) {
+  const halfSize =
+    drawConfig.imageSize / 2;
+
+  /*
+   * These values match drawGNDStub():
+   *
+   * x: groundX - 10
+   * y: groundY
+   * width: imageSize / 2
+   * height: imageSize / 2
+   */
+  const groundImageWidth =
+    drawConfig.imageSize / 2;
+
+  const groundImageHeight =
+    drawConfig.imageSize / 2;
+
+  const groundImageOffsetX =
+    10;
+
+  for (
+    const current of
+       elements
+  ) {
     if (
-      consumedIds.has(current.id) ||
-      getElementType(current) !== "JJ"
+      consumedIds.has(
+        current.id
+      ) ||
+      getElementType(
+        current
+      ) !== "JJ"
     ) {
       continue;
     }
 
-    const resistor = elements.find(
-      (candidate) =>
-        !consumedIds.has(candidate.id) &&
-        isJJResistorPair(current, candidate)
-    );
+    const resistor =
+      elements.find(
+        (candidate) =>
+          !consumedIds.has(
+            candidate.id
+          ) &&
+          isJJResistorPair(
+            current,
+            candidate
+          )
+      );
 
     if (!resistor) {
       continue;
     }
 
-    consumedIds.add(current.id);
-    consumedIds.add(resistor.id);
-
-    const ownerIds = new Set([
-      current.id,
-      resistor.id,
-    ]);
-
-    const geometry = getJJPairGeometry(
-      current,
-      resistor,
-      25
+    consumedIds.add(
+      current.id
     );
 
+    consumedIds.add(
+      resistor.id
+    );
+
+    const ownerIds =
+      new Set([
+        current.id,
+        resistor.id,
+      ]);
+
+    const geometry =
+      getJJPairGeometry(
+        current,
+        resistor,
+        25
+      );
+
+    /*
+     * Main obstacle around the complete JJ/resistor
+     * subcircuit.
+     */
     boxes.push({
       left:
         Math.min(
@@ -153,6 +197,7 @@ function buildRoutingObstacleBoxes(
         ) +
         halfSize +
         padding,
+
       top:
         geometry.topMiddle.y,
 
@@ -161,23 +206,97 @@ function buildRoutingObstacleBoxes(
 
       ownerIds,
 
-      isJRPair: true,
+      isJRPair:
+        true,
     });
+
+    /*
+     * The ground symbol is not part of elements, so it
+     * requires its own virtual obstacle box.
+     *
+     * Its coordinates reproduce the image placement
+     * used by drawGNDStub().
+     */
+    if (
+      current.net_out ===
+      "GND!"
+    ) {
+      const groundX =
+        geometry.bottomMiddle.x;
+
+      const groundY =
+        geometry.bottomMiddle.y;
+
+      const imageLeft =
+        groundX -
+        groundImageOffsetX;
+
+      const imageRight =
+        imageLeft +
+        groundImageWidth;
+
+      const imageTop =
+        groundY;
+
+      const imageBottom =
+        imageTop +
+        groundImageHeight;
+
+      boxes.push({
+        left:
+          imageLeft -
+          padding,
+
+        right:
+          imageRight +
+          padding,
+
+        top:
+          imageTop -
+          padding,
+
+        bottom:
+          imageBottom +
+          padding,
+
+        ownerIds,
+
+        isGroundSymbol:
+          true,
+
+        isJRPairGround:
+          true,
+      });
+    }
   }
 
-  for (const element of elements) {
+  /*
+   * Build normal component obstacle boxes.
+   */
+  for (
+    const element of
+    elements
+  ) {
     if (
-      consumedIds.has(element.id) ||
-      excludedIds.has(element.id)
+      consumedIds.has(
+        element.id
+      ) ||
+      excludedIds.has(
+        element.id
+      )
     ) {
       continue;
     }
 
     const elementPadding =
-      getElementType(element) === "L"
+      getElementType(
+        element
+      ) === "L"
         ? Math.max(
             padding,
-            drawConfig.wireStrokeWidth + 14
+            drawConfig
+              .wireStrokeWidth +
+              14
           )
         : padding;
 
@@ -186,21 +305,26 @@ function buildRoutingObstacleBoxes(
         element.x -
         halfSize -
         elementPadding,
+
       right:
         element.x +
         halfSize +
         elementPadding,
+
       top:
         element.y -
         halfSize -
         elementPadding,
+
       bottom:
         element.y +
         halfSize +
         elementPadding,
-      ownerIds: new Set([
-        element.id,
-      ]),
+
+      ownerIds:
+        new Set([
+          element.id,
+        ]),
     });
   }
 

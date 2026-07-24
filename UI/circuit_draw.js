@@ -731,31 +731,138 @@ function drawCircuit(data) {
 }
 
 function setupWireSelection(svg) {
-  svg.querySelectorAll(".edge").forEach((wire) => {
-    wire.addEventListener("click", (event) => {
-      event.stopPropagation();
+  if (!svg) {
+    return;
+  }
 
-      clearSelectedWires(svg);
+  const wires =
+    Array.from(
+      svg.querySelectorAll(
+        ".edge"
+      )
+    );
 
-      const connected =
-        collectConnectedWireChain(
-          wire,
-          svg.querySelectorAll(".edge")
+  /*
+   * Contains every segment belonging to the currently
+   * selected connected wire chain.
+   */
+  let selectedWires =
+    new Set();
+
+  function restoreWire(
+    wire
+  ) {
+    wire.setAttribute(
+      "stroke",
+      wire.dataset.originalStroke ||
+        drawConfig.wireStroke
+    );
+
+    wire.setAttribute(
+      "stroke-width",
+      drawConfig.wireStrokeWidth
+    );
+
+    wire.classList.remove(
+      "is-wire-selected"
+    );
+  }
+
+  function clearCurrentSelection() {
+    for (
+      const selectedWire of
+      selectedWires
+    ) {
+      restoreWire(
+        selectedWire
+      );
+    }
+
+    selectedWires.clear();
+  }
+
+  function selectWireChain(
+    startingWire
+  ) {
+    const connected =
+      collectConnectedWireChain(
+        startingWire,
+        wires
+      );
+
+    selectedWires =
+      new Set(
+        connected
+      );
+
+    for (
+      const segment of
+      selectedWires
+    ) {
+      segment.setAttribute(
+        "stroke",
+        "red"
+      );
+
+      segment.setAttribute(
+        "stroke-width",
+        Number(
+          drawConfig.wireStrokeWidth
+        ) + 2
+      );
+
+      segment.classList.add(
+        "is-wire-selected"
+      );
+    }
+  }
+
+  for (
+    const wire of
+    wires
+  ) {
+    wire.addEventListener(
+      "mousedown",
+      (event) => {
+        /*
+         * Prevent clicking a wire from starting the
+         * board-panning interaction.
+         */
+        event.stopPropagation();
+      }
+    );
+
+    wire.addEventListener(
+      "click",
+      (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        /*
+         * Clicking any segment in the currently
+         * selected chain turns the entire chain off.
+         */
+        if (
+          selectedWires.has(
+            wire
+          )
+        ) {
+          clearCurrentSelection();
+          return;
+        }
+
+        /*
+         * Clicking a different wire replaces the
+         * current selection.
+         */
+        clearCurrentSelection();
+
+        selectWireChain(
+          wire
         );
-
-      connected.forEach((segment) => {
-        segment.setAttribute(
-          "stroke",
-          "red"
-        );
-
-        segment.setAttribute(
-          "stroke-width",
-          Number(drawConfig.wireStrokeWidth) + 2
-        );
-      });
-    });
-  });
+      }
+    );
+  }
 }
 
 
@@ -1103,7 +1210,7 @@ function drawGNDStub(
   x,
   y
 ) {
-  const stubLength = 10;
+  const stubLength = 20;
 
   const stubEnd = {
     x: x,
@@ -1130,7 +1237,7 @@ function drawGNDStub(
   const image = createSvgElement("image", {
     href: img_ref,
     x: x - 10,
-    y: y,
+    y: y + 10,
     width: drawConfig.imageSize/2,
     height: drawConfig.imageSize/2,
     class: "component-image",

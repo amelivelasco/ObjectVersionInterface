@@ -353,25 +353,37 @@ function calculatePlacementCost(
       continue;
     }
 
+    /*
+    * Use abstract grid distances.
+    *
+    * Visual spacing should not change element ordering.
+    */
     const horizontalDistance =
       Math.abs(
         first.column -
         second.column
-      ) *
-      drawConfig.layoutCellElementGapX;
+      );
 
     const verticalDistance =
       Math.abs(
         first.row -
         second.row
-      ) *
-      drawConfig.layoutCellElementGapY;
+      );
+
+    /*
+    * Fixed weights may be adjusted independently of the
+    * actual SVG spacing.
+    */
+    const horizontalWeight = 1;
+    const verticalWeight = 1.15;
 
     cost +=
       connection.weight *
       (
-        horizontalDistance +
-        verticalDistance
+        horizontalDistance *
+          horizontalWeight +
+        verticalDistance *
+          verticalWeight
       );
   }
 

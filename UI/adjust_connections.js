@@ -1603,6 +1603,39 @@ function drawConnectionsInsideLayoutCells(
       }
     }
 
+    /*
+    * Register JR rails before routing.
+    *
+    * This lets findShortestOrthogonalRoute() avoid them
+    * during the actual search rather than modifying the
+    * route afterward.
+    */
+    for (const rail of jrRails) {
+      routedSegments.push({
+        a: {
+          x: rail.minX,
+          y: rail.y,
+        },
+
+        b: {
+          x: rail.maxX,
+          y: rail.y,
+        },
+
+        net:
+          rail.net,
+
+        kind:
+          "jr-rail-obstacle",
+
+        ownerId:
+          rail.ownerId,
+
+        isJRRail:
+          true,
+      });
+    }
+
     for (
       const [
         net,

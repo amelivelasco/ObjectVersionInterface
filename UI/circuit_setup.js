@@ -28,18 +28,18 @@ const drawConfig = {
   layoutCellMarginX: 70,
   layoutCellMarginY: 70,
 
-  layoutCellGapX: 70,
-  layoutCellGapY: 70,
+  layoutCellGapX: 90,
+  layoutCellGapY: 90,
 
-  layoutCellPaddingX: 45,
-  layoutCellPaddingTop: 75,
-  layoutCellPaddingBottom: 40,
+  layoutCellPaddingX: 65,
+  layoutCellPaddingTop: 95,
+  layoutCellPaddingBottom: 60,
 
-  layoutCellElementGapX: 105,
-  layoutCellElementGapY: 115,
+  layoutCellElementGapX: 125,
+  layoutCellElementGapY: 135,
 
-  layoutCellMinWidth: 320,
-  layoutCellMinHeight: 230,
+  layoutCellMinWidth: 340,
+  layoutCellMinHeight: 250,
 
   // Start a new row of layout cells after this width.
   layoutCellRowWidth: 1500,
