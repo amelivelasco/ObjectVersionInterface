@@ -984,8 +984,8 @@ function setupInterCellTerminalHighlights(
     );
 
   /*
-   * Determine which nets actually occur in more than
-   * one layout-cell instance.
+   * Determine which nets appear in at least two
+   * different layout-cell instances.
    */
   const instancesByNet =
     new Map();
@@ -1049,9 +1049,29 @@ function setupInterCellTerminalHighlights(
         )
     );
 
+  const interCellDots =
+    terminalDots.filter(
+      (dot) =>
+        interCellNets.has(
+          dot.getAttribute(
+            "data-net"
+          )
+        )
+    );
+
+  const interCellLabels =
+    terminalLabels.filter(
+      (label) =>
+        interCellNets.has(
+          label.getAttribute(
+            "data-net"
+          )
+        )
+    );
+
   /*
-   * Save the original SVG attributes so they can be
-   * restored exactly after the pointer leaves.
+   * Save the original SVG attributes so every dot
+   * and label can be restored exactly.
    */
   const originalAttributes =
     new Map();
@@ -1129,26 +1149,9 @@ function setupInterCellTerminalHighlights(
     );
   }
 
-  const interCellDots =
-    terminalDots.filter(
-      (dot) =>
-        interCellNets.has(
-          dot.getAttribute(
-            "data-net"
-          )
-        )
-    );
-
-  const interCellLabels =
-    terminalLabels.filter(
-      (label) =>
-        interCellNets.has(
-          label.getAttribute(
-            "data-net"
-          )
-        )
-    );
-
+  /*
+   * Preserve the initial dot and label appearance.
+   */
   for (
     const dot of
     interCellDots
@@ -1167,9 +1170,22 @@ function setupInterCellTerminalHighlights(
     dot.style.cursor =
       "pointer";
 
+    /*
+     * Remove the browser's red or blue rectangular
+     * focus indicator. The custom yellow highlight
+     * remains visible.
+     */
+    dot.style.outline =
+      "none";
+
     dot.setAttribute(
       "role",
       "button"
+    );
+
+    dot.setAttribute(
+      "aria-pressed",
+      "false"
     );
 
     const net =
@@ -1205,13 +1221,43 @@ function setupInterCellTerminalHighlights(
     );
   }
 
-  function clearHighlight() {
+  /*
+   * The net currently locked by a click.
+   */
+  let lockedNet = null;
+
+  /*
+   * The net currently under the pointer.
+   */
+  let hoveredNet = null;
+
+  /*
+   * When a highlighted dot is clicked again to turn
+   * it off, ignore its hover state until the pointer
+   * actually leaves that dot.
+   */
+  let ignoreHoverUntilLeave =
+    null;
+
+  function clearVisualHighlight() {
     for (
       const dot of
       interCellDots
     ) {
       restoreElement(
         dot
+      );
+
+      const dotNet =
+        dot.getAttribute(
+          "data-net"
+        );
+
+      dot.setAttribute(
+        "aria-pressed",
+        lockedNet === dotNet
+          ? "true"
+          : "false"
       );
     }
 
@@ -1225,10 +1271,10 @@ function setupInterCellTerminalHighlights(
     }
   }
 
-  function highlightNet(
+  function applyHighlight(
     activeNet
   ) {
-    clearHighlight();
+    clearVisualHighlight();
 
     if (
       !activeNet ||
@@ -1239,6 +1285,9 @@ function setupInterCellTerminalHighlights(
       return;
     }
 
+    /*
+     * Highlight every matching terminal dot.
+     */
     for (
       const dot of
       interCellDots
@@ -1279,6 +1328,9 @@ function setupInterCellTerminalHighlights(
       );
     }
 
+    /*
+     * Highlight every matching terminal label.
+     */
     for (
       const label of
       interCellLabels
@@ -1325,6 +1377,58 @@ function setupInterCellTerminalHighlights(
     }
   }
 
+  function refreshHighlight() {
+    /*
+     * Hover temporarily takes priority over the
+     * clicked/locked net.
+     *
+     * When hover ends, the locked net returns.
+     */
+    const activeNet =
+      hoveredNet ||
+      lockedNet;
+
+    applyHighlight(
+      activeNet
+    );
+  }
+
+  function toggleLockedNet(
+    net
+  ) {
+    if (
+      lockedNet === net
+    ) {
+      /*
+       * Clicking the already locked net turns the
+       * highlight completely off.
+       */
+      lockedNet = null;
+      hoveredNet = null;
+
+      /*
+       * The pointer is still over the dot, so prevent
+       * hover from immediately turning it back on.
+       */
+      ignoreHoverUntilLeave =
+        net;
+
+      refreshHighlight();
+      return;
+    }
+
+    /*
+     * Lock the clicked net.
+     */
+    lockedNet = net;
+    hoveredNet = null;
+
+    ignoreHoverUntilLeave =
+      null;
+
+    refreshHighlight();
+  }
+
   for (
     const dot of
     interCellDots
@@ -1334,49 +1438,127 @@ function setupInterCellTerminalHighlights(
         "data-net"
       );
 
+    /*
+     * Prevent clicking a terminal from starting board
+     * panning or another SVG mouse interaction.
+     */
+    dot.addEventListener(
+      "mousedown",
+      (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    );
+
     dot.addEventListener(
       "pointerenter",
       () => {
-        highlightNet(
+        /*
+         * This net was just clicked off. It must stay
+         * off until the pointer leaves the dot.
+         */
+        if (
+          ignoreHoverUntilLeave ===
           net
-        );
+        ) {
+          return;
+        }
+
+        hoveredNet = net;
+
+        refreshHighlight();
       }
     );
 
     dot.addEventListener(
       "pointerleave",
-      (event) => {
-        const relatedDot =
-          event.relatedTarget
-            ?.closest?.(
-              ".terminal-net-dot"
-            );
-
+      () => {
         if (
-          relatedDot &&
-          relatedDot.getAttribute(
-            "data-net"
-          ) === net
+          ignoreHoverUntilLeave ===
+          net
         ) {
-          return;
+          ignoreHoverUntilLeave =
+            null;
         }
 
-        clearHighlight();
+        if (
+          hoveredNet === net
+        ) {
+          hoveredNet = null;
+        }
+
+        refreshHighlight();
+      }
+    );
+
+    dot.addEventListener(
+      "click",
+      (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        toggleLockedNet(
+          net
+        );
+
+        /*
+         * Prevent the browser focus rectangle while
+         * leaving the custom highlight state intact.
+         */
+        dot.blur();
       }
     );
 
     dot.addEventListener(
       "focus",
       () => {
-        highlightNet(
+        if (
+          ignoreHoverUntilLeave ===
           net
-        );
+        ) {
+          return;
+        }
+
+        hoveredNet = net;
+
+        refreshHighlight();
       }
     );
 
     dot.addEventListener(
       "blur",
-      clearHighlight
+      () => {
+        if (
+          hoveredNet === net
+        ) {
+          hoveredNet = null;
+        }
+
+        refreshHighlight();
+      }
+    );
+
+    /*
+     * Enter and Space also toggle the persistent
+     * highlight for keyboard users.
+     */
+    dot.addEventListener(
+      "keydown",
+      (event) => {
+        if (
+          event.key !== "Enter" &&
+          event.key !== " "
+        ) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        toggleLockedNet(
+          net
+        );
+      }
     );
   }
 

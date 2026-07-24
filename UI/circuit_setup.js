@@ -263,17 +263,6 @@ function setupPanZoom(svg, fullWidth, fullHeight) {
     start = null;
   });
 
-  svg.addEventListener("dblclick", () => {
-    viewBox = {
-      x: 0,
-      y: 0,
-      width: fullWidth,
-      height: fullHeight,
-    };
-
-    applyViewBox();
-  });
-
   applyViewBox();
 }
 
