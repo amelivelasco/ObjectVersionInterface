@@ -949,3 +949,1247 @@ function addWireLayerToRoutedSegments(
     }
   }
 }
+
+
+function normalizePolarityNet(
+  net
+) {
+  return String(
+    net ?? ""
+  )
+    .trim()
+    .toUpperCase();
+}
+
+function getBiasPolarityPoint(
+  bias
+) {
+  const possiblePoints = [
+    bias?.biasNetJoin,
+    bias?.outputPin,
+    bias,
+  ];
+
+  for (
+    const point of
+    possiblePoints
+  ) {
+    if (
+      Number.isFinite(
+        point?.x
+      ) &&
+      Number.isFinite(
+        point?.y
+      )
+    ) {
+      return {
+        x: point.x,
+        y: point.y,
+      };
+    }
+  }
+
+  return null;
+}
+
+function getPolarityDistance(
+  first,
+  second
+) {
+  if (
+    !first ||
+    !second
+  ) {
+    return Infinity;
+  }
+
+  return (
+    Math.abs(
+      first.x -
+      second.x
+    ) +
+    Math.abs(
+      first.y -
+      second.y
+    )
+  );
+}
+
+function drawPolaritySign(
+  labelLayer,
+  sign,
+  point,
+  className = ""
+) {
+  if (
+    !point ||
+    !Number.isFinite(
+      point.x
+    ) ||
+    !Number.isFinite(
+      point.y
+    )
+  ) {
+    return;
+  }
+
+  drawComponentValueText(
+    labelLayer,
+    sign,
+    point.x,
+    point.y,
+    {
+      size:
+        "15px",
+
+      weight:
+        "900",
+
+      fill:
+        sign === "+"
+          ? "#15803d"
+          : "#b91c1c",
+
+      background:
+        "#f8fafc",
+
+      backgroundWidth:
+        3,
+
+      className: [
+        "current-polarity-sign",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    }
+  );
+}
+
+function createPolarityComponent(
+  element,
+  options = {}
+) {
+  const halfSize =
+    drawConfig.imageSize / 2;
+
+  const type =
+    getElementType(
+      element
+    );
+
+  if (
+    type === "IB"
+  ) {
+    return null;
+  }
+
+  /*
+   * Inductors use their actual left/right pins.
+   */
+  if (
+    type === "L"
+  ) {
+    const inputPoint =
+      element.inputPin || {
+        x:
+          element.x -
+          halfSize,
+
+        y:
+          element.y,
+      };
+
+    const outputPoint =
+      element.outputPin || {
+        x:
+          element.x +
+          halfSize,
+
+        y:
+          element.y,
+      };
+
+    return {
+      id:
+        element.id,
+
+      kind:
+        "inductor",
+
+      elements: [
+        element,
+      ],
+
+      center: {
+        x:
+          element.x,
+
+        y:
+          element.y,
+      },
+
+      sideA: {
+        name:
+          "input",
+
+        net:
+          element.net_in,
+
+        netKey:
+          normalizePolarityNet(
+            element.net_in
+          ),
+
+        point:
+          inputPoint,
+      },
+
+      sideB: {
+        name:
+          "output",
+
+        net:
+          element.net_out,
+
+        netKey:
+          normalizePolarityNet(
+            element.net_out
+          ),
+
+        point:
+          outputPoint,
+      },
+    };
+  }
+
+  /*
+   * A standalone resistor or JJ is vertical.
+   */
+  if (
+    type === "R" ||
+    type === "JJ"
+  ) {
+    return {
+      id:
+        element.id,
+
+      kind:
+        type === "R"
+          ? "resistor"
+          : "jj",
+
+      elements: [
+        element,
+      ],
+
+      center: {
+        x:
+          element.x,
+
+        y:
+          element.y,
+      },
+
+      sideA: {
+        name:
+          "top",
+
+        net:
+          element.net_in,
+
+        netKey:
+          normalizePolarityNet(
+            element.net_in
+          ),
+
+        point: {
+          x:
+            element.x,
+
+          y:
+            element.y -
+            halfSize,
+        },
+      },
+
+      sideB: {
+        name:
+          "bottom",
+
+        net:
+          element.net_out,
+
+        netKey:
+          normalizePolarityNet(
+            element.net_out
+          ),
+
+        point: {
+          x:
+            element.x,
+
+          y:
+            element.y +
+            halfSize,
+        },
+      },
+    };
+  }
+
+  /*
+   * Generic fallback for any other two-terminal
+   * component.
+   */
+  if (
+    element.net_in &&
+    element.net_out
+  ) {
+    const inputPoint =
+      element.inputPin || {
+        x:
+          element.x -
+          halfSize,
+
+        y:
+          element.y,
+      };
+
+    const outputPoint =
+      element.outputPin || {
+        x:
+          element.x +
+          halfSize,
+
+        y:
+          element.y,
+      };
+
+    return {
+      id:
+        element.id,
+
+      kind:
+        "generic",
+
+      elements: [
+        element,
+      ],
+
+      center: {
+        x:
+          element.x,
+
+        y:
+          element.y,
+      },
+
+      sideA: {
+        name:
+          "input",
+
+        net:
+          element.net_in,
+
+        netKey:
+          normalizePolarityNet(
+            element.net_in
+          ),
+
+        point:
+          inputPoint,
+      },
+
+      sideB: {
+        name:
+          "output",
+
+        net:
+          element.net_out,
+
+        netKey:
+          normalizePolarityNet(
+            element.net_out
+          ),
+
+        point:
+          outputPoint,
+      },
+    };
+  }
+
+  return null;
+}
+
+function buildPolarityComponents(
+  placed
+) {
+  const components = [];
+  const consumedIds =
+    new Set();
+
+  for (
+    let index = 0;
+    index < placed.length;
+    index++
+  ) {
+    const current =
+      placed[index];
+
+    if (
+      consumedIds.has(
+        current.id
+      ) ||
+      isBiasElement(
+        current
+      )
+    ) {
+      continue;
+    }
+
+    const currentType =
+      getElementType(
+        current
+      );
+
+    /*
+     * Treat a JJ and its generated resistor as one
+     * electrical edge with a shared top and bottom net.
+     */
+    if (
+      currentType === "JJ"
+    ) {
+      const resistor =
+        placed.find(
+          (candidate) =>
+            !consumedIds.has(
+              candidate.id
+            ) &&
+            getLayoutInstance(
+              candidate
+            ) ===
+              getLayoutInstance(
+                current
+              ) &&
+            isJJResistorPair(
+              current,
+              candidate
+            )
+        );
+
+      if (resistor) {
+        const geometry =
+          getJJPairGeometry(
+            current,
+            resistor,
+            25
+          );
+
+        components.push({
+          id:
+            `pair:${current.id}`,
+
+          kind:
+            "jr-pair",
+
+          elements: [
+            current,
+            resistor,
+          ],
+
+          jj:
+            current,
+
+          resistor,
+
+          geometry,
+
+          center: {
+            x:
+              (
+                current.x +
+                resistor.x
+              ) / 2,
+
+            y:
+              (
+                current.y +
+                resistor.y
+              ) / 2,
+          },
+
+          sideA: {
+            name:
+              "top",
+
+            net:
+              current.net_in,
+
+            netKey:
+              normalizePolarityNet(
+                current.net_in
+              ),
+
+            point:
+              geometry.topMiddle,
+          },
+
+          sideB: {
+            name:
+              "bottom",
+
+            net:
+              current.net_out,
+
+            netKey:
+              normalizePolarityNet(
+                current.net_out
+              ),
+
+            point:
+              geometry.bottomMiddle,
+          },
+        });
+
+        consumedIds.add(
+          current.id
+        );
+
+        consumedIds.add(
+          resistor.id
+        );
+
+        continue;
+      }
+    }
+
+    const component =
+      createPolarityComponent(
+        current
+      );
+
+    if (component) {
+      components.push(
+        component
+      );
+    }
+
+    consumedIds.add(
+      current.id
+    );
+  }
+
+  return components;
+}
+
+function buildPolarityNetGraph(
+  components
+) {
+  const graph =
+    new Map();
+
+  function ensureNet(
+    net
+  ) {
+    if (
+      !net ||
+      graph.has(net)
+    ) {
+      return;
+    }
+
+    graph.set(
+      net,
+      new Set()
+    );
+  }
+
+  function connectNets(
+    firstNet,
+    secondNet
+  ) {
+    if (
+      !firstNet ||
+      !secondNet
+    ) {
+      return;
+    }
+
+    ensureNet(
+      firstNet
+    );
+
+    ensureNet(
+      secondNet
+    );
+
+    if (
+      firstNet ===
+      secondNet
+    ) {
+      return;
+    }
+
+    graph
+      .get(firstNet)
+      .add(secondNet);
+
+    graph
+      .get(secondNet)
+      .add(firstNet);
+  }
+
+  for (
+    const component of
+    components
+  ) {
+    connectNets(
+      component.sideA.netKey,
+      component.sideB.netKey
+    );
+  }
+
+  return graph;
+}
+
+function calculateBiasNetDistances(
+  sourceNet,
+  graph
+) {
+  const distances =
+    new Map();
+
+  if (!sourceNet) {
+    return distances;
+  }
+
+  distances.set(
+    sourceNet,
+    0
+  );
+
+  const queue = [
+    sourceNet,
+  ];
+
+  for (
+    let queueIndex = 0;
+    queueIndex <
+      queue.length;
+    queueIndex++
+  ) {
+    const currentNet =
+      queue[queueIndex];
+
+    const currentDistance =
+      distances.get(
+        currentNet
+      );
+
+    const neighbours =
+      graph.get(
+        currentNet
+      ) || [];
+
+    for (
+      const neighbour of
+      neighbours
+    ) {
+      if (
+        distances.has(
+          neighbour
+        )
+      ) {
+        continue;
+      }
+
+      distances.set(
+        neighbour,
+        currentDistance + 1
+      );
+
+      queue.push(
+        neighbour
+      );
+    }
+  }
+
+  return distances;
+}
+
+function buildPolarityBiases(
+  placed,
+  graph
+) {
+  return placed
+    .filter(
+      (element) =>
+        isBiasElement(
+          element
+        ) &&
+        element.net_out
+    )
+    .map(
+      (bias) => {
+        const sourceNet =
+          normalizePolarityNet(
+            bias.net_out
+          );
+
+        return {
+          element:
+            bias,
+
+          sourceNet,
+
+          point:
+            getBiasPolarityPoint(
+              bias
+            ),
+
+          distances:
+            calculateBiasNetDistances(
+              sourceNet,
+              graph
+            ),
+        };
+      }
+    );
+}
+
+function chooseClosestBiasForComponent(
+  component,
+  biases
+) {
+  let bestBias =
+    null;
+
+  for (
+    const bias of
+    biases
+  ) {
+    const distanceA =
+      bias.distances.has(
+        component.sideA.netKey
+      )
+        ? bias.distances.get(
+            component.sideA.netKey
+          )
+        : Infinity;
+
+    const distanceB =
+      bias.distances.has(
+        component.sideB.netKey
+      )
+        ? bias.distances.get(
+            component.sideB.netKey
+          )
+        : Infinity;
+
+    const graphDistance =
+      Math.min(
+        distanceA,
+        distanceB
+      );
+
+    if (
+      !Number.isFinite(
+        graphDistance
+      )
+    ) {
+      continue;
+    }
+
+    const physicalDistance =
+      getPolarityDistance(
+        bias.point,
+        component.center
+      );
+
+    if (
+      !bestBias ||
+      graphDistance <
+        bestBias.graphDistance ||
+      (
+        graphDistance ===
+          bestBias.graphDistance &&
+        physicalDistance <
+          bestBias.physicalDistance
+      )
+    ) {
+      bestBias = {
+        ...bias,
+
+        graphDistance,
+        physicalDistance,
+
+        distanceA,
+        distanceB,
+      };
+    }
+  }
+
+  /*
+   * A disconnected component still receives signs.
+   * Use the physically closest bias as a fallback.
+   */
+  if (
+    !bestBias &&
+    biases.length > 0
+  ) {
+    const closest =
+      [...biases].sort(
+        (first, second) =>
+          getPolarityDistance(
+            first.point,
+            component.center
+          ) -
+          getPolarityDistance(
+            second.point,
+            component.center
+          )
+      )[0];
+
+    bestBias = {
+      ...closest,
+
+      graphDistance:
+        Infinity,
+
+      physicalDistance:
+        getPolarityDistance(
+          closest.point,
+          component.center
+        ),
+
+      distanceA:
+        Infinity,
+
+      distanceB:
+        Infinity,
+    };
+  }
+
+  return bestBias;
+}
+
+function choosePositiveComponentSide(
+  component,
+  bias
+) {
+  if (!bias) {
+    return null;
+  }
+
+  /*
+   * Whichever net is fewer component hops from the
+   * bias is the positive/current-entry side.
+   */
+  if (
+    bias.distanceA <
+    bias.distanceB
+  ) {
+    return component.sideA;
+  }
+
+  if (
+    bias.distanceB <
+    bias.distanceA
+  ) {
+    return component.sideB;
+  }
+
+  /*
+   * Direct bias-net matches take priority in ties.
+   */
+  const sideAIsBiasNet =
+    component.sideA.netKey ===
+    bias.sourceNet;
+
+  const sideBIsBiasNet =
+    component.sideB.netKey ===
+    bias.sourceNet;
+
+  if (
+    sideAIsBiasNet &&
+    !sideBIsBiasNet
+  ) {
+    return component.sideA;
+  }
+
+  if (
+    sideBIsBiasNet &&
+    !sideAIsBiasNet
+  ) {
+    return component.sideB;
+  }
+
+  /*
+   * Cycles can give both nets the same graph distance.
+   * In that case, use their physical position relative
+   * to the selected bias.
+   */
+  const physicalA =
+    getPolarityDistance(
+      bias.point,
+      component.sideA.point
+    );
+
+  const physicalB =
+    getPolarityDistance(
+      bias.point,
+      component.sideB.point
+    );
+
+  if (
+    physicalB <
+    physicalA
+  ) {
+    return component.sideB;
+  }
+
+  return component.sideA;
+}
+
+function getOutwardSignPoint(
+  componentCenter,
+  terminalPoint,
+  offset = 10
+) {
+  const dx =
+    terminalPoint.x -
+    componentCenter.x;
+
+  const dy =
+    terminalPoint.y -
+    componentCenter.y;
+
+  if (
+    Math.abs(dx) >=
+    Math.abs(dy)
+  ) {
+    return {
+      x:
+        terminalPoint.x +
+        (
+          dx < 0
+            ? -offset
+            : offset
+        ),
+
+      y:
+        terminalPoint.y,
+    };
+  }
+
+  return {
+    x:
+      terminalPoint.x,
+
+    y:
+      terminalPoint.y +
+      (
+        dy < 0
+          ? -offset
+          : offset
+      ),
+  };
+}
+
+function drawPolarityForComponent(
+  labelLayer,
+  component,
+  positiveSide
+) {
+  if (
+    !labelLayer ||
+    !component ||
+    !component.sideA ||
+    !component.sideB
+  ) {
+    return;
+  }
+
+  /*
+   * Hard rule for JJ/resistor subcircuits:
+   *
+   * If one rail is ground, that rail must always be
+   * negative. The opposite rail is always positive.
+   *
+   * This overrides the closest-bias calculation.
+   */
+  if (
+    component.kind ===
+    "jr-pair"
+  ) {
+    const sideAIsGround =
+      isGroundNet(
+        component.sideA.net
+      );
+
+    const sideBIsGround =
+      isGroundNet(
+        component.sideB.net
+      );
+
+    if (
+      sideAIsGround &&
+      !sideBIsGround
+    ) {
+      positiveSide =
+        component.sideB;
+    } else if (
+      sideBIsGround &&
+      !sideAIsGround
+    ) {
+      positiveSide =
+        component.sideA;
+    }
+  }
+
+  if (!positiveSide) {
+    return;
+  }
+
+  const negativeSide =
+    positiveSide ===
+      component.sideA
+      ? component.sideB
+      : component.sideA;
+
+  if (
+    component.kind ===
+    "jr-pair"
+  ) {
+    const {
+      jj,
+      resistor,
+    } = component;
+
+    const halfSize =
+      drawConfig.imageSize / 2;
+
+    /*
+     * The sign on each rail is determined by which
+     * side was selected as positive.
+     */
+    const sideAIsPositive =
+      positiveSide ===
+      component.sideA;
+
+    const sideASign =
+      sideAIsPositive
+        ? "+"
+        : "−";
+
+    const sideBSign =
+      sideAIsPositive
+        ? "−"
+        : "+";
+
+    /*
+     * sideA is normally the top rail and sideB is
+     * normally the bottom rail.
+     *
+     * Use their names so this remains correct even if
+     * the component data changes ordering.
+     */
+    const topSign =
+      component.sideA.name ===
+      "top"
+        ? sideASign
+        : sideBSign;
+
+    const bottomSign =
+      component.sideA.name ===
+      "bottom"
+        ? sideASign
+        : sideBSign;
+
+    const verticalOffset =
+      9;
+
+    /*
+     * JJ signs.
+     */
+    drawPolaritySign(
+      labelLayer,
+      topSign,
+      {
+        x:
+          jj.x - 11,
+
+        y:
+          jj.y -
+          halfSize -
+          verticalOffset,
+      },
+      "jj-polarity-top"
+    );
+
+    drawPolaritySign(
+      labelLayer,
+      bottomSign,
+      {
+        x:
+          jj.x - 11,
+
+        y:
+          jj.y +
+          halfSize +
+          verticalOffset,
+      },
+      "jj-polarity-bottom"
+    );
+
+    /*
+     * Resistor signs follow the same top/bottom
+     * polarity as the JJ because they share the rails.
+     */
+    drawPolaritySign(
+      labelLayer,
+      topSign,
+      {
+        x:
+          resistor.x + 11,
+
+        y:
+          resistor.y -
+          halfSize -
+          verticalOffset,
+      },
+      "resistor-polarity-top"
+    );
+
+    drawPolaritySign(
+      labelLayer,
+      bottomSign,
+      {
+        x:
+          resistor.x + 11,
+
+        y:
+          resistor.y +
+          halfSize +
+          verticalOffset,
+      },
+      "resistor-polarity-bottom"
+    );
+
+    return;
+  }
+
+  /*
+   * Non-JR components keep the normal closest-bias
+   * polarity behavior.
+   */
+  const positivePoint =
+    getOutwardSignPoint(
+      component.center,
+      positiveSide.point,
+      10
+    );
+
+  const negativePoint =
+    getOutwardSignPoint(
+      component.center,
+      negativeSide.point,
+      10
+    );
+
+  drawPolaritySign(
+    labelLayer,
+    "+",
+    positivePoint,
+    `${component.kind}-polarity-positive`
+  );
+
+  drawPolaritySign(
+    labelLayer,
+    "−",
+    negativePoint,
+    `${component.kind}-polarity-negative`
+  );
+}
+
+function drawBiasBasedPolaritySigns(
+  labelLayer,
+  placed
+) {
+  if (
+    !labelLayer ||
+    !Array.isArray(
+      placed
+    )
+  ) {
+    return;
+  }
+
+  /*
+   * Remove old signs before redrawing.
+   */
+  labelLayer
+    .querySelectorAll(
+      ".current-polarity-sign"
+    )
+    .forEach(
+      (sign) =>
+        sign.remove()
+    );
+
+  const components =
+    buildPolarityComponents(
+      placed
+    );
+
+  const graph =
+    buildPolarityNetGraph(
+      components
+    );
+
+  const biases =
+    buildPolarityBiases(
+      placed,
+      graph
+    );
+
+  if (
+    biases.length === 0
+  ) {
+    console.warn(
+      "No bias elements were available for polarity calculation."
+    );
+
+    return;
+  }
+
+  for (
+    const component of
+    components
+  ) {
+    if (
+      !component.sideA.netKey ||
+      !component.sideB.netKey
+    ) {
+      continue;
+    }
+
+    const closestBias =
+      chooseClosestBiasForComponent(
+        component,
+        biases
+      );
+
+    const positiveSide =
+      choosePositiveComponentSide(
+        component,
+        closestBias
+      );
+
+    drawPolarityForComponent(
+      labelLayer,
+      component,
+      positiveSide
+    );
+  }
+}

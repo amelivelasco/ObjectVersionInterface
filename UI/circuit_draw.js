@@ -684,7 +684,7 @@ function drawCircuit(data) {
     labelLayer,
     dotLayer,
     placed,
-    15
+    25
   );
 
   drawConnectionsInsideLayoutCells(
@@ -711,6 +711,11 @@ function drawCircuit(data) {
   );
 
   drawSubcircuits(placed, componentLayer, internalWireLayer, labelLayer)
+
+  drawBiasBasedPolaritySigns(
+    labelLayer,
+    placed
+  );
 
   drawTerminalStubs(
     internalWireLayer,
