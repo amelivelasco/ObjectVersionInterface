@@ -1,10 +1,4 @@
-function findShortestOrthogonalRoute(
-  start,
-  end,
-  obstacleBoxes,
-  routedSegments,
-  net = null
-) {
+function findShortestOrthogonalRoute(start, end, obstacleBoxes, routedSegments, net = null) {
   const wireClearance = 10;
   const bendPenalty = 14;
 
