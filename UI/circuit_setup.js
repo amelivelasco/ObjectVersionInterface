@@ -24,7 +24,6 @@ const drawConfig = {
 
   fontFamily: "Arial, sans-serif",
   
-  // Layout-cell configuration
   layoutCellMarginX: 70,
   layoutCellMarginY: 70,
 
@@ -41,7 +40,6 @@ const drawConfig = {
   layoutCellMinWidth: 340,
   layoutCellMinHeight: 250,
 
-  // Start a new row of layout cells after this width.
   layoutCellRowWidth: 1500,
 
 
@@ -71,18 +69,12 @@ function createSvg(width, height) {
 
 function createSvgElement(name, attrs = {}) {
   const el = document.createElementNS("http://www.w3.org/2000/svg", name);
-
-  Object.entries(attrs).forEach(([key, value]) => {
-    el.setAttribute(key, value);
-  });
-
+  Object.entries(attrs).forEach(([key, value]) => {el.setAttribute(key, value); });
   return el;
 }
 
 function estimateColumns(elementCount) {
-  if (elementCount <= 0) {
-    return 1;
-  }
+  if (elementCount <= 0) { return 1; }
 
   return Math.ceil(Math.sqrt(elementCount * 1.8));
 }
@@ -92,50 +84,26 @@ function buildOrderedLayout(elements) {
   const columns = estimateColumns(count);
   const rows = Math.ceil(count / columns);
 
-  const canvasWidth =
-    drawConfig.marginX * 2 +
-    Math.max(0, columns - 1) * drawConfig.gapX;
+  const canvasWidth = drawConfig.marginX * 2 + Math.max(0, columns - 1) * drawConfig.gapX;
 
-  const canvasHeight =
-    drawConfig.marginY * 2 +
-    Math.max(0, rows - 1) * drawConfig.gapY;
+  const canvasHeight = drawConfig.marginY * 2 +  Math.max(0, rows - 1) * drawConfig.gapY;
 
   const placed = elements.map((element, index) => {
     const row = Math.floor(index / columns);
     const indexInRow = index % columns;
 
-    /*
-     * Even rows run left-to-right.
-     * Odd rows run right-to-left.
-     */
-    const direction =
-      row % 2 === 0 ? 1 : -1;
-
-    const col =
-      direction === 1
-        ? indexInRow
-        : columns - 1 - indexInRow;
-
-    const x =
-      drawConfig.marginX +
-      col * drawConfig.gapX;
-
-    const y =
-      drawConfig.marginY +
-      row * drawConfig.gapY;
-
+    const direction = row % 2 === 0 ? 1 : -1;
+    const col = direction === 1 ? indexInRow : columns - 1 - indexInRow;
+    const x = drawConfig.marginX + col * drawConfig.gapX;
+    const y = drawConfig.marginY + row * drawConfig.gapY;
     const inputPin = {
-      x:
-        x -
-        direction * drawConfig.pinOffset,
+      x: x - direction * drawConfig.pinOffset,
       y,
       net: element.net_in,
     };
 
     const outputPin = {
-      x:
-        x +
-        direction * drawConfig.pinOffset,
+      x: x + direction * drawConfig.pinOffset,
       y,
       net: element.net_out,
     };
@@ -167,8 +135,6 @@ function buildOrderedLayout(elements) {
 }
 
 function orthogonalPath(a, b) {
-  const middleY = (a.y + b.y) / 2;
-
   return [
     `M ${a.x} ${a.y}`,
     `H ${b.x}`,

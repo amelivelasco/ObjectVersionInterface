@@ -490,11 +490,8 @@ function wiresTouch(firstSegments, secondSegments) {
   const epsilon = 0.5;
   for (const first of firstSegments) {
     for (const second of secondSegments) {
-
       const points = [first.a, first.b,];
-
       const otherPoints = [second.a, second.b,];
-
       for (const p of points) {
         for (const q of otherPoints) {
           if (Math.abs(p.x - q.x) < epsilon && Math.abs(p.y - q.y) < epsilon
@@ -515,151 +512,41 @@ function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
   if (jrValue) {
     const jrCenterX = (current.x + next.x) / 2;
     const jrCenterY = (geometry.topMiddle.y + geometry.bottomMiddle.y) / 2 + drawConfig.jrValueOffsetY;
-    drawComponentValueText(
-      labelLayer,
-      current.path,
-      current.x,
-      current.y,
+    drawComponentValueText(labelLayer, current.path, current.x, current.y,
       { size: drawConfig.componentValueFontSize, fill: "#7c2d12", className: "jj-pathname", }
     );
     const res_path = `${(current.path || "").split("/")[0]}/R${(current.pid || "").match(/\d+/)?.[0] || ""}`;
 
-    drawComponentValueText(
-      labelLayer,
-      res_path,
-      next.x,
-      next.y,
-      {
-        size: drawConfig.componentValueFontSize,
-        fill: "#7c2d12",
-        className: "jj-pathname",
-      }
+    drawComponentValueText(labelLayer, res_path, next.x, next.y,
+      { size: drawConfig.componentValueFontSize, fill: "#7c2d12", className: "jj-pathname", }
     );
 
-    drawComponentValueText(
-      labelLayer,
-      jrValue,
-      jrCenterX,
-      jrCenterY,
-      {
-        size: drawConfig.jrValueFontSize,
-        weight: "700",
-        fill: "#7c2d12",
-        background: "#f8fafc",
-        backgroundWidth: 4,
-        className: "jr-jj-value",
+    drawComponentValueText(labelLayer, jrValue, jrCenterX, jrCenterY,
+      { size: drawConfig.jrValueFontSize, weight: "700", fill: "#7c2d12",
+        background: "#f8fafc", backgroundWidth: 4, className: "jr-jj-value",
       }
     );
   }
 
-
-  drawLine(
-    wireLayer,
-    labelLayer,
-    current,
-    geometry.jjTop,
-    geometry.topAtJJ,
-    {
-      net: current.net_in,
-      kind:"jr-input",
-    }
-  );
-
-  drawLine(
-    wireLayer,
-    labelLayer,
-    current,
-    geometry.topAtJJ,
-    geometry.topAtResistor,
-    { net: current.net_in, kind: "jr-internal", }
-  );
-
-  drawLine(
-    wireLayer,
-    labelLayer,
-    current,
-    geometry.topAtResistor,
-    geometry.resistorTop,
-    { net: current.net_out, kind: "jr-internal", }
-  );
-
-  drawLabel(
-    labelLayer,
-    current.net_in,
-    geometry.topMiddle.x,
-    geometry.topMiddle.y,
-    { size: "8.5px", fill: "#334155", }
-  );
-
-
-  drawLine(
-    wireLayer,
-    labelLayer,
-    current,
-    geometry.jjBottom,
-    geometry.bottomAtJJ,
-  );
-
-  drawLine(
-    wireLayer,
-    labelLayer,
-    current,
-    geometry.bottomAtJJ,
-    geometry.bottomAtResistor,
-    { net: current.net_out, kind: "jr-internal", }
-  );
-
-  drawLine(
-    wireLayer,
-    labelLayer,
-    current,
-    geometry.bottomAtResistor,
-    geometry.resistorBottom,
-    { net: current.net_out, kind: "jr-internal", }
-  );
-
+  drawLine(wireLayer, labelLayer, current, geometry.jjTop, geometry.topAtJJ, { net: current.net_in, kind:"jr-input",});
+  drawLine(wireLayer, labelLayer,  current, geometry.topAtJJ, geometry.topAtResistor, { net: current.net_in, kind: "jr-internal", });
+  drawLine(wireLayer, labelLayer, current, geometry.topAtResistor, geometry.resistorTop, { net: current.net_out, kind: "jr-internal", });
+  drawLabel(labelLayer, current.net_in, geometry.topMiddle.x, geometry.topMiddle.y, { size: "8.5px", fill: "#334155", });
+  drawLine(wireLayer, labelLayer, current, geometry.jjBottom, geometry.bottomAtJJ,);
+  drawLine(wireLayer, labelLayer, current, geometry.bottomAtJJ, geometry.bottomAtResistor, { net: current.net_out, kind: "jr-internal", });
+  drawLine(wireLayer, labelLayer, current, geometry.bottomAtResistor, geometry.resistorBottom, { net: current.net_out, kind: "jr-internal", });
   if (current.net_out === "GND!") {
-    drawGNDStub(
-      wireLayer,
-      labelLayer,
-      current,
-      componentLayer,
-      geometry.bottomMiddle.x,
-      geometry.bottomMiddle.y,
-    );
+    drawGNDStub(wireLayer, labelLayer, current,  componentLayer, geometry.bottomMiddle.x, geometry.bottomMiddle.y,);
   }
-
-  drawLabel(
-    labelLayer,
-    current.net_out,
-    geometry.bottomMiddle.x,
-    geometry.bottomMiddle.y,
-    { size: "8.5px", fill: "#334155", }
-  );
+  drawLabel(labelLayer, current.net_out, geometry.bottomMiddle.x, geometry.bottomMiddle.y, { size: "8.5px", fill: "#334155", });
 }
 
-function drawGNDStub(
-  wireLayer,
-  labelLayer,
-  current,
-  componentLayer,
-  x,
-  y
-) {
+function drawGNDStub( wireLayer, labelLayer, current, componentLayer, x, y) {
   const stubLength = 20;
   const stubEnd = { x: x, y: y + stubLength, };
 
-  drawLine(
-    wireLayer,
-    labelLayer,
-    current,
-    { x, y, },
-    stubEnd,
-    {
-      net: "GND!",
-      kind: "gnd-stub",
-      stroke: drawConfig.nodeStroke,
-    }
+  drawLine(wireLayer, labelLayer, current, { x, y, }, stubEnd,
+    { net: "GND!", kind: "gnd-stub", stroke: drawConfig.nodeStroke,}
   );
 
   const img_ref = "../img/gnd_draw.png"
@@ -717,12 +604,8 @@ function drawTerminalStubs(wireLayer, labelLayer, dotLayer, placed, stubLength =
     ) { continue; }
 
     for (const net of [component.net_in, component.net_out,]) {
-      if (
-        !net || isGroundNet(net)
-      ) { continue; }
-
+      if (!net || isGroundNet(net)) { continue; }
       const key = getNetKey(component, net);
-
       netUseCounts.set(key,(netUseCounts.get(key) ?? 0) + 1);
     }
   }
@@ -749,12 +632,8 @@ function drawTerminalStubs(wireLayer, labelLayer, dotLayer, placed, stubLength =
         segmentsByNet.set(net, []);
       }
 
-      segmentsByNet.get(net).push({
-          a: { x: a.x, y: a.y, },
-          b: { x: b.x, y: b.y, },
-          net,
-          layoutInstance:options.layoutInstance ?? null,
-          source: options.source ?? "wire",
+      segmentsByNet.get(net).push({a: { x: a.x, y: a.y, }, b: { x: b.x, y: b.y, },
+          net, layoutInstance:options.layoutInstance ?? null, source: options.source ?? "wire",
         });
     }
 
@@ -767,8 +646,7 @@ function drawTerminalStubs(wireLayer, labelLayer, dotLayer, placed, stubLength =
         );
       }
 
-      const vertical =
-        Math.abs(segment.a.x - segment.b.x) < epsilon;
+      const vertical = Math.abs(segment.a.x - segment.b.x) < epsilon;
 
       if (vertical) {
         return (
@@ -793,7 +671,6 @@ function drawTerminalStubs(wireLayer, labelLayer, dotLayer, placed, stubLength =
       }
 
       const vertical = Math.abs(segment.a.x - segment.b.x) < epsilon;
-
       if (vertical) {
         return {
           x: segment.a.x,
@@ -804,22 +681,16 @@ function drawTerminalStubs(wireLayer, labelLayer, dotLayer, placed, stubLength =
             ),
         };
       }
-
       return null;
     }
 
     for (const child of Array.from(wireLayer.children)
     ) {
       const net = child.dataset.net;
-
       const kind = child.dataset.kind || "";
-
       if (!net) { continue; }
-
       if (kind.includes("terminal-stub")) { continue; }
-
       const segments = extractWireSegmentsFromElement(child);
-
       for (const segment of segments) {
         addSegment(net, segment.a, segment.b, { source: "svg", });
       }
@@ -832,17 +703,12 @@ function drawTerminalStubs(wireLayer, labelLayer, dotLayer, placed, stubLength =
       ) { continue; }
 
       const geometry = getJJPairGeometry(jj, resistor, 25);
-
       const layoutInstance = getLayoutInstance(jj);
-
       addSegment(jj.net_in, geometry.topAtJJ, geometry.topAtResistor,
-        { source: "jr-input-rail",
-          layoutInstance, }
+        { source: "jr-input-rail", layoutInstance, }
       );
-
       addSegment(jj.net_out, geometry.bottomAtJJ, geometry.bottomAtResistor,
-        { source: "jr-output-rail",
-          layoutInstance, }
+        { source: "jr-output-rail", layoutInstance, }
       );
       index++;
     }
@@ -859,17 +725,11 @@ function drawTerminalStubs(wireLayer, labelLayer, dotLayer, placed, stubLength =
       if (sideAlreadyConnected(pin, net)) { return; }
 
       const componentLayout = getLayoutInstance(component);
-
       const allSegments = segmentsByNet.get(net) || [];
-
       let candidates = allSegments.filter((segment) => !segment.layoutInstance || segment.layoutInstance === componentLayout);
+      const segmentsAwayFromOppositePin = candidates.filter((segment) =>!oppositePin || !pointLiesOnSegment(oppositePin, segment));
 
-      const segmentsAwayFromOppositePin =
-        candidates.filter((segment) =>!oppositePin || !pointLiesOnSegment(oppositePin, segment));
-
-      if (segmentsAwayFromOppositePin.length > 0) {
-        candidates = segmentsAwayFromOppositePin;
-      }
+      if (segmentsAwayFromOppositePin.length > 0) { candidates = segmentsAwayFromOppositePin; }
 
       if (candidates.length === 0) {return;}
 
@@ -882,7 +742,6 @@ function drawTerminalStubs(wireLayer, labelLayer, dotLayer, placed, stubLength =
         const target = closestPointOnSegment(outwardPoint, segment);
 
         if (!target) { continue; }
-
         const distance = Math.abs(outwardPoint.x - target.x) + Math.abs(outwardPoint.y - target.y);
 
         if (distance < bestDistance) {
@@ -893,33 +752,16 @@ function drawTerminalStubs(wireLayer, labelLayer, dotLayer, placed, stubLength =
 
       if (!bestTarget) { return; }
 
-      const routePoints = simplifyOrthogonalPoints([
-          {...pin,},
-          outwardPoint,
-          { x: outwardPoint.x, y: bestTarget.y,}, bestTarget,
-        ]);
+      const routePoints = simplifyOrthogonalPoints([{...pin,}, outwardPoint, { x: outwardPoint.x, y: bestTarget.y,}, bestTarget,]);
 
       if (routePoints.length < 2) { return; }
 
-      drawPath(
-        wireLayer,
-        pin,
-        bestTarget,
-        {
-          stroke: drawConfig.wireStroke,
-          pathData: routePointsToPathData(routePoints),
-          net,
-          kind:`inductor-${side}-missing-connection`,
-        }
+      drawPath(wireLayer, pin, bestTarget,
+        { stroke: drawConfig.wireStroke, pathData: routePointsToPathData(routePoints), net, kind:`inductor-${side}-missing-connection`,}
       );
 
       for (const segment of routePointsToSegments(routePoints)) {
-        addSegment(
-          net,
-          segment.a,
-          segment.b,
-          { source: "inductor-repair", layoutInstance: componentLayout,}
-        );
+        addSegment(net, segment.a, segment.b, { source: "inductor-repair", layoutInstance: componentLayout,});
       }
     }
 
@@ -935,21 +777,12 @@ function drawTerminalStubs(wireLayer, labelLayer, dotLayer, placed, stubLength =
 
 
   function drawStub(component, pin, net, side) {
-    if (!pin || !net
-    ) { return null; }
+    if (!pin || !net) { return null; }
 
     const direction = pin.x < component.x ? -1 : 1;
-    const stubEnd = {
-      x: pin.x + direction * stubLength,
-      y: pin.y,
-    };
+    const stubEnd = {x: pin.x + direction * stubLength, y: pin.y,};
 
-    drawLine(
-      wireLayer,
-      labelLayer,
-      component,
-      pin,
-      stubEnd,
+    drawLine(wireLayer, labelLayer, component, pin,stubEnd,
       { net, kind: `inductor-${side}-terminal-stub`, stroke: drawConfig.wireStroke, }
     );
 
@@ -979,11 +812,7 @@ function drawTerminalStubs(wireLayer, labelLayer, dotLayer, placed, stubLength =
       const labelY = pin.y - 9;
 
       const terminalLabel =
-        drawComponentValueText(
-          labelLayer,
-          net,
-          labelX,
-          labelY - 15,
+        drawComponentValueText(labelLayer, net, labelX, labelY - 15,
           { size: "11px", fill: "#7c2d12", className: "terminal-net-label", }
         );
       if (terminalLabel) {
@@ -996,13 +825,9 @@ function drawTerminalStubs(wireLayer, labelLayer, dotLayer, placed, stubLength =
   }
 
   for (const component of placed) {
-    if (
-      getElementType(component) !== "L"
-    ) { continue;}
+    if ( getElementType(component) !== "L" ) { continue;}
 
-    if (
-      isTerminalNet(component, component.net_in)
-    ) {
+    if ( isTerminalNet(component, component.net_in) ) {
       component.inputLeadPoint = drawStub(component, component.inputPin, component.net_in, "input");
       component.inputNeedsLead = Boolean(component.inputLeadPoint);
     }
