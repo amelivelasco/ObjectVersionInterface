@@ -735,9 +735,23 @@ function drawCircuit(data) {
   setupPanZoom(svg, canvasWidth, canvasHeight);
 }
 
-function setupWireSelection(svg) {
+function setupWireSelection(
+  svg,
+  hitMargin = 3
+) {
   if (!svg) {
     return;
+  }
+
+  /*
+   * Remove listeners and invisible hit areas from a
+   * previous setup call.
+   */
+  if (
+    typeof svg.__wireSelectionCleanup ===
+    "function"
+  ) {
+    svg.__wireSelectionCleanup();
   }
 
   const wires =
@@ -747,12 +761,28 @@ function setupWireSelection(svg) {
       )
     );
 
-  /*
-   * Contains every segment belonging to the currently
-   * selected connected wire chain.
-   */
   let selectedWires =
     new Set();
+
+  const hitAreas = [];
+  const listeners = [];
+
+  function addTrackedListener(
+    element,
+    eventName,
+    handler
+  ) {
+    element.addEventListener(
+      eventName,
+      handler
+    );
+
+    listeners.push({
+      element,
+      eventName,
+      handler,
+    });
+  }
 
   function restoreWire(
     wire
@@ -765,7 +795,9 @@ function setupWireSelection(svg) {
 
     wire.setAttribute(
       "stroke-width",
-      drawConfig.wireStrokeWidth
+      wire.dataset
+        .originalStrokeWidth ||
+        drawConfig.wireStrokeWidth
     );
 
     wire.classList.remove(
@@ -812,6 +844,8 @@ function setupWireSelection(svg) {
       segment.setAttribute(
         "stroke-width",
         Number(
+          segment.dataset
+            .originalStrokeWidth ||
           drawConfig.wireStrokeWidth
         ) + 2
       );
@@ -822,64 +856,238 @@ function setupWireSelection(svg) {
     }
   }
 
-  for (
-    const wire of
-    wires
+  function handleWireMouseDown(
+    event
   ) {
     /*
-     * Show the pointer cursor when hovering over
-     * the visible SVG wire stroke.
+     * Prevent clicking the enlarged hit area from
+     * starting SVG panning.
      */
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function handleWireClick(
+    event,
+    wire
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (
+      selectedWires.has(
+        wire
+      )
+    ) {
+      clearCurrentSelection();
+      return;
+    }
+
+    clearCurrentSelection();
+
+    selectWireChain(
+      wire
+    );
+  }
+
+  for (
+    const wire of wires
+  ) {
+    /*
+     * Preserve the wire's original appearance.
+     */
+    if (
+      !wire.dataset
+        .originalStroke
+    ) {
+      wire.dataset.originalStroke =
+        wire.getAttribute(
+          "stroke"
+        ) ||
+        drawConfig.wireStroke;
+    }
+
+    if (
+      !wire.dataset
+        .originalStrokeWidth
+    ) {
+      wire.dataset.originalStrokeWidth =
+        wire.getAttribute(
+          "stroke-width"
+        ) ||
+        drawConfig.wireStrokeWidth;
+    }
+
     wire.style.cursor =
       "pointer";
 
     wire.style.pointerEvents =
       "stroke";
 
-    wire.addEventListener(
-      "mousedown",
-      (event) => {
-        /*
-         * Prevent clicking a wire from starting the
-         * board-panning interaction.
-         */
-        event.stopPropagation();
-      }
+    /*
+     * Clone only the SVG geometry. The clone is
+     * invisible but has a much wider stroke.
+     */
+    const hitArea =
+      wire.cloneNode(false);
+
+    /*
+     * Avoid duplicate SVG IDs.
+     */
+    hitArea.removeAttribute(
+      "id"
     );
 
-    wire.addEventListener(
-      "click",
-      (event) => {
-        event.preventDefault();
-        event.stopPropagation();
+    hitArea.classList.remove(
+      "edge",
+      "is-wire-selected"
+    );
 
-        /*
-         * Clicking any segment in the currently
-         * selected chain turns the entire chain off.
-         */
-        if (
-          selectedWires.has(
-            wire
-          )
-        ) {
-          clearCurrentSelection();
-          return;
-        }
+    hitArea.classList.add(
+      "wire-hit-area"
+    );
 
-        /*
-         * Clicking a different wire replaces the
-         * current selection.
-         */
-        clearCurrentSelection();
+    hitArea.setAttribute(
+      "fill",
+      "none"
+    );
 
-        selectWireChain(
+    hitArea.setAttribute(
+      "stroke",
+      "transparent"
+    );
+
+    /*
+     * hitMargin is added to both sides of the wire.
+     *
+     * For example:
+     * visible width = 2
+     * margin = 8
+     * hit width = 18
+     */
+    const visibleStrokeWidth =
+      Number(
+        wire.dataset
+          .originalStrokeWidth ||
+        drawConfig.wireStrokeWidth
+      );
+
+    hitArea.setAttribute(
+      "stroke-width",
+      visibleStrokeWidth +
+        hitMargin * 2
+    );
+
+    hitArea.setAttribute(
+      "stroke-linecap",
+      "round"
+    );
+
+    hitArea.setAttribute(
+      "stroke-linejoin",
+      "round"
+    );
+
+    hitArea.setAttribute(
+      "pointer-events",
+      "stroke"
+    );
+
+    hitArea.setAttribute(
+      "aria-hidden",
+      "true"
+    );
+
+    hitArea.style.cursor =
+      "pointer";
+
+    hitArea.style.pointerEvents =
+      "stroke";
+
+    /*
+     * Insert it after the visible wire so it receives
+     * the mouse interaction while remaining invisible.
+     */
+    wire.parentNode.insertBefore(
+      hitArea,
+      wire.nextSibling
+    );
+
+    hitAreas.push(
+      hitArea
+    );
+
+    const clickVisibleWire =
+      (event) =>
+        handleWireClick(
+          event,
           wire
         );
-      }
+
+    const clickHitArea =
+      (event) =>
+        handleWireClick(
+          event,
+          wire
+        );
+
+    addTrackedListener(
+      wire,
+      "mousedown",
+      handleWireMouseDown
+    );
+
+    addTrackedListener(
+      wire,
+      "click",
+      clickVisibleWire
+    );
+
+    addTrackedListener(
+      hitArea,
+      "mousedown",
+      handleWireMouseDown
+    );
+
+    addTrackedListener(
+      hitArea,
+      "click",
+      clickHitArea
     );
   }
-}
 
+  /*
+   * Allows setupWireSelection() to be called again
+   * safely after redrawing the circuit.
+   */
+  svg.__wireSelectionCleanup =
+    function cleanupWireSelection() {
+      clearCurrentSelection();
+
+      for (
+        const {
+          element,
+          eventName,
+          handler,
+        } of listeners
+      ) {
+        element.removeEventListener(
+          eventName,
+          handler
+        );
+      }
+
+      for (
+        const hitArea of
+        hitAreas
+      ) {
+        hitArea.remove();
+      }
+
+      svg.__wireSelectionCleanup =
+        null;
+    };
+}
 
 function collectConnectedWireChain(
   startWire,
