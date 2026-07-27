@@ -381,7 +381,7 @@ function drawComponentValueText(
   return valueText;
 }
 
-function drawComponent(layer, element) {
+function drawComponent(layer, element, jjval = -1) {
   const halfSize =
     drawConfig.imageSize / 2;
 
@@ -428,18 +428,18 @@ function drawComponent(layer, element) {
 
   if (element.type[0].toLowerCase() === "r") {
     title.textContent = [
-    `type=${element.type}`,
+    `type=${element.type[0]}`,
     `pid=${"R" + (element.pid || "").match(/\d+/)?.[0] || ""}`,
     `path=${(element.path || "").split("/")[0]}/R${(element.pid || "").match(/\d+/)?.[0] || ""}`,
     `net_in=${element.net_in || ""}`,
     `net_out=${element.net_out || ""}`,
-    `value=${(100.0).toFixed(1)}`,
+    `value=${jjval}`,
   ].join("\n");
   }
 
   else {
     title.textContent = [
-      `type=${element.type}`,
+      `type=${element.type[0]}`,
       `pid=${element.pid || ""}`,
       `path=${element.path || ""}`,
       `net_in=${element.net_in || ""}`,
@@ -1004,7 +1004,8 @@ function drawJRpairs(
 
   drawComponent(
     componentLayer,
-    next
+    next,
+    current.value
   );
 
   const geometry =

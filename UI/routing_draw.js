@@ -2017,7 +2017,7 @@ function drawPolarityForComponent(
       topSign,
       {
         x:
-          jj.x - 11,
+          jj.x,
 
         y:
           jj.y -
@@ -2032,7 +2032,7 @@ function drawPolarityForComponent(
       bottomSign,
       {
         x:
-          jj.x - 11,
+          jj.x,
 
         y:
           jj.y +
@@ -2051,7 +2051,7 @@ function drawPolarityForComponent(
       topSign,
       {
         x:
-          resistor.x + 11,
+          resistor.x,
 
         y:
           resistor.y -
@@ -2066,7 +2066,7 @@ function drawPolarityForComponent(
       bottomSign,
       {
         x:
-          resistor.x + 11,
+          resistor.x,
 
         y:
           resistor.y +
