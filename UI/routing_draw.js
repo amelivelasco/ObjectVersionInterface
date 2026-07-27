@@ -1,46 +1,24 @@
-function getPinOffsetForElement(
-  element
-) {
-  return (
-    getElementType(element) === "L"
-      ? drawConfig.inductorPinOffset + 10
-      : drawConfig.pinOffset + 10
-  );
-}
-function isBiasElement(element) {
-  return getElementType(element) === "IB";
+function getPinOffsetForElement(element) {
+  return (getElementType(element) === "L" ? drawConfig.inductorPinOffset + 10 : drawConfig.pinOffset + 10);
 }
 
+function isBiasElement(element) {return getElementType(element) === "IB";}
+
 function getLayoutInstance(element) {
-  return (
-    element.parentLayoutCell ||
-    element.layout_instance ||
-    element.layout_cell ||
-    "unassigned"
-  );
+  return (element.parentLayoutCell || element.layout_instance || element.layout_cell || "unassigned");
 }
 
 function isGeneratedResistor(element) {
-  /*
-   * JJ-to-resistor connections are already drawn
-   * by drawJRpairs(), so exclude resistors from the
-   * normal net-routing passes.
-   */
   return getElementType(element) === "R";
 }
 
 function getManhattanDistance(first, second) {
-  return (
-    Math.abs(first.x - second.x) +
-    Math.abs(first.y - second.y)
-  );
+  return (Math.abs(first.x - second.x) + Math.abs(first.y - second.y));
 }
 
 
 function getElementType(element) {
-  return Array.isArray(element.type)
-    ? element.type[0]
-    : element.type;
+  return Array.isArray(element.type) ? element.type[0] : element.type;
 }
 
 function isJJResistorPair(jj, resistor) {
@@ -48,130 +26,41 @@ function isJJResistorPair(jj, resistor) {
     return false;
   }
 
-  return (
-    getElementType(jj) === "JJ" &&
-    getElementType(resistor) === "R" &&
-    (
-      resistor.source_component === jj.id ||
-      resistor.companion_of === jj.id ||
-      (
-        resistor.path === jj.path &&
-        resistor.pid === jj.pid
-      )
+  return (getElementType(jj) === "JJ" && getElementType(resistor) === "R" &&
+    (resistor.source_component === jj.id || resistor.companion_of === jj.id ||
+      (resistor.path === jj.path &&  resistor.pid === jj.pid)
     )
   );
 }
 
-function getJJPairGeometry(
-  jj,
-  resistor,
-  rise = 25
-) {
-  const halfSize =
-    drawConfig.imageSize / 2;
-
-  const jjTop = {
-    x: jj.x,
-    y: jj.y - halfSize,
-  };
-
-  const resistorTop = {
-    x: resistor.x,
-    y: resistor.y - halfSize,
-  };
-
-  const jjBottom = {
-    x: jj.x,
-    y: jj.y + halfSize,
-  };
-
-  const resistorBottom = {
-    x: resistor.x,
-    y: resistor.y + halfSize,
-  };
-
-  const topY =
-    Math.min(
-      jjTop.y,
-      resistorTop.y
-    ) - rise;
-
-  const bottomY =
-    Math.max(
-      jjBottom.y,
-      resistorBottom.y
-    ) + rise;
-
-  const topAtJJ = {
-    x: jj.x,
-    y: topY,
-  };
-
-  const topAtResistor = {
-    x: resistor.x,
-    y: topY,
-  };
-
-  const bottomAtJJ = {
-    x: jj.x,
-    y: bottomY,
-  };
-
-  const bottomAtResistor = {
-    x: resistor.x,
-    y: bottomY,
-  };
-
-  const topMiddle = {
-    x:
-      (
-        jj.x +
-        resistor.x
-      ) / 2,
-    y: topY,
-  };
-
-  const bottomMiddle = {
-    x:
-      (
-        jj.x +
-        resistor.x
-      ) / 2,
-    y: bottomY,
-  };
+function getJJPairGeometry(jj, resistor, rise = 25) {
+  const halfSize = drawConfig.imageSize / 2;
+  const jjTop = {x: jj.x, y: jj.y - halfSize,};
+  const resistorTop = {x: resistor.x, y: resistor.y - halfSize,};
+  const jjBottom = {x: jj.x, y: jj.y + halfSize, };
+  const resistorBottom = {x: resistor.x, y: resistor.y + halfSize,};
+  const topY = Math.min(jjTop.y, resistorTop.y) - rise;
+  const bottomY = Math.max(jjBottom.y, resistorBottom.y) + rise;
+  const topAtJJ = {x: jj.x, y: topY,};
+  const topAtResistor = { x: resistor.x, y: topY,};
+  const bottomAtJJ = {x: jj.x, y: bottomY, };
+  const bottomAtResistor = {x: resistor.x, y: bottomY,};
+  const topMiddle = { x:(jj.x + resistor.x) / 2, y: topY,};
+  const bottomMiddle = { x:(jj.x + resistor.x) / 2, y: bottomY, };
 
   return {
     jjTop,
     resistorTop,
     jjBottom,
     resistorBottom,
-
     topAtJJ,
     topAtResistor,
     bottomAtJJ,
     bottomAtResistor,
-
     topMiddle,
     bottomMiddle,
-
-    /*
-     * Valid connection points for net_in.
-     * The router chooses whichever is closest.
-     */
-    inputAnchors: [
-      topMiddle,
-      topAtJJ,
-      topAtResistor,
-    ],
-
-    /*
-     * Valid connection points for net_out.
-     */
-    outputAnchors: [
-      bottomMiddle,
-      bottomAtJJ,
-      bottomAtResistor,
-    ],
+    inputAnchors: [topMiddle, topAtJJ, topAtResistor,],
+    outputAnchors: [bottomMiddle, bottomAtJJ, bottomAtResistor,],
   };
 }
 
@@ -180,237 +69,79 @@ function collectNetTerminals(elements) {
   const elementsInPairs = new Set();
   const pairs = [];
 
-  function addTerminal(
-    net,
-    terminal
-  ) {
-    if (!net) {
-      return;
-    }
+  function addTerminal(net, terminal) {
+    if (!net) { return; }
 
-    if (isGroundNet(net)) {
-      return;
-    }
+    if (isGroundNet(net)) { return; }
 
     if (!terminalsByNet.has(net)) {
-      terminalsByNet.set(
-        net,
-        []
-      );
+      terminalsByNet.set(net, [] );
     }
 
-    terminalsByNet
-      .get(net)
-      .push(terminal);
+    terminalsByNet.get(net).push(terminal);
   }
 
-  /*
-   * First identify every JJ/resistor pair.
-   */
-  for (
-    let index = 0;
-    index < elements.length - 1;
-    index++
-  ) {
-    const current =
-      elements[index];
+  for (let index = 0; index < elements.length - 1; index++) {
+    const current = elements[index];
+    const next = elements[index + 1];
 
-    const next =
-      elements[index + 1];
+    if (!isJJResistorPair(current, next)
+    ) { continue; }
 
-    if (
-      !isJJResistorPair(
-        current,
-        next
-      )
-    ) {
-      continue;
-    }
-
-    const geometry =
-      getJJPairGeometry(
-        current,
-        next,
-        25
-      );
-
-    pairs.push({
-      jj: current,
-      resistor: next,
-      geometry,
-    });
-
-    elementsInPairs.add(
-      current.id
-    );
-
-    elementsInPairs.add(
-      next.id
-    );
+    const geometry = getJJPairGeometry(current, next, 25);
+    pairs.push({jj: current, resistor: next, geometry,});
+    elementsInPairs.add(current.id);
+    elementsInPairs.add(next.id);
 
     index++;
   }
 
-  /*
-   * Add one top and one bottom terminal for each
-   * composite JJ/resistor pair.
-   */
   for (const pair of pairs) {
-    const layoutInstance =
-      getLayoutInstance(
-        pair.jj
-      );
+    const layoutInstance = getLayoutInstance(pair.jj);
 
-    addTerminal(
-      pair.jj.net_in,
-      {
-        net:
-          pair.jj.net_in,
-
-        kind: "in",
-
-        element:
-          pair.jj,
-
-        ownerId:
-          `pair:${pair.jj.id}`,
-
-        layoutInstance,
-
-        candidatePoints: [
-          pair.geometry.topMiddle,
-        ],
+    addTerminal(pair.jj.net_in,
+      {net: pair.jj.net_in, kind: "in", element: pair.jj, ownerId: `pair:${pair.jj.id}`,
+        layoutInstance, candidatePoints: [pair.geometry.topMiddle,],
       }
     );
 
     addTerminal(
       pair.jj.net_out,
-      {
-        net:
-          pair.jj.net_out,
-
-        kind: "out",
-
-        element:
-          pair.jj,
-
-        ownerId:
-          `pair:${pair.jj.id}`,
-
-        layoutInstance,
-
-        candidatePoints: [
-          pair.geometry.bottomMiddle,
-        ],
+      {net: pair.jj.net_out, kind: "out", element: pair.jj, ownerId: `pair:${pair.jj.id}`,
+        layoutInstance, candidatePoints: [ pair.geometry.bottomMiddle, ],
       }
     );
   }
 
-  /*
-   * Add regular element terminals.
-   * Skip both members of every JJ/resistor pair.
-   */
+
     for (const element of elements) {
-        if (
-            elementsInPairs.has(
-            element.id
-            )
-        ) {
-            continue;
-        }
+        if (elementsInPairs.has(element.id)
+        ) {continue;}
 
-        if (
-            getElementType(element) === "R"
-        ) {
-            continue;
-        }
+        if (getElementType(element) === "R") { continue; }
+        if (isBiasElement(element)) {continue;}
 
-        /*
-        * The bias connects itself through
-        * drawBiasLocalConnections().
-        */
-        if (isBiasElement(element)) {
-            continue;
-        }
-
-        const layoutInstance =
-            getLayoutInstance(element);
+        const layoutInstance = getLayoutInstance(element);
         
-        if (
-          element.net_in &&
-          element.inputPin
+        if (element.net_in && element.inputPin
         ) {
-          const inputRoutingPoint =
-            getTerminalRoutingPoint(
-              {
-                element,
-                kind: "in",
-              },
-              element.inputPin
-            );
+          const inputRoutingPoint = getTerminalRoutingPoint({element, kind: "in", }, element.inputPin);
 
           addTerminal(
             element.net_in,
-            {
-              net:
-                element.net_in,
-
-              kind:
-                "in",
-
-              point:
-                inputRoutingPoint,
-
-              candidatePoints: [
-                inputRoutingPoint,
-              ],
-
-              element,
-
-              ownerId:
-                element.id,
-
-              layoutInstance,
+            {net: element.net_in, kind: "in", point: inputRoutingPoint, candidatePoints: [inputRoutingPoint,],
+              element, ownerId: element.id, layoutInstance,
             }
           );
         }
 
-        if (
-          element.net_out &&
-          element.outputPin
+        if (element.net_out && element.outputPin
         ) {
-          const outputRoutingPoint =
-            getTerminalRoutingPoint(
-              {
-                element,
-                kind: "out",
-              },
-              element.outputPin
-            );
+          const outputRoutingPoint = getTerminalRoutingPoint({element, kind: "out", }, element.outputPin);
 
-          addTerminal(
-            element.net_out,
-            {
-              net:
-                element.net_out,
-
-              kind:
-                "out",
-
-              point:
-                outputRoutingPoint,
-
-              candidatePoints: [
-                outputRoutingPoint,
-              ],
-
-              element,
-
-              ownerId:
-                element.id,
-
-              layoutInstance,
-            }
+          addTerminal(element.net_out,
+            {net: element.net_out, kind: "out", point: outputRoutingPoint, candidatePoints: [outputRoutingPoint,], 
+              element, ownerId: element.id, layoutInstance,}
           );
         }
     }
@@ -418,72 +149,36 @@ function collectNetTerminals(elements) {
   return terminalsByNet;
 }
 
-function getTerminalPoints(
-  terminal
-) {
+function getTerminalPoints(terminal) {
   if (terminal.selectedPoint) {
-    return [
-      terminal.selectedPoint,
-    ];
+    return [terminal.selectedPoint,];
   }
 
-  if (
-    Array.isArray(
-      terminal.candidatePoints
-    ) &&
-    terminal.candidatePoints.length > 0
-  ) {
+  if (Array.isArray(terminal.candidatePoints) && terminal.candidatePoints.length > 0) {
     return terminal.candidatePoints;
   }
 
-  if (terminal.point) {
-    return [
-      terminal.point,
-    ];
-  }
+  if (terminal.point) { return [terminal.point,];}
 
   return [];
 }
 
-function findBestTerminalConnection(
-  firstTerminal,
-  secondTerminal
-) {
+function findBestTerminalConnection(firstTerminal, secondTerminal) {
   let best = null;
 
-  const firstPoints =
-    getTerminalPoints(
-      firstTerminal
-    );
+  const firstPoints = getTerminalPoints(firstTerminal);
 
-  const secondPoints =
-    getTerminalPoints(
-      secondTerminal
-    );
+  const secondPoints = getTerminalPoints(secondTerminal);
 
-  for (
-    const firstPoint of
-    firstPoints
+  for (const firstPoint of firstPoints
   ) {
-    for (
-      const secondPoint of
-      secondPoints
+    for (const secondPoint of secondPoints
     ) {
-      const distance =
-        getManhattanDistance(
-          firstPoint,
-          secondPoint
-        );
+      const distance = getManhattanDistance(firstPoint, secondPoint);
 
-      if (
-        !best ||
-        distance < best.distance
+      if (!best || distance < best.distance
       ) {
-        best = {
-          firstPoint,
-          secondPoint,
-          distance,
-        };
+        best = {firstPoint, secondPoint, distance,};
       }
     }
   }
@@ -492,1751 +187,577 @@ function findBestTerminalConnection(
 }
 
 
-function drawTerminalTree(
-  wireLayer,
-  labelLayer,
-  net,
-  terminals,
-  options = {}
-) {
-  if (
-    !Array.isArray(terminals) ||
-    terminals.length < 2
-  ) {
-    return;
-  }
+function drawTerminalTree(wireLayer, labelLayer, net, terminals, options = {}) {
+  if (!Array.isArray(terminals) || terminals.length < 2) { return; }
 
-  const rootIndex =
-    terminals.findIndex(
-      (terminal) =>
-        terminal.kind === "out"
-    );
+  const rootIndex = terminals.findIndex((terminal) => terminal.kind === "out");
 
-  const root =
-    rootIndex >= 0
-      ? terminals[rootIndex]
-      : terminals[0];
-
+  const root = rootIndex >= 0 ? terminals[rootIndex] : terminals[0];
   const connected = [root];
-
-  const remaining =
-    terminals.filter(
-      (terminal) =>
-        terminal !== root
-    );
-
+  const remaining = terminals.filter((terminal) => terminal !== root);
   let labelWasDrawn = false;
 
   while (remaining.length > 0) {
     let bestConnection = null;
 
-    for (
-      const connectedTerminal of
-      connected
-    ) {
-      for (
-        let index = 0;
-        index < remaining.length;
-        index++
+    for (const connectedTerminal of connected) {
+      for (let index = 0; index < remaining.length; index++
       ) {
-        const candidate =
-          remaining[index];
+        const candidate = remaining[index];
 
-        if (
-          candidate.ownerId ===
-          connectedTerminal.ownerId
-        ) {
-          continue;
-        }
+        if (candidate.ownerId === connectedTerminal.ownerId
+        ) { continue; }
 
-        const pointConnection =
-          findBestTerminalConnection(
-            connectedTerminal,
-            candidate
-          );
+        const pointConnection = findBestTerminalConnection(connectedTerminal, candidate);
 
-        if (!pointConnection) {
-          continue;
-        }
+        if (!pointConnection) { continue; }
 
-        if (
-          !bestConnection ||
-          pointConnection.distance <
-            bestConnection.distance
-        ) {
+        if (!bestConnection || pointConnection.distance < bestConnection.distance) {
           bestConnection = {
-            from:
-              connectedTerminal,
-
-            to:
-              candidate,
-
-            fromPoint:
-              pointConnection.firstPoint,
-
-            toPoint:
-              pointConnection.secondPoint,
-
-            remainingIndex:
-              index,
-
-            distance:
-              pointConnection.distance,
+            from: connectedTerminal,
+            to: candidate,
+            fromPoint: pointConnection.firstPoint,
+            toPoint: pointConnection.secondPoint,
+            remainingIndex: index,
+            distance: pointConnection.distance,
           };
         }
       }
     }
 
-    if (!bestConnection) {
-      break;
+    if (!bestConnection) { break; }
+
+    if (!bestConnection.from.selectedPoint) {
+      bestConnection.from.selectedPoint = bestConnection.fromPoint;
     }
 
-    /*
-     * Once a composite terminal chooses one of its
-     * anchors, reuse that anchor for later branches.
-     */
-    if (
-      !bestConnection.from
-        .selectedPoint
-    ) {
-      bestConnection.from
-        .selectedPoint =
-          bestConnection.fromPoint;
-    }
+    if (!bestConnection.to.selectedPoint
+    ) { bestConnection.to.selectedPoint = bestConnection.toPoint; }
 
-    if (
-      !bestConnection.to
-        .selectedPoint
-    ) {
-      bestConnection.to
-        .selectedPoint =
-          bestConnection.toPoint;
-    }
+    const fromTerminal = bestConnection.from;
+    const toTerminal = bestConnection.to;
+    const fromElement = fromTerminal.element;
+    const toElement = toTerminal.element;
+    const fromPoint = bestConnection.fromPoint;
+    const toPoint = bestConnection.toPoint;
+    const fromIsInductor = fromElement && getElementType(fromElement) === "L";
 
-    const fromTerminal =
-      bestConnection.from;
-
-    const toTerminal =
-      bestConnection.to;
-
-    const fromElement =
-      fromTerminal.element;
-
-    const toElement =
-      toTerminal.element;
-
-    const fromPoint =
-      bestConnection.fromPoint;
-
-    const toPoint =
-      bestConnection.toPoint;
-
-    const fromIsInductor =
-      fromElement &&
-      getElementType(
-        fromElement
-      ) === "L";
-
-    const toIsInductor =
-      toElement &&
-      getElementType(
-        toElement
-      ) === "L";
-
+    const toIsInductor = toElement && getElementType(toElement) === "L";
     const clearance = 18;
+    const fromSideDirection = fromIsInductor ? (fromPoint.x < fromElement.x ? -1 : 1) : 0;
 
-    const fromSideDirection =
-      fromIsInductor
-        ? (
-            fromPoint.x <
-            fromElement.x
-              ? -1
-              : 1
-          )
-        : 0;
-
-    const toSideDirection =
-      toIsInductor
-        ? (
-            toPoint.x <
-            toElement.x
-              ? -1
-              : 1
-          )
-        : 0;
+    const toSideDirection = toIsInductor ? (toPoint.x < toElement.x ? -1 : 1): 0;
 
     const fromApproachPoint = {
-      x:
-        fromIsInductor
-          ? fromPoint.x +
-            fromSideDirection *
-              clearance
-          : fromPoint.x,
-
-      y:
-        fromPoint.y,
+      x: fromIsInductor ? fromPoint.x + fromSideDirection * clearance : fromPoint.x,
+      y: fromPoint.y,
     };
 
     const toApproachPoint = {
-      x:
-        toIsInductor
-          ? toPoint.x +
-            toSideDirection *
-              clearance
-          : toPoint.x,
-
-      y:
-        toPoint.y,
+      x: toIsInductor ? toPoint.x + toSideDirection * clearance : toPoint.x,
+      y: toPoint.y,
     };
 
     let routePoints = null;
     let pathData;
 
-    /*
-     * Use the existing obstacle-aware router whenever
-     * the caller supplies the elements in this cell.
-     * This makes ordinary nets avoid every component
-     * image instead of only protecting shared outputs.
-     */
-    if (
-      Array.isArray(
-        options.cellElements
-      ) &&
-      typeof buildShortestFreeRoute ===
-        "function" &&
-      typeof routePointsToPathData ===
-        "function"
+    if (Array.isArray(options.cellElements) && typeof buildShortestFreeRoute === "function" &&
+      typeof routePointsToPathData === "function"
     ) {
-      routePoints =
-        buildShortestFreeRoute(
-          fromPoint,
-          toPoint,
-          fromTerminal,
-          toTerminal,
-          options.cellElements,
-          Array.isArray(
-            options.routedSegments
-          )
-            ? options.routedSegments
-            : [],
-          net
-        );
+      routePoints = buildShortestFreeRoute(fromPoint, toPoint, fromTerminal, toTerminal,
+                      options.cellElements, Array.isArray(options.routedSegments) ? options.routedSegments : [],net);
 
-      /*
-      * The router returns null when it cannot find
-      * a legal obstacle-free route.
-      */
-      if (
-        !Array.isArray(routePoints) ||
-        routePoints.length < 2
+      if (!Array.isArray(routePoints) || routePoints.length < 2
       ) {
         console.warn(
           `Skipping unroutable connection for ${net}`,
-          {
-            from:
-              fromPoint,
-
-            to:
-              toPoint,
-
-            fromOwner:
-              fromTerminal.ownerId,
-
-            toOwner:
-              toTerminal.ownerId,
-          }
+          { from: fromPoint, to: toPoint, fromOwner: fromTerminal.ownerId, toOwner: toTerminal.ownerId,}
         );
 
-        /*
-        * Remove this target so the while loop does not
-        * attempt the exact same failed connection forever.
-        */
-        remaining.splice(
-          bestConnection.remainingIndex,
-          1
-        );
-
+        remaining.splice(bestConnection.remainingIndex, 1);
         continue;
       }
 
-      /*
-      * Apply the same JR-wire separation to ordinary
-      * nets as is applied to shared-output nets.
-      */
-      routePoints =
-        separateRouteFromJR(
-          routePoints,
-          net,
-          options.jrRails || [],
-          options.jrMargin ?? 12
-        );
+      routePoints = separateRouteFromJR(routePoints, net, options.jrRails || [], options.jrMargin ?? 12);
 
-      pathData =
-        routePointsToPathData(
-          routePoints
-        );
+      pathData = routePointsToPathData(routePoints );
         
-    } else if (
-      fromIsInductor ||
-      toIsInductor
-    ) {
-      /*
-       * Preserve the original inductor-safe fallback
-       * for callers outside the layout-cell router.
-       */
-      pathData = [
-        `M ${fromPoint.x} ${fromPoint.y}`,
+    } else if (fromIsInductor || toIsInductor) {
 
-        fromIsInductor
-          ? `H ${fromApproachPoint.x}`
-          : "",
-
-        `H ${toApproachPoint.x}`,
-        `V ${toApproachPoint.y}`,
-
-        toIsInductor
-          ? `H ${toPoint.x}`
-          : "",
-      ]
+      pathData = [`M ${fromPoint.x} ${fromPoint.y}`, fromIsInductor ? `H ${fromApproachPoint.x}`: "",
+        `H ${toApproachPoint.x}`, `V ${toApproachPoint.y}`, toIsInductor ? `H ${toPoint.x}` : "",]
         .filter(Boolean)
         .join(" ");
     }
 
-    const drawnFromPoint =
-      routePoints?.[0] ??
-      fromPoint;
+    const drawnFromPoint = routePoints?.[0] ?? fromPoint;
 
-    const drawnToPoint =
-      routePoints?.[
-        routePoints.length - 1
-      ] ??
-      toPoint;
+    const drawnToPoint = routePoints?.[routePoints.length - 1] ?? toPoint;
 
-    drawPath(
-      wireLayer,
-      drawnFromPoint,
-      drawnToPoint,
-      {
-        stroke:
-          drawConfig.wireStroke,
-
-        pathData,
-
-        net,
-
-        kind:
-          "net-route",
-      }
+    drawPath(wireLayer, drawnFromPoint, drawnToPoint,
+      { stroke: drawConfig.wireStroke, pathData, net, kind: "net-route", }
     );
 
-    if (
-      routePoints &&
-      Array.isArray(
-        options.routedSegments
-      ) &&
-      typeof routePointsToSegments ===
-        "function"
+    if (routePoints && Array.isArray(options.routedSegments) &&
+      typeof routePointsToSegments === "function"
     ) {
-      options.routedSegments.push(
-        ...routePointsToSegments(
-          routePoints
-        ).map(
-          (segment) => ({
-            ...segment,
-            net,
-          })
+      options.routedSegments.push(...routePointsToSegments(routePoints).map(
+          (segment) => ({...segment, net,})
         )
       );
     }
 
-    if (
-      !labelWasDrawn &&
-      options.drawLabel !== false
+    if (!labelWasDrawn && options.drawLabel !== false
     ) {
       let labelX;
       let labelY;
 
-      if (
-        routePoints &&
-        typeof getLongestHorizontalSegment ===
-          "function"
+      if (routePoints && typeof getLongestHorizontalSegment === "function"
       ) {
-        const labelSegment =
-          getLongestHorizontalSegment(
-            routePoints
-          );
+        const labelSegment = getLongestHorizontalSegment(routePoints);
 
         if (labelSegment) {
-          labelX =
-            (
-              labelSegment.a.x +
-              labelSegment.b.x
-            ) / 2;
-
-          labelY =
-            labelSegment.a.y;
+          labelX = (labelSegment.a.x + labelSegment.b.x) / 2;
+          labelY = labelSegment.a.y;
         }
       }
 
-      if (
-        !Number.isFinite(labelX) ||
-        !Number.isFinite(labelY)
+      if (!Number.isFinite(labelX) || !Number.isFinite(labelY)
       ) {
-        const labelSegmentEndX =
-          fromIsInductor
-            ? fromApproachPoint.x
-            : toApproachPoint.x;
-
-        labelX =
-          (
-            fromPoint.x +
-            labelSegmentEndX
-          ) / 2;
-
-        labelY =
-          fromPoint.y;
+        const labelSegmentEndX = fromIsInductor ? fromApproachPoint.x : toApproachPoint.x;
+        labelX = (fromPoint.x + labelSegmentEndX) / 2;
+        labelY = fromPoint.y;
       }
 
-      drawLabel(
-        labelLayer,
-        net,
-        labelX,
-        labelY,
-        {
-          size: "8.5px",
-          fill: "#334155",
-        }
-      );
-
+      drawLabel(labelLayer, net, labelX, labelY,{ size: "8.5px",fill: "#334155",});
       labelWasDrawn = true;
     }
 
-    connected.push(
-      bestConnection.to
-    );
-
-    remaining.splice(
-      bestConnection.remainingIndex,
-      1
-    );
+    connected.push(bestConnection.to);
+    remaining.splice(bestConnection.remainingIndex, 1);
   }
 }
 
-function chooseCellNetAnchor(
-  terminals
-) {
+function chooseCellNetAnchor(terminals) {
   return (
-    terminals.find(
-      (terminal) =>
-        terminal.kind === "out"
-    ) ||
-    terminals[0]
+    terminals.find((terminal) => terminal.kind === "out") || terminals[0]
   );
 }
 
 
-function addWireLayerToRoutedSegments(
-  wireLayer,
-  routedSegments
-) {
-  if (
-    !wireLayer ||
-    !routedSegments
-  ) {
-    return;
-  }
+function addWireLayerToRoutedSegments(wireLayer, routedSegments) {
+  if (!wireLayer || !routedSegments) { return; }
 
-  /*
-   * Read every existing SVG wire in the layer.
-   */
-  const wireElements =
-    wireLayer.querySelectorAll(
-      "path, line, polyline"
-    );
 
-  for (
-    const wireElement of
-    wireElements
-  ) {
-    const net =
-      wireElement.getAttribute(
-        "data-net"
-      ) ||
-      "__existing_wire__";
+  const wireElements = wireLayer.querySelectorAll("path, line, polyline");
 
-    const kind =
-      wireElement.getAttribute(
-        "data-kind"
-      ) ||
-      "existing-wire";
+  for (const wireElement of wireElements) {
+    const net = wireElement.dataset.net || "__existing_wire__";
 
-    const segments =
-      extractWireSegmentsFromElement(
-        wireElement
-      );
+    const kind = wireElement.dataset.kind || "existing-wire";
 
-    for (
-      const segment of
-      segments
-    ) {
-      if (
-        !segment?.a ||
-        !segment?.b
-      ) {
-        continue;
-      }
+    const segments = extractWireSegmentsFromElement(wireElement);
 
-      routedSegments.push({
-        ...segment,
-        net,
-        kind,
-        existingWire:
-          true,
-      });
+    for (const segment of segments) {
+      if (!segment?.a || !segment?.b) { continue; }
+      routedSegments.push({...segment, net, kind, existingWire: true,});
     }
   }
 }
 
 
-function normalizePolarityNet(
-  net
-) {
-  return String(
-    net ?? ""
-  )
-    .trim()
-    .toUpperCase();
+function normalizePolarityNet(net) {
+  return String(net ?? "").trim().toUpperCase();
 }
 
-function getBiasPolarityPoint(
-  bias
-) {
-  const possiblePoints = [
-    bias?.biasNetJoin,
-    bias?.outputPin,
-    bias,
-  ];
+function getBiasPolarityPoint(bias) {
+  const possiblePoints = [bias?.biasNetJoin, bias?.outputPin, bias,];
 
-  for (
-    const point of
-    possiblePoints
-  ) {
-    if (
-      Number.isFinite(
-        point?.x
-      ) &&
-      Number.isFinite(
-        point?.y
-      )
-    ) {
-      return {
-        x: point.x,
-        y: point.y,
-      };
+  for (const point of possiblePoints) {
+    if (Number.isFinite(point?.x) && Number.isFinite(point?.y)) {
+      return {x: point.x, y: point.y,};
     }
   }
 
   return null;
 }
 
-function getPolarityDistance(
-  first,
-  second
-) {
-  if (
-    !first ||
-    !second
-  ) {
-    return Infinity;
-  }
+function getPolarityDistance(first, second) {
+  if (!first || !second
+  ) { return Infinity; }
 
-  return (
-    Math.abs(
-      first.x -
-      second.x
-    ) +
-    Math.abs(
-      first.y -
-      second.y
-    )
+  return (Math.abs(first.x - second.x) +
+    Math.abs(first.y - second.y)
   );
 }
 
-function drawPolaritySign(
-  labelLayer,
-  sign,
-  point,
-  className = ""
-) {
-  if (
-    !point ||
-    !Number.isFinite(
-      point.x
-    ) ||
-    !Number.isFinite(
-      point.y
-    )
-  ) {
-    return;
-  }
+function drawPolaritySign(labelLayer, sign, point, className = "") {
+  if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)
+  ) { return; }
 
-  drawComponentValueText(
-    labelLayer,
-    sign,
-    point.x,
-    point.y,
-    {
-      size:
-        "15px",
-
-      weight:
-        "900",
-
-      fill:
-        sign === "+"
-          ? "#15803d"
-          : "#b91c1c",
-
-      background:
-        "#f8fafc",
-
-      backgroundWidth:
-        3,
-
-      className: [
-        "current-polarity-sign",
-        className,
-      ]
+  drawComponentValueText(labelLayer, sign, point.x, point.y,
+    { size: "15px", weight: "900", fill: sign === "+" ? "#15803d": "#b91c1c", 
+      background: "#f8fafc", backgroundWidth: 3, className: [ "current-polarity-sign", className, ]
         .filter(Boolean)
         .join(" "),
     }
   );
 }
 
-function createPolarityComponent(
-  element,
-  options = {}
-) {
-  const halfSize =
-    drawConfig.imageSize / 2;
+function createPolarityComponent(element, options = {}) {
+  const halfSize = drawConfig.imageSize / 2;
+  const type = getElementType(element);
 
-  const type =
-    getElementType(
-      element
-    );
+  if (type === "IB") { return null; }
 
-  if (
-    type === "IB"
-  ) {
-    return null;
-  }
-
-  /*
-   * Inductors use their actual left/right pins.
-   */
-  if (
-    type === "L"
-  ) {
-    const inputPoint =
-      element.inputPin || {
-        x:
-          element.x -
-          halfSize,
-
-        y:
-          element.y,
+  if (type === "L") {
+    const inputPoint = element.inputPin || {
+        x: element.x - halfSize,
+        y: element.y,
       };
 
     const outputPoint =
-      element.outputPin || {
-        x:
-          element.x +
-          halfSize,
-
-        y:
-          element.y,
-      };
+      element.outputPin || {x: element.x + halfSize, y: element.y,};
 
     return {
-      id:
-        element.id,
-
-      kind:
-        "inductor",
-
-      elements: [
-        element,
-      ],
-
-      center: {
-        x:
-          element.x,
-
-        y:
-          element.y,
-      },
-
-      sideA: {
-        name:
-          "input",
-
-        net:
-          element.net_in,
-
-        netKey:
-          normalizePolarityNet(
-            element.net_in
-          ),
-
-        point:
-          inputPoint,
-      },
-
-      sideB: {
-        name:
-          "output",
-
-        net:
-          element.net_out,
-
-        netKey:
-          normalizePolarityNet(
-            element.net_out
-          ),
-
-        point:
-          outputPoint,
-      },
+      id: element.id,
+      kind: "inductor",
+      elements: [element,],
+      center: { x:  element.x, y: element.y, },
+      sideA: {name: "input", net:element.net_in, netKey: normalizePolarityNet(element.net_in), point: inputPoint,},
+      sideB: { name: "output", net: element.net_out, netKey: normalizePolarityNet(element.net_out), point: outputPoint,},
     };
   }
 
-  /*
-   * A standalone resistor or JJ is vertical.
-   */
-  if (
-    type === "R" ||
-    type === "JJ"
-  ) {
+  if (type === "R" || type === "JJ") {
     return {
-      id:
-        element.id,
-
-      kind:
-        type === "R"
-          ? "resistor"
-          : "jj",
-
-      elements: [
-        element,
-      ],
-
-      center: {
-        x:
-          element.x,
-
-        y:
-          element.y,
-      },
-
+      id: element.id,
+      kind: type === "R" ? "resistor" : "jj",
+      elements: [ element, ],
+      center: { x: element.x, y: element.y,},
       sideA: {
-        name:
-          "top",
-
-        net:
-          element.net_in,
-
-        netKey:
-          normalizePolarityNet(
-            element.net_in
-          ),
-
+        name: "top",
+        net: element.net_in,
+        netKey: normalizePolarityNet(element.net_in),
         point: {
-          x:
-            element.x,
-
-          y:
-            element.y -
-            halfSize,
+          x: element.x,
+          y: element.y -  halfSize,
         },
       },
 
       sideB: {
-        name:
-          "bottom",
-
-        net:
-          element.net_out,
-
-        netKey:
-          normalizePolarityNet(
-            element.net_out
-          ),
-
-        point: {
-          x:
-            element.x,
-
-          y:
-            element.y +
-            halfSize,
-        },
+        name: "bottom",
+        net: element.net_out,
+        netKey: normalizePolarityNet(element.net_out),
+        point: {x: element.x, y: element.y + halfSize,},
       },
     };
   }
 
-  /*
-   * Generic fallback for any other two-terminal
-   * component.
-   */
-  if (
-    element.net_in &&
-    element.net_out
-  ) {
-    const inputPoint =
-      element.inputPin || {
-        x:
-          element.x -
-          halfSize,
 
-        y:
-          element.y,
-      };
+  if (element.net_in && element.net_out) {
+    const inputPoint = element.inputPin || { x: element.x - halfSize, y: element.y,};
 
     const outputPoint =
-      element.outputPin || {
-        x:
-          element.x +
-          halfSize,
-
-        y:
-          element.y,
-      };
+      element.outputPin || { x: element.x + halfSize, y: element.y, };
 
     return {
-      id:
-        element.id,
-
-      kind:
-        "generic",
-
-      elements: [
-        element,
-      ],
-
-      center: {
-        x:
-          element.x,
-
-        y:
-          element.y,
-      },
-
+      id: element.id,
+      kind: "generic",
+      elements: [element,],
+      center: { x: element.x, y: element.y, },
       sideA: {
-        name:
-          "input",
-
-        net:
-          element.net_in,
-
-        netKey:
-          normalizePolarityNet(
-            element.net_in
-          ),
-
-        point:
-          inputPoint,
+        name: "input",
+        net: element.net_in,
+        netKey: normalizePolarityNet(element.net_in),
+        point: inputPoint,
       },
 
       sideB: {
-        name:
-          "output",
-
-        net:
-          element.net_out,
-
-        netKey:
-          normalizePolarityNet(
-            element.net_out
-          ),
-
-        point:
-          outputPoint,
+        name: "output",
+        net:  element.net_out,
+        netKey: normalizePolarityNet(element.net_out),
+        point: outputPoint,
       },
     };
   }
-
   return null;
 }
 
-function buildPolarityComponents(
-  placed
-) {
+function buildPolarityComponents(placed) {
   const components = [];
-  const consumedIds =
-    new Set();
+  const consumedIds = new Set();
 
-  for (
-    let index = 0;
-    index < placed.length;
-    index++
-  ) {
-    const current =
-      placed[index];
+  for (let index = 0; index < placed.length; index++) {
+    const current = placed[index];
 
-    if (
-      consumedIds.has(
-        current.id
-      ) ||
-      isBiasElement(
-        current
-      )
-    ) {
-      continue;
-    }
+    if (consumedIds.has( current.id) || isBiasElement(current)
+    ) { continue; }
 
-    const currentType =
-      getElementType(
-        current
-      );
+    const currentType = getElementType(current);
 
-    /*
-     * Treat a JJ and its generated resistor as one
-     * electrical edge with a shared top and bottom net.
-     */
-    if (
-      currentType === "JJ"
-    ) {
+    if (currentType === "JJ") {
       const resistor =
         placed.find(
           (candidate) =>
-            !consumedIds.has(
-              candidate.id
-            ) &&
-            getLayoutInstance(
-              candidate
-            ) ===
-              getLayoutInstance(
-                current
-              ) &&
-            isJJResistorPair(
-              current,
-              candidate
-            )
+            !consumedIds.has(candidate.id) && getLayoutInstance(candidate) ===
+              getLayoutInstance(current) && isJJResistorPair(current, candidate)
         );
 
       if (resistor) {
-        const geometry =
-          getJJPairGeometry(
-            current,
-            resistor,
-            25
-          );
+        const geometry = getJJPairGeometry(current, resistor, 25);
 
         components.push({
-          id:
-            `pair:${current.id}`,
-
-          kind:
-            "jr-pair",
-
-          elements: [
-            current,
-            resistor,
-          ],
-
-          jj:
-            current,
-
+          id: `pair:${current.id}`,
+          kind: "jr-pair",
+          elements: [current, resistor,],
+          jj: current,
           resistor,
-
           geometry,
-
-          center: {
-            x:
-              (
-                current.x +
-                resistor.x
-              ) / 2,
-
-            y:
-              (
-                current.y +
-                resistor.y
-              ) / 2,
-          },
-
+          center: { x:(current.x + resistor.x) / 2, y:(current.y + resistor.y) / 2,},
           sideA: {
-            name:
-              "top",
-
-            net:
-              current.net_in,
-
-            netKey:
-              normalizePolarityNet(
-                current.net_in
-              ),
-
-            point:
-              geometry.topMiddle,
+            name: "top",
+            net: current.net_in,
+            netKey: normalizePolarityNet(current.net_in),
+            point: geometry.topMiddle,
           },
-
           sideB: {
-            name:
-              "bottom",
-
-            net:
-              current.net_out,
-
-            netKey:
-              normalizePolarityNet(
-                current.net_out
-              ),
-
-            point:
-              geometry.bottomMiddle,
+            name: "bottom",
+            net: current.net_out,
+            netKey:  normalizePolarityNet(current.net_out),
+            point: geometry.bottomMiddle,
           },
         });
 
-        consumedIds.add(
-          current.id
-        );
-
-        consumedIds.add(
-          resistor.id
-        );
+        consumedIds.add(current.id);
+        consumedIds.add( resistor.id);
 
         continue;
       }
     }
 
-    const component =
-      createPolarityComponent(
-        current
-      );
+    const component = createPolarityComponent(current);
 
-    if (component) {
-      components.push(
-        component
-      );
-    }
+    if (component) { components.push(component); }
 
-    consumedIds.add(
-      current.id
-    );
+    consumedIds.add(current.id);
   }
 
   return components;
 }
 
-function buildPolarityNetGraph(
-  components
-) {
-  const graph =
-    new Map();
+function buildPolarityNetGraph(components) {
+  const graph =new Map();
 
-  function ensureNet(
-    net
-  ) {
-    if (
-      !net ||
-      graph.has(net)
-    ) {
-      return;
-    }
+  function ensureNet(net) {
+    if (!net || graph.has(net)) {return;}
 
-    graph.set(
-      net,
-      new Set()
-    );
+    graph.set(net, new Set());
   }
 
-  function connectNets(
-    firstNet,
-    secondNet
-  ) {
-    if (
-      !firstNet ||
-      !secondNet
-    ) {
-      return;
-    }
+  function connectNets(firstNet, secondNet) {
+    if (!firstNet || !secondNet) { return; }
+    ensureNet(firstNet);
+    ensureNet(secondNet);
 
-    ensureNet(
-      firstNet
-    );
-
-    ensureNet(
-      secondNet
-    );
-
-    if (
-      firstNet ===
-      secondNet
-    ) {
-      return;
-    }
-
-    graph
-      .get(firstNet)
-      .add(secondNet);
-
-    graph
-      .get(secondNet)
-      .add(firstNet);
+    if (firstNet === secondNet) { return; }
+    graph.get(firstNet).add(secondNet);
+    graph.get(secondNet).add(firstNet);
   }
 
-  for (
-    const component of
-    components
-  ) {
-    connectNets(
-      component.sideA.netKey,
-      component.sideB.netKey
-    );
+  for (const component of components) {
+    connectNets(component.sideA.netKey, component.sideB.netKey);
   }
-
   return graph;
 }
 
-function calculateBiasNetDistances(
-  sourceNet,
-  graph
-) {
-  const distances =
-    new Map();
+function calculateBiasNetDistances(sourceNet, graph) {
+  const distances = new Map();
 
-  if (!sourceNet) {
-    return distances;
-  }
+  if (!sourceNet) { return distances;}
 
-  distances.set(
-    sourceNet,
-    0
-  );
+  distances.set(sourceNet, 0);
 
-  const queue = [
-    sourceNet,
-  ];
+  const queue = [sourceNet,];
 
-  for (
-    let queueIndex = 0;
-    queueIndex <
-      queue.length;
-    queueIndex++
-  ) {
-    const currentNet =
-      queue[queueIndex];
+  for (let queueIndex = 0; queueIndex < queue.length; queueIndex++) {
+    const currentNet = queue[queueIndex];
 
-    const currentDistance =
-      distances.get(
-        currentNet
-      );
+    const currentDistance = distances.get(currentNet);
 
-    const neighbours =
-      graph.get(
-        currentNet
-      ) || [];
+    const neighbours = graph.get(currentNet) || [];
 
-    for (
-      const neighbour of
-      neighbours
-    ) {
-      if (
-        distances.has(
-          neighbour
-        )
-      ) {
-        continue;
-      }
+    for (const neighbour of neighbours) {
+      if (distances.has(neighbour)
+      ) {continue;}
 
-      distances.set(
-        neighbour,
-        currentDistance + 1
-      );
-
-      queue.push(
-        neighbour
-      );
+      distances.set(neighbour, currentDistance + 1);
+      queue.push(neighbour);
     }
   }
 
   return distances;
 }
 
-function buildPolarityBiases(
-  placed,
-  graph
-) {
-  return placed
-    .filter(
+function buildPolarityBiases(placed, graph) {
+  return placed.filter(
       (element) =>
-        isBiasElement(
-          element
-        ) &&
-        element.net_out
+        isBiasElement(element) && element.net_out
     )
-    .map(
-      (bias) => {
-        const sourceNet =
-          normalizePolarityNet(
-            bias.net_out
-          );
+    .map((bias) => { const sourceNet = normalizePolarityNet(bias.net_out);
 
-        return {
-          element:
-            bias,
-
-          sourceNet,
-
-          point:
-            getBiasPolarityPoint(
-              bias
-            ),
-
-          distances:
-            calculateBiasNetDistances(
-              sourceNet,
-              graph
-            ),
+        return {element: bias, sourceNet, point: getBiasPolarityPoint(bias), distances:
+            calculateBiasNetDistances(sourceNet, graph),
         };
       }
     );
 }
 
-function chooseClosestBiasForComponent(
-  component,
-  biases
-) {
-  let bestBias =
-    null;
+function chooseClosestBiasForComponent(component, biases) {
+  let bestBias =  null;
 
-  for (
-    const bias of
-    biases
-  ) {
-    const distanceA =
-      bias.distances.has(
-        component.sideA.netKey
-      )
-        ? bias.distances.get(
-            component.sideA.netKey
-          )
-        : Infinity;
+  for (const bias of biases) {
+    const distanceA = bias.distances.has(component.sideA.netKey) ? bias.distances.get(component.sideA.netKey) : Infinity;
 
-    const distanceB =
-      bias.distances.has(
-        component.sideB.netKey
-      )
-        ? bias.distances.get(
-            component.sideB.netKey
-          )
-        : Infinity;
+    const distanceB = bias.distances.has(component.sideB.netKey) ? bias.distances.get(component.sideB.netKey) : Infinity;
 
-    const graphDistance =
-      Math.min(
-        distanceA,
-        distanceB
-      );
+    const graphDistance = Math.min(distanceA, distanceB);
 
-    if (
-      !Number.isFinite(
-        graphDistance
-      )
-    ) {
-      continue;
-    }
+    if (!Number.isFinite(graphDistance)
+    ) { continue; }
 
-    const physicalDistance =
-      getPolarityDistance(
-        bias.point,
-        component.center
-      );
+    const physicalDistance = getPolarityDistance(bias.point, component.center);
 
-    if (
-      !bestBias ||
-      graphDistance <
-        bestBias.graphDistance ||
-      (
-        graphDistance ===
-          bestBias.graphDistance &&
-        physicalDistance <
-          bestBias.physicalDistance
-      )
-    ) {
-      bestBias = {
-        ...bias,
-
-        graphDistance,
-        physicalDistance,
-
-        distanceA,
-        distanceB,
-      };
-    }
+    if (!bestBias || graphDistance < bestBias.graphDistance ||
+      (graphDistance ===  bestBias.graphDistance && physicalDistance < bestBias.physicalDistance)
+    ) { bestBias = { ...bias, graphDistance, physicalDistance, distanceA, distanceB,}; }
   }
 
-  /*
-   * A disconnected component still receives signs.
-   * Use the physically closest bias as a fallback.
-   */
-  if (
-    !bestBias &&
-    biases.length > 0
-  ) {
-    const closest =
-      [...biases].sort(
-        (first, second) =>
-          getPolarityDistance(
-            first.point,
-            component.center
-          ) -
-          getPolarityDistance(
-            second.point,
-            component.center
-          )
-      )[0];
 
-    bestBias = {
-      ...closest,
+  if (!bestBias && biases.length > 0) {
+    const closest = [...biases].sort(
+        (first, second) => getPolarityDistance(first.point, component.center) -
+          getPolarityDistance(second.point, component.center))[0];
 
-      graphDistance:
-        Infinity,
-
-      physicalDistance:
-        getPolarityDistance(
-          closest.point,
-          component.center
-        ),
-
-      distanceA:
-        Infinity,
-
-      distanceB:
-        Infinity,
-    };
+    bestBias = {...closest, graphDistance: Infinity, physicalDistance: getPolarityDistance(closest.point, component.center),
+      distanceA: Infinity, distanceB: Infinity, };
   }
-
   return bestBias;
 }
 
-function choosePositiveComponentSide(
-  component,
-  bias
-) {
-  if (!bias) {
-    return null;
-  }
+function choosePositiveComponentSide(component, bias) {
+  if (!bias) { return null; }
+  if (bias.distanceA < bias.distanceB) {return component.sideA;}
+  if (bias.distanceB < bias.distanceA) { return component.sideB; }
 
-  /*
-   * Whichever net is fewer component hops from the
-   * bias is the positive/current-entry side.
-   */
-  if (
-    bias.distanceA <
-    bias.distanceB
-  ) {
-    return component.sideA;
-  }
 
-  if (
-    bias.distanceB <
-    bias.distanceA
-  ) {
-    return component.sideB;
-  }
+  const sideAIsBiasNet = component.sideA.netKey === bias.sourceNet;
 
-  /*
-   * Direct bias-net matches take priority in ties.
-   */
-  const sideAIsBiasNet =
-    component.sideA.netKey ===
-    bias.sourceNet;
+  const sideBIsBiasNet = component.sideB.netKey === bias.sourceNet;
 
-  const sideBIsBiasNet =
-    component.sideB.netKey ===
-    bias.sourceNet;
+  if (sideAIsBiasNet && !sideBIsBiasNet
+  ) { return component.sideA;}
 
-  if (
-    sideAIsBiasNet &&
-    !sideBIsBiasNet
-  ) {
-    return component.sideA;
-  }
+  if (sideBIsBiasNet && !sideAIsBiasNet ) { return component.sideB; }
 
-  if (
-    sideBIsBiasNet &&
-    !sideAIsBiasNet
-  ) {
-    return component.sideB;
-  }
+  const physicalA = getPolarityDistance(bias.point, component.sideA.point);
 
-  /*
-   * Cycles can give both nets the same graph distance.
-   * In that case, use their physical position relative
-   * to the selected bias.
-   */
-  const physicalA =
-    getPolarityDistance(
-      bias.point,
-      component.sideA.point
-    );
+  const physicalB = getPolarityDistance(bias.point, component.sideB.point);
 
-  const physicalB =
-    getPolarityDistance(
-      bias.point,
-      component.sideB.point
-    );
-
-  if (
-    physicalB <
-    physicalA
-  ) {
+  if (physicalB < physicalA) {
     return component.sideB;
   }
 
   return component.sideA;
 }
 
-function getOutwardSignPoint(
-  componentCenter,
-  terminalPoint,
-  offset = 10
-) {
-  const dx =
-    terminalPoint.x -
-    componentCenter.x;
+function getOutwardSignPoint(componentCenter, terminalPoint, offset = 10) {
+  const dx = terminalPoint.x - componentCenter.x;
+  const dy = terminalPoint.y - componentCenter.y;
 
-  const dy =
-    terminalPoint.y -
-    componentCenter.y;
-
-  if (
-    Math.abs(dx) >=
-    Math.abs(dy)
-  ) {
+  if (Math.abs(dx) >= Math.abs(dy)) {
     return {
-      x:
-        terminalPoint.x +
-        (
-          dx < 0
-            ? -offset
-            : offset
-        ),
-
-      y:
-        terminalPoint.y,
+      x: terminalPoint.x + (dx < 0 ? -offset : offset),
+      y: terminalPoint.y,
     };
   }
 
   return {
-    x:
-      terminalPoint.x,
-
-    y:
-      terminalPoint.y +
-      (
-        dy < 0
-          ? -offset
-          : offset
-      ),
+    x: terminalPoint.x,
+    y: terminalPoint.y + (dy < 0 ? -offset : offset ),
   };
 }
 
-function drawPolarityForComponent(
-  labelLayer,
-  component,
-  positiveSide
-) {
-  if (
-    !labelLayer ||
-    !component ||
-    !component.sideA ||
-    !component.sideB
-  ) {
+function drawPolarityForComponent(labelLayer, component, positiveSide) {
+  if (!labelLayer || !component ||!component.sideA || !component.sideB) {
     return;
   }
 
-  /*
-   * Hard rule for JJ/resistor subcircuits:
-   *
-   * If one rail is ground, that rail must always be
-   * negative. The opposite rail is always positive.
-   *
-   * This overrides the closest-bias calculation.
-   */
   if (
-    component.kind ===
-    "jr-pair"
-  ) {
-    const sideAIsGround =
-      isGroundNet(
-        component.sideA.net
-      );
+    component.kind === "jr-pair"
+  ) { const sideAIsGround = isGroundNet(component.sideA.net);
 
-    const sideBIsGround =
-      isGroundNet(
-        component.sideB.net
-      );
+    const sideBIsGround = isGroundNet(component.sideB.net);
 
-    if (
-      sideAIsGround &&
-      !sideBIsGround
-    ) {
-      positiveSide =
-        component.sideB;
-    } else if (
-      sideBIsGround &&
-      !sideAIsGround
-    ) {
-      positiveSide =
-        component.sideA;
-    }
+    if (sideAIsGround && !sideBIsGround ) { positiveSide = component.sideB;
+    } else if (sideBIsGround && !sideAIsGround ) { positiveSide = component.sideA; }
   }
 
-  if (!positiveSide) {
-    return;
-  }
+  if (!positiveSide) { return; }
 
-  const negativeSide =
-    positiveSide ===
-      component.sideA
-      ? component.sideB
-      : component.sideA;
+  const negativeSide =positiveSide ===component.sideA ? component.sideB : component.sideA;
 
-  if (
-    component.kind ===
-    "jr-pair"
-  ) {
-    const {
-      jj,
-      resistor,
-    } = component;
+  if ( component.kind === "jr-pair"
+  ) { 
+    const {jj, resistor,} = component;
+    const halfSize = drawConfig.imageSize / 2;
+    const sideAIsPositive = positiveSide === component.sideA;
+    const sideASign = sideAIsPositive ? "+" : "−";
+    const sideBSign = sideAIsPositive ? "−" : "+";
+    const topSign = component.sideA.name === "top" ? sideASign : sideBSign;
+    const bottomSign = component.sideA.name === "bottom" ? sideASign : sideBSign;
+    const verticalOffset = 9;
 
-    const halfSize =
-      drawConfig.imageSize / 2;
-
-    /*
-     * The sign on each rail is determined by which
-     * side was selected as positive.
-     */
-    const sideAIsPositive =
-      positiveSide ===
-      component.sideA;
-
-    const sideASign =
-      sideAIsPositive
-        ? "+"
-        : "−";
-
-    const sideBSign =
-      sideAIsPositive
-        ? "−"
-        : "+";
-
-    /*
-     * sideA is normally the top rail and sideB is
-     * normally the bottom rail.
-     *
-     * Use their names so this remains correct even if
-     * the component data changes ordering.
-     */
-    const topSign =
-      component.sideA.name ===
-      "top"
-        ? sideASign
-        : sideBSign;
-
-    const bottomSign =
-      component.sideA.name ===
-      "bottom"
-        ? sideASign
-        : sideBSign;
-
-    const verticalOffset =
-      9;
-
-    /*
-     * JJ signs.
-     */
-    drawPolaritySign(
-      labelLayer,
-      topSign,
-      {
-        x:
-          jj.x,
-
-        y:
-          jj.y -
-          halfSize -
-          verticalOffset,
-      },
-      "jj-polarity-top"
-    );
-
-    drawPolaritySign(
-      labelLayer,
-      bottomSign,
-      {
-        x:
-          jj.x,
-
-        y:
-          jj.y +
-          halfSize +
-          verticalOffset,
-      },
-      "jj-polarity-bottom"
-    );
-
-    /*
-     * Resistor signs follow the same top/bottom
-     * polarity as the JJ because they share the rails.
-     */
-    drawPolaritySign(
-      labelLayer,
-      topSign,
-      {
-        x:
-          resistor.x,
-
-        y:
-          resistor.y -
-          halfSize -
-          verticalOffset,
-      },
-      "resistor-polarity-top"
-    );
-
-    drawPolaritySign(
-      labelLayer,
-      bottomSign,
-      {
-        x:
-          resistor.x,
-
-        y:
-          resistor.y +
-          halfSize +
-          verticalOffset,
-      },
-      "resistor-polarity-bottom"
-    );
+    drawPolaritySign(labelLayer,  topSign, { x: jj.x, y: jj.y - halfSize - verticalOffset,},"jj-polarity-top" );
+    drawPolaritySign(labelLayer, bottomSign, {x: jj.x, y: jj.y + halfSize + verticalOffset,}, "jj-polarity-bottom");
+    drawPolaritySign(labelLayer, topSign, {x: resistor.x, y: resistor.y - halfSize - verticalOffset, }, "resistor-polarity-top");
+    drawPolaritySign(labelLayer, bottomSign, { x: resistor.x, y: resistor.y + halfSize + verticalOffset, }, "resistor-polarity-bottom");
 
     return;
   }
 
-  /*
-   * Non-JR components keep the normal closest-bias
-   * polarity behavior.
-   */
-  const positivePoint =
-    getOutwardSignPoint(
-      component.center,
-      positiveSide.point,
-      10
-    );
 
-  const negativePoint =
-    getOutwardSignPoint(
-      component.center,
-      negativeSide.point,
-      10
-    );
+  const positivePoint = getOutwardSignPoint(component.center, positiveSide.point, 10);
+  const negativePoint = getOutwardSignPoint(component.center, negativeSide.point, 10 );
 
-  drawPolaritySign(
-    labelLayer,
-    "+",
-    positivePoint,
-    `${component.kind}-polarity-positive`
-  );
-
-  drawPolaritySign(
-    labelLayer,
-    "−",
-    negativePoint,
-    `${component.kind}-polarity-negative`
-  );
+  drawPolaritySign(labelLayer, "+", positivePoint, `${component.kind}-polarity-positive`);
+  drawPolaritySign(labelLayer, "−", negativePoint, `${component.kind}-polarity-negative`);
 }
 
-function drawBiasBasedPolaritySigns(
-  labelLayer,
-  placed
-) {
-  if (
-    !labelLayer ||
-    !Array.isArray(
-      placed
-    )
-  ) {
-    return;
-  }
+function drawBiasBasedPolaritySigns(labelLayer, placed) {
+  if (!labelLayer || !Array.isArray(placed)
+  ) { return; }
 
-  /*
-   * Remove old signs before redrawing.
-   */
-  labelLayer
-    .querySelectorAll(
-      ".current-polarity-sign"
-    )
-    .forEach(
-      (sign) =>
-        sign.remove()
-    );
 
-  const components =
-    buildPolarityComponents(
-      placed
-    );
+  labelLayer.querySelectorAll(".current-polarity-sign").forEach((sign) => sign.remove());
 
-  const graph =
-    buildPolarityNetGraph(
-      components
-    );
+  const components = buildPolarityComponents(placed);
+  const graph = buildPolarityNetGraph(components);
+  const biases = buildPolarityBiases(placed, graph);
 
-  const biases =
-    buildPolarityBiases(
-      placed,
-      graph
-    );
-
-  if (
-    biases.length === 0
-  ) {
-    console.warn(
-      "No bias elements were available for polarity calculation."
-    );
+  if (biases.length === 0) {
+    console.warn("No bias elements were available for polarity calculation.");
 
     return;
   }
 
-  for (
-    const component of
-    components
-  ) {
-    if (
-      !component.sideA.netKey ||
-      !component.sideB.netKey
-    ) {
+  for (const component of components) {
+    if (!component.sideA.netKey || !component.sideB.netKey) {
       continue;
     }
 
-    const closestBias =
-      chooseClosestBiasForComponent(
-        component,
-        biases
-      );
-
-    const positiveSide =
-      choosePositiveComponentSide(
-        component,
-        closestBias
-      );
-
-    drawPolarityForComponent(
-      labelLayer,
-      component,
-      positiveSide
-    );
+    const closestBias = chooseClosestBiasForComponent(component, biases);
+    const positiveSide = choosePositiveComponentSide(component, closestBias);
+    drawPolarityForComponent(labelLayer, component, positiveSide);
   }
 }
