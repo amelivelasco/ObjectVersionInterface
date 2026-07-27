@@ -826,6 +826,16 @@ function setupWireSelection(svg) {
     const wire of
     wires
   ) {
+    /*
+     * Show the pointer cursor when hovering over
+     * the visible SVG wire stroke.
+     */
+    wire.style.cursor =
+      "pointer";
+
+    wire.style.pointerEvents =
+      "stroke";
+
     wire.addEventListener(
       "mousedown",
       (event) => {
@@ -868,21 +878,6 @@ function setupWireSelection(svg) {
       }
     );
   }
-}
-
-
-function clearSelectedWires(svg) {
-  svg.querySelectorAll(".edge").forEach((wire) => {
-    wire.setAttribute(
-      "stroke",
-        wire.dataset.originalStroke
-    );
-
-    wire.setAttribute(
-      "stroke-width",
-      drawConfig.wireStrokeWidth
-    );
-  });
 }
 
 

@@ -1,9 +1,12 @@
-function getPinOffsetForElement(element) {
-  return getElementType(element) === "L"
-    ? drawConfig.imageSize / 2
-    : drawConfig.pinOffset;
+function getPinOffsetForElement(
+  element
+) {
+  return (
+    getElementType(element) === "L"
+      ? drawConfig.inductorPinOffset + 10
+      : drawConfig.pinOffset + 10
+  );
 }
-
 function isBiasElement(element) {
   return getElementType(element) === "IB";
 }
@@ -335,46 +338,80 @@ function collectNetTerminals(elements) {
         
         if (
           element.net_in &&
-          element.inputPin 
-        ){
-            addTerminal(
+          element.inputPin
+        ) {
+          const inputRoutingPoint =
+            getTerminalRoutingPoint(
+              {
+                element,
+                kind: "in",
+              },
+              element.inputPin
+            );
+
+          addTerminal(
             element.net_in,
             {
-                net: element.net_in,
-                kind: "in",
-                point: element.inputPin,
+              net:
+                element.net_in,
 
-                candidatePoints: [
-                element.inputPin,
-                ],
+              kind:
+                "in",
 
-                element,
-                ownerId: element.id,
-                layoutInstance,
+              point:
+                inputRoutingPoint,
+
+              candidatePoints: [
+                inputRoutingPoint,
+              ],
+
+              element,
+
+              ownerId:
+                element.id,
+
+              layoutInstance,
             }
-            );
+          );
         }
 
         if (
           element.net_out &&
           element.outputPin
         ) {
-            addTerminal(
+          const outputRoutingPoint =
+            getTerminalRoutingPoint(
+              {
+                element,
+                kind: "out",
+              },
+              element.outputPin
+            );
+
+          addTerminal(
             element.net_out,
             {
-                net: element.net_out,
-                kind: "out",
-                point: element.outputPin,
+              net:
+                element.net_out,
 
-                candidatePoints: [
-                element.outputPin,
-                ],
+              kind:
+                "out",
 
-                element,
-                ownerId: element.id,
-                layoutInstance,
+              point:
+                outputRoutingPoint,
+
+              candidatePoints: [
+                outputRoutingPoint,
+              ],
+
+              element,
+
+              ownerId:
+                element.id,
+
+              layoutInstance,
             }
-            );
+          );
         }
     }
 
@@ -765,10 +802,20 @@ function drawTerminalTree(
         .join(" ");
     }
 
+    const drawnFromPoint =
+      routePoints?.[0] ??
+      fromPoint;
+
+    const drawnToPoint =
+      routePoints?.[
+        routePoints.length - 1
+      ] ??
+      toPoint;
+
     drawPath(
       wireLayer,
-      fromPoint,
-      toPoint,
+      drawnFromPoint,
+      drawnToPoint,
       {
         stroke:
           drawConfig.wireStroke,

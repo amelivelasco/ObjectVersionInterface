@@ -353,25 +353,92 @@ function getInductorApproachPoint(
   point,
   clearance = 18
 ) {
-  const element = terminal.element;
+  const element =
+    terminal?.element;
 
   if (
     !element ||
     getElementType(element) !== "L"
   ) {
-    return { ...point };
+    return {
+      ...point,
+    };
   }
 
-  const sideDirection =
-    point.x < element.x
-      ? -1
-      : 1;
+  let pin = null;
+  let leadPoint = null;
+
+  if (terminal.kind === "in") {
+    pin =
+      element.inputPin;
+
+    leadPoint =
+      element.inputLeadPoint;
+  } else if (
+    terminal.kind === "out"
+  ) {
+    pin =
+      element.outputPin;
+
+    leadPoint =
+      element.outputLeadPoint;
+  }
+
+  let sideDirection = 0;
+
+  /*
+   * The pin-to-lead vector is the authoritative
+   * outward direction for this inductor terminal.
+   */
+  if (
+    pin &&
+    leadPoint &&
+    Math.abs(
+      leadPoint.x - pin.x
+    ) > 0.5
+  ) {
+    sideDirection =
+      Math.sign(
+        leadPoint.x - pin.x
+      );
+  }
+
+  /*
+   * Fall back to the point's position relative
+   * to the component.
+   */
+  if (sideDirection === 0) {
+    const horizontalOffset =
+      point.x - element.x;
+
+    if (
+      Math.abs(horizontalOffset) >
+      0.5
+    ) {
+      sideDirection =
+        Math.sign(horizontalOffset);
+    }
+  }
+
+  /*
+   * Final fallback for a point exactly at the
+   * inductor center.
+   */
+  if (sideDirection === 0) {
+    sideDirection =
+      terminal.kind === "in"
+        ? -1
+        : 1;
+  }
 
   return {
     x:
       point.x +
-      sideDirection * clearance,
-    y: point.y,
+      sideDirection *
+        clearance,
+
+    y:
+      point.y,
   };
 }
 
@@ -385,34 +452,41 @@ function buildShortestFreeRoute(
   net
 ) {
   /*
-   * These approach points force the connection
-   * to leave each inductor pin outward from its
-   * actual physical side.
+   * For inductors, route to the external end of the
+   * protected lead rather than the component pin.
    */
+  const fromRoutingPoint =
+    getTerminalRoutingPoint(
+      fromTerminal,
+      fromPoint
+    );
+
+  const toRoutingPoint =
+    getTerminalRoutingPoint(
+      toTerminal,
+      toPoint
+    );
+
   const fromApproach =
     getInductorApproachPoint(
       fromTerminal,
-      fromPoint
+      fromRoutingPoint
     );
 
   const toApproach =
     getInductorApproachPoint(
       toTerminal,
-      toPoint
+      toRoutingPoint
     );
 
-  /*
-   * Keep endpoint components excluded.
-   *
-   * Do not make the whole inductor an obstacle,
-   * because that can prevent nearby JR routes from
-   * reaching it.
-   */
   const excludedIds =
     new Set(
       [
-        fromTerminal.element?.id,
-        toTerminal.element?.id,
+        fromTerminal
+          .element?.id,
+
+        toTerminal
+          .element?.id,
       ].filter(Boolean)
     );
 
@@ -423,14 +497,6 @@ function buildShortestFreeRoute(
       10
     );
 
-  /*
-   * Add only a narrow blocker through the center of
-   * endpoint inductors.
-   *
-   * The left and right pins remain accessible, but
-   * a route cannot pass through the component body
-   * from one side to the other.
-   */
   const endpointInductors =
     new Map();
 
@@ -439,7 +505,7 @@ function buildShortestFreeRoute(
     toTerminal,
   ]) {
     const element =
-      terminal.element;
+      terminal?.element;
 
     if (
       !element ||
@@ -482,11 +548,11 @@ function buildShortestFreeRoute(
   }
 
   return simplifyOrthogonalPoints([
-    fromPoint,
+    fromRoutingPoint,
     fromApproach,
     ...coreRoute,
     toApproach,
-    toPoint,
+    toRoutingPoint,
   ]);
 }
 
@@ -1242,8 +1308,10 @@ function drawSharedOutputNet(
 
     drawPath(
       wireLayer,
-      bestConnection.fromPoint,
-      bestConnection.toPoint,
+      routePoints[0],
+      routePoints[
+        routePoints.length - 1
+      ],
       {
         stroke:
           drawConfig.wireStroke,

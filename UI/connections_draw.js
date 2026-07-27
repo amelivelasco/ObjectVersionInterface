@@ -688,3 +688,71 @@ function isGroundNet(net) {
     normalized === "0"
   );
 }
+
+
+function getTerminalRoutingPoint(
+  terminal,
+  fallbackPoint
+) {
+  const element =
+    terminal?.element;
+
+  if (
+    !element ||
+    getElementType(element) !== "L"
+  ) {
+    return {
+      ...fallbackPoint,
+    };
+  }
+
+  /*
+   * Connect the external router to the end of the
+   * inductor's protected lead, not directly to the
+   * component pin.
+   */
+  if (
+    terminal.kind === "in" &&
+    element.inputNeedsLead &&
+    element.inputLeadPoint
+  ) {
+    return {
+      ...element.inputLeadPoint,
+    };
+  }
+
+  if (
+    terminal.kind === "out" &&
+    element.outputNeedsLead &&
+    element.outputLeadPoint
+  ) {
+    return {
+      ...element.outputLeadPoint,
+    };
+  }
+
+  /*
+   * Fallback when no explicit lead is required.
+   */
+  if (
+    terminal.kind === "in" &&
+    element.inputPin
+  ) {
+    return {
+      ...element.inputPin,
+    };
+  }
+
+  if (
+    terminal.kind === "out" &&
+    element.outputPin
+  ) {
+    return {
+      ...element.outputPin,
+    };
+  }
+
+  return {
+    ...fallbackPoint,
+  };
+}
