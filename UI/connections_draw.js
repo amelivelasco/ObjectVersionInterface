@@ -706,53 +706,126 @@ function getTerminalRoutingPoint(
     };
   }
 
+  let candidatePoint =
+    fallbackPoint;
+
+  if (terminal.kind === "in") {
+    candidatePoint =
+      element.inputLeadPoint ||
+      element.inputPin ||
+      fallbackPoint;
+  } else if (
+    terminal.kind === "out"
+  ) {
+    candidatePoint =
+      element.outputLeadPoint ||
+      element.outputPin ||
+      fallbackPoint;
+  }
+
+  let sideDirection = 0;
+
+  if (
+    candidatePoint &&
+    Number.isFinite(
+      candidatePoint.x
+    ) &&
+    Math.abs(
+      candidatePoint.x -
+      element.x
+    ) > 0.5
+  ) {
+    sideDirection =
+      Math.sign(
+        candidatePoint.x -
+        element.x
+      );
+  }
+
+  if (sideDirection === 0) {
+    const elementDirection =
+      Number(
+        element.electricalDirection ??
+        element.direction ??
+        1
+      );
+
+    const normalizedDirection =
+      elementDirection < 0
+        ? -1
+        : 1;
+
+    sideDirection =
+      terminal.kind === "in"
+        ? -normalizedDirection
+        : normalizedDirection;
+  }
+
   /*
-   * Connect the external router to the end of the
-   * inductor's protected lead, not directly to the
-   * component pin.
+   * The endpoint must be outside the 44px-wide
+   * inductor image, never inside it.
    */
-  if (
-    terminal.kind === "in" &&
-    element.inputNeedsLead &&
-    element.inputLeadPoint
-  ) {
-    return {
-      ...element.inputLeadPoint,
-    };
-  }
+  const minimumSideOffset =
+    drawConfig.imageSize / 2 + 1;
 
-  if (
-    terminal.kind === "out" &&
-    element.outputNeedsLead &&
-    element.outputLeadPoint
-  ) {
-    return {
-      ...element.outputLeadPoint,
-    };
-  }
+  const candidateOffset =
+    candidatePoint &&
+    Number.isFinite(
+      candidatePoint.x
+    )
+      ? Math.abs(
+          candidatePoint.x -
+          element.x
+        )
+      : 0;
 
-  /*
-   * Fallback when no explicit lead is required.
-   */
-  if (
-    terminal.kind === "in" &&
-    element.inputPin
-  ) {
-    return {
-      ...element.inputPin,
-    };
-  }
-
-  if (
-    terminal.kind === "out" &&
-    element.outputPin
-  ) {
-    return {
-      ...element.outputPin,
-    };
-  }
+  const sideOffset =
+    Math.max(
+      minimumSideOffset,
+      candidateOffset
+    );
 
   return {
-    ...fallbackPoint,
+    x:
+      element.x +
+      sideDirection *
+        sideOffset,
+
+    y:
+      Number.isFinite(
+        candidatePoint?.y
+      )
+        ? candidatePoint.y
+        : element.y,
+  };
+}
+
+
+function getInductorImageObstacle(
+  element,
+  margin = 3
+) {
+  const halfSize =
+    drawConfig.imageSize / 2 +
+    margin;
+
+  return {
+    left:
+      element.x - halfSize,
+
+    right:
+      element.x + halfSize,
+
+    top:
+      element.y - halfSize,
+
+    bottom:
+      element.y + halfSize,
+
+    elementId:
+      element.id,
+
+    isInductor:
+      true,
   };
 }

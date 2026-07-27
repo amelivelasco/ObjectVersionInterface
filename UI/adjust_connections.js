@@ -451,10 +451,6 @@ function buildShortestFreeRoute(
   routedSegments,
   net
 ) {
-  /*
-   * For inductors, route to the external end of the
-   * protected lead rather than the component pin.
-   */
   const fromRoutingPoint =
     getTerminalRoutingPoint(
       fromTerminal,
@@ -479,15 +475,23 @@ function buildShortestFreeRoute(
       toRoutingPoint
     );
 
+  const endpointElements = [
+    fromTerminal?.element,
+    toTerminal?.element,
+  ].filter(Boolean);
+
+  /*
+   * Endpoint elements remain excluded from the
+   * ordinary padded obstacle generation.
+   */
   const excludedIds =
     new Set(
-      [
-        fromTerminal
-          .element?.id,
-
-        toTerminal
-          .element?.id,
-      ].filter(Boolean)
+      endpointElements
+        .map(
+          (element) =>
+            element.id
+        )
+        .filter(Boolean)
     );
 
   const obstacleBoxes =
@@ -497,36 +501,28 @@ function buildShortestFreeRoute(
       10
     );
 
-  const endpointInductors =
-    new Map();
-
-  for (const terminal of [
-    fromTerminal,
-    toTerminal,
-  ]) {
-    const element =
-      terminal?.element;
-
+  /*
+   * Add the COMPLETE image rectangle for endpoint
+   * inductors. Do not use a narrow center barrier.
+   *
+   * The routing points are outside the image, so the
+   * router can still reach the left or right side.
+   */
+  for (
+    const element of
+    endpointElements
+  ) {
     if (
-      !element ||
-      getElementType(element) !== "L"
+      getElementType(element) !==
+      "L"
     ) {
       continue;
     }
 
-    endpointInductors.set(
-      element.id,
-      element
-    );
-  }
-
-  for (
-    const inductor of
-    endpointInductors.values()
-  ) {
     obstacleBoxes.push(
-      getInductorCenterBarrier(
-        inductor
+      getInductorImageObstacle(
+        element,
+        1
       )
     );
   }
@@ -625,6 +621,16 @@ function getLongestHorizontalSegment(points) {
 
       const second =
         points[index];
+
+      const isEndpointSegment =
+        index === 1 ||
+        index ===
+          points.length - 1;
+
+      if (isEndpointSegment) {
+        pushPoint(second);
+        continue;
+      }
 
       const horizontal =
         Math.abs(

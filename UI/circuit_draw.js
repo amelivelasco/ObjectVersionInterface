@@ -717,15 +717,6 @@ function drawCircuit(data) {
     placed
   );
 
-  drawTerminalStubs(
-    internalWireLayer,
-    labelLayer,
-    dotLayer,
-    placed,
-    10,
-    true
-  );
-
   setupInterCellTerminalHighlights(
     svg
   );

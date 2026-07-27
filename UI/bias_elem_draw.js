@@ -152,16 +152,50 @@ function placeBiasElementsAboveNetOut(
     bias.biasNetSegment =
       null;
 
-    /*
-     * Original placement behavior for:
-     *
-     * - non-inductor targets;
-     * - inductors without a matching pin;
-     * - cases where there is no free side position.
-     */
-    if (!target.inputPin) {
+    const targetIsInductor =
+      getElementType(target) ===
+      "L";
+
+    const connectsToOutput =
+      targetIsInductor &&
+      target.net_out ===
+        bias.net_out;
+
+    const targetKind =
+      connectsToOutput
+        ? "out"
+        : "in";
+
+    const rawTargetPin =
+      connectsToOutput
+        ? target.outputPin
+        : target.inputPin;
+
+    if (!rawTargetPin) {
       continue;
     }
+
+    const targetTerminal = {
+      net:
+        bias.net_out,
+
+      kind:
+        targetKind,
+
+      element:
+        target,
+
+      ownerId:
+        target.id,
+    };
+
+    const targetPin =
+      targetIsInductor
+        ? getTerminalRoutingPoint(
+            targetTerminal,
+            rawTargetPin
+          )
+        : rawTargetPin;
 
     const targetDirection =
       target.electricalDirection ??
@@ -169,12 +203,12 @@ function placeBiasElementsAboveNetOut(
       1;
 
     const desiredJoinX =
-      target.inputPin.x -
+      targetPin.x -
       targetDirection *
         drawConfig.biasBranchOffset;
 
     const netY =
-      target.inputPin.y;
+      targetPin.y;
 
     const biasCenterY =
       netY -
@@ -195,10 +229,8 @@ function placeBiasElementsAboveNetOut(
     bias.y =
       biasCenterY;
 
-    /*
-     * Original arrow points downward.
-     */
-    bias.biasRotation = 0;
+    bias.biasRotation =
+      0;
 
     bias.biasFrontPin = {
       x:
@@ -397,6 +429,7 @@ function connectBiasStubsToInductors(
     ) {
       continue;
     }
+
     if (
       bias.biasSnappedToNet
     ) {
@@ -404,87 +437,80 @@ function connectBiasStubsToInductors(
     }
 
     const layoutInstance =
-      getLayoutInstance(bias);
+      getLayoutInstance(
+        bias
+      );
 
     const cellElements =
       placed.filter(
         (element) =>
-          getLayoutInstance(element) ===
-          layoutInstance
+          getLayoutInstance(
+            element
+          ) === layoutInstance
       );
 
     /*
-     * Find every existing terminal belonging
-     * to the bias output net.
-     *
-     * Bias elements are already skipped by
-     * collectNetTerminals(), so the bias will
-     * not select itself.
+     * Select an actual inductor instead of choosing
+     * the nearest arbitrary terminal on the net.
      */
-    const terminals =
-      collectNetTerminals(
+    const target =
+      findBiasInductorTarget(
+        bias,
         cellElements
-      ).get(
-        bias.net_out
-      ) || [];
-
-    let nearestConnection = null;
-
-    for (const terminal of terminals) {
-      const points =
-        getTerminalPoints(
-          terminal
-        );
-
-      for (const point of points) {
-        const distance =
-          Math.abs(
-            bias.biasNetJoin.x -
-            point.x
-          ) +
-          Math.abs(
-            bias.biasNetJoin.y -
-            point.y
-          );
-
-        if (
-          !nearestConnection ||
-          distance <
-            nearestConnection.distance
-        ) {
-          nearestConnection = {
-            terminal,
-            point,
-            distance,
-          };
-        }
-      }
-    }
-
-    /*
-     * There is no existing terminal on this net.
-     */
-    if (!nearestConnection) {
-      console.warn(
-        `No existing terminal found for bias net ${bias.net_out}`,
-        {
-          bias:
-            bias.id,
-        }
       );
 
+    if (!target) {
       continue;
     }
 
-    const start =
-      bias.biasNetJoin;
+    const connectsToInput =
+      target.net_in ===
+      bias.net_out;
 
-    const targetPoint =
-      nearestConnection.point;
+    const targetKind =
+      connectsToInput
+        ? "in"
+        : "out";
+
+    const rawTargetPin =
+      connectsToInput
+        ? target.inputPin
+        : target.outputPin;
+
+    if (!rawTargetPin) {
+      continue;
+    }
+
+    const targetTerminal = {
+      net:
+        bias.net_out,
+
+      kind:
+        targetKind,
+
+      element:
+        target,
+
+      ownerId:
+        target.id,
+
+      layoutInstance,
+    };
 
     /*
-     * Already connected.
+     * This point is guaranteed to be on the left or
+     * right side and outside the inductor image.
      */
+    const targetPoint =
+      getTerminalRoutingPoint(
+        targetTerminal,
+        rawTargetPin
+      );
+
+    const start = {
+      ...bias.biasNetJoin,
+    };
+
     if (
       Math.abs(
         start.x -
@@ -498,20 +524,28 @@ function connectBiasStubsToInductors(
       continue;
     }
 
-    /*
-     * Collect the circuit wires that have already
-     * been drawn. They remain obstacles for this
-     * bias connection.
-     */
     const routedSegments = [];
 
     for (
       const child of
       wireLayer.children
     ) {
+      const childNet =
+        child.getAttribute(
+          "data-net"
+        );
+
       routedSegments.push(
         ...extractWireSegmentsFromElement(
           child
+        ).map(
+          (segment) => ({
+            ...segment,
+
+            net:
+              childNet ||
+              "__existing_wire__",
+          })
         )
       );
     }
@@ -537,22 +571,6 @@ function connectBiasStubsToInductors(
         bias.id,
 
       layoutInstance,
-    };
-
-    /*
-     * Use the actual existing terminal as the
-     * destination. This preserves special handling
-     * for inductors and JR pairs.
-     */
-    const targetTerminal = {
-      ...nearestConnection.terminal,
-
-      point:
-        targetPoint,
-
-      candidatePoints: [
-        targetPoint,
-      ],
     };
 
     const routePoints =
@@ -581,6 +599,9 @@ function connectBiasStubsToInductors(
           start,
 
           targetPoint,
+
+          target:
+            target.id,
         }
       );
 
@@ -589,8 +610,10 @@ function connectBiasStubsToInductors(
 
     drawPath(
       wireLayer,
-      start,
-      targetPoint,
+      routePoints[0],
+      routePoints[
+        routePoints.length - 1
+      ],
       {
         stroke:
           drawConfig.wireStroke,
