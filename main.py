@@ -24,8 +24,7 @@ def main():
 
     layout_path = (
         base_dir
-        / "test_files"
-        / "MultiplexerAmeli.custom_compiler.gds"
+        / "BIG_Cellname_New.gds"
     )
 
     ordered_elems_path = (

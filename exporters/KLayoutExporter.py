@@ -348,72 +348,73 @@ class KLayoutExporter(BaseExporter):
                 if hasattr(inst, "instances") and inst.instances:
                     walk(inst, current_path)
         walk(self.circuit.TOP)
-    
-    def mark_single_connection_nodes_in_layout(self):
-        """
-        Pour chaque node connecté à un seul élément,
-        écrit dans KLayout (layer 52/0) un texte :
-        P<NomDuComposant>
-        """
+        
+    def delete_old_port(self, pname, label_layer, anchor):
+        property_id, port_tag = 9001, f"AUTO_PORT:{pname}"
 
-        layout = self.layout
-        label_layer = layout.layer(52, 0)
+        for layer_index in (self.term_layer, label_layer):
+            to_delete = []
+
+            for shape in self.layout_top.shapes(layer_index).each():
+                tagged = shape.property(property_id) == port_tag
+                same_text = layer_index == label_layer and shape.is_text() and shape.text.string == pname
+
+                legacy_geometry = False
+                if layer_index == self.term_layer and (shape.is_path() or shape.is_box()):
+                    box = shape.bbox()
+                    legacy_geometry = box.left <= anchor.x <= box.right and box.bottom <= anchor.y <= box.top
+
+                if tagged or same_text or legacy_geometry:
+                    to_delete.append(shape)
+
+            for shape in to_delete:
+                shape.delete()
+
+    def mark_single_connection_nodes_in_layout(self):
+        label_layer, property_id = self.layout.layer(52, 0), 9001
 
         print("=== MARK SINGLE-CONNECTION NODES IN LAYOUT ===")
 
         for node in self.list_nodes_top:
-
-            if not hasattr(node, "connected_elements"):
+            if not hasattr(node, "connected_elements") or len(node.connected_elements) != 1:
                 continue
 
-            # --- Cas : une seule connexion ---
-            if len(node.connected_elements) != 1:
-                continue
             elem = node.connected_elements[0]
-
-            # Sécurité minimale
             if not hasattr(elem, "global_trans"):
                 continue
 
             pname = f"P{elem.name} M2 M0"
+            port_tag = f"AUTO_PORT:{pname}"
+            port_trans = elem.global_trans * pya.Trans(pya.Point(-5000, 0))
+            anchor = port_trans.disp
 
-            local_text_pos_p = pya.Point(-5000, 0)
-            text_trans_p = elem.global_trans * pya.Trans(local_text_pos_p)
+            # Completely delete the old text and old path before drawing.
+            self.delete_old_port(pname, label_layer, anchor)
 
-            port_p_txt = pya.Text(
-                pname,
-                text_trans_p
-            )
-            
-            w = 500   # largeur
-            h = 3000   # hauteur
+            port_text = pya.Text(pname, port_trans)
+            port_text.halign = pya.Text.HAlignCenter
+            port_text.valign = pya.Text.VAlignCenter
 
-            # Rectangle centré sur (0,0)
-            box = pya.Box(
-                -w // 2, -h // 2,
-                w // 2,  h // 2
-                )
-            box_t = box.transformed(text_trans_p)
-            self.layout_top.shapes(self.term_layer).insert(box_t)
-            self.layout_top.shapes(label_layer).insert(port_p_txt)
+            width, length = 300, 5000
+            path = pya.Path([pya.Point(0, -length // 2), pya.Point(0, length // 2)], width)
+            path_t = path.transformed(port_trans)
 
+            path_shape = self.layout_top.shapes(self.term_layer).insert(path_t)
+            text_shape = self.layout_top.shapes(label_layer).insert(port_text)
 
-            
-            port_name = f"P{elem.name}"
-            node_name = str(node.GlobalName)
-            new_line = f"{port_name:<10} {node_name:<10} 0\n"
+            path_shape.set_property(property_id, port_tag)
+            text_shape.set_property(property_id, port_tag)
 
-                        
-            with open(os.path.join(self.output_dir, "BIG_Cell_inductex.cir"), "a") as f:
-                    f.write("\n* --- Auto-added ground connection ---\n")
-                    f.write(new_line)
+            port_name, node_name = f"P{elem.name}", str(node.GlobalName)
 
+            with open(os.path.join(self.output_dir, "BIG_Cell_inductex.cir"), "a") as file:
+                file.write("\n* --- Auto-added ground connection ---\n")
+                file.write(f"{port_name:<10} {node_name:<10} 0\n")
 
-            print(
-                f"Node {node.GlobalName} -> "
-                f"{elem.name}  ==> écrit '{pname}'"
-            )
-        self.layout.write(os.path.join(self.output_dir,"BIG_Cellname.gds"))
+            print(f"Node {node.GlobalName} -> {elem.name} ==> écrit '{pname}'")
+
+        # Save to the exact same GDS that was originally loaded.
+        self.layout.write(str(self.layout_path))
     
     def cover_cell_with_layer(self):
         """
@@ -466,7 +467,7 @@ class KLayoutExporter(BaseExporter):
 
         # Insertion dans la cell
         self.layout_top.shapes(layer).insert(cover_box)
-        self.layout.write(os.path.join(self.output_dir,"BIG_Cellname.gds"))
+        self.layout.write(os.path.join(self.output_dir,"BIG_Cellname_New.gds"))
         
     def write_cell_names(self):
         """
@@ -542,4 +543,4 @@ class KLayoutExporter(BaseExporter):
 
         recursive_name(self.circuit.TOP,pya.Trans())
 
-        self.layout.write(os.path.join(self.output_dir,"BIG_Cellname.gds"))
+        self.layout.write(os.path.join(self.output_dir,"BIG_Cellname_New.gds"))
