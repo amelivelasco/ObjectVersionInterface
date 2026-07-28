@@ -349,22 +349,22 @@ class KLayoutExporter(BaseExporter):
                     walk(inst, current_path)
         walk(self.circuit.TOP)
         
-    def delete_old_port(self, pname, label_layer, anchor):
+    def delete_old_port(self, pname, label_layer, anchor=None):
         property_id, port_tag = 9001, f"AUTO_PORT:{pname}"
 
         for layer_index in (self.term_layer, label_layer):
             to_delete = []
 
             for shape in self.layout_top.shapes(layer_index).each():
-                tagged = shape.property(property_id) == port_tag
+                tagged = str(shape.property(property_id)) == port_tag
                 same_text = layer_index == label_layer and shape.is_text() and shape.text.string == pname
 
-                legacy_geometry = False
-                if layer_index == self.term_layer and (shape.is_path() or shape.is_box()):
-                    box = shape.bbox()
-                    legacy_geometry = box.left <= anchor.x <= box.right and box.bottom <= anchor.y <= box.top
+                same_geometry = False
+                if anchor is not None and layer_index == self.term_layer and (shape.is_path() or shape.is_box()):
+                    bbox = shape.bbox()
+                    same_geometry = bbox.left <= anchor.x <= bbox.right and bbox.bottom <= anchor.y <= bbox.top
 
-                if tagged or same_text or legacy_geometry:
+                if tagged or same_text or same_geometry:
                     to_delete.append(shape)
 
             for shape in to_delete:
@@ -415,132 +415,138 @@ class KLayoutExporter(BaseExporter):
 
         # Save to the exact same GDS that was originally loaded.
         self.layout.write(str(self.layout_path))
+        
+    
+    def insert_managed_text(
+        self,
+        text,
+        text_trans,
+        geometry=None,
+        geometry_layer=None,
+        label_layer=None,
+        property_id=9001,
+        tag_prefix="AUTO_PORT",
+    ):
+        label_layer = self.label_layer if label_layer is None else label_layer
+        geometry_layer = self.term_layer if geometry_layer is None else geometry_layer
+
+        anchor = text_trans.disp
+        tag = f"{tag_prefix}:{text}"
+
+        self.delete_old_port(text, label_layer, anchor)
+
+        text_object = pya.Text(text, text_trans)
+        text_object.halign = pya.Text.HAlignCenter
+        text_object.valign = pya.Text.VAlignCenter
+
+        inserted_text = self.layout_top.shapes(label_layer).insert(text_object)
+        inserted_text.set_property(property_id, tag)
+
+        inserted_geometry = None
+
+        if geometry is not None:
+            inserted_geometry = self.layout_top.shapes(geometry_layer).insert(geometry)
+            inserted_geometry.set_property(property_id, tag)
+
+        return inserted_text, inserted_geometry
     
     def cover_cell_with_layer(self):
-        """
-        Recouvre entièrement une cell donnée avec un rectangle
-        sur le layer (layer_num, layer_datatype).
-        """
-
-        layout = self.layout
-        layer = layout.layer(10,0)
-
+        cover_layer = self.layout.layer(10, 0)
         bbox = self.layout_top.bbox()
 
-        # Sécurité : cell vide
-        if bbox.empty() and self.layout_top != None:
-            print(f"Cell {self.layout_top} est vide, rien à recouvrir.")
+        if bbox.empty():
+            print(f"Cell {self.layout_top.name} est vide, rien à recouvrir.")
             return
 
-        # Création du rectangle couvrant toute la cell
-        cover_box = pya.Box(bbox)
-        
-        # =================================================
-        # 2) BANDE EN HAUT + TEXTE (layer 45/0)
-        # =================================================
-        banner_height_um = 10.0
-        banner_height_dbu = int(banner_height_um )
-
-        xmin = bbox.left
-        xmax = bbox.right
-        ymax = bbox.top
-
-        # --- Bande rectangulaire ---
-        banner_box = pya.Box(
-            xmin,
-            ymax - banner_height_dbu,
-            xmax,
-            ymax
-        )
-        self.layout_top.shapes(self.term_layer).insert(banner_box)
-
+        xmin, xmax, ymax = bbox.left, bbox.right, bbox.top
+        banner_height = 10
         text = "Pdc M3 M0"
+        anchor = pya.Point((xmin + xmax) // 2, ymax - banner_height // 2)
+        banner_box = pya.Box(xmin, ymax - banner_height, xmax, ymax)
 
-        text_x = (xmin + xmax) // 2
-        text_y = ymax - banner_height_dbu // 2
+        self.insert_managed_text(
+            text=text,
+            text_trans=pya.Trans(anchor),
+            geometry=banner_box,
+            geometry_layer=self.term_layer,
+            label_layer=self.label_layer,
+        )
 
-        text_trans = pya.Trans(pya.Point(text_x, text_y))
-        text_shape = pya.Text(text, text_trans)
+        # Replace the previous full-cell cover instead of accumulating copies.
+        self.layout_top.shapes(cover_layer).clear()
+        self.layout_top.shapes(cover_layer).insert(pya.Box(bbox))
 
-        self.layout_top.shapes(self.label_layer).insert(text_shape)
-
-
-        # Insertion dans la cell
-        self.layout_top.shapes(layer).insert(cover_box)
-        self.layout.write(os.path.join(self.output_dir,"BIG_Cellname_New.gds"))
+        self.layout.write(str(self.layout_path))
         
     def write_cell_names(self):
-        """
-        Écrit le nom de chaque Cell dans la Cell elle-même,
-        sur le layer 52/0.
-        """
+        """Écrit les noms des composants dans la cellule supérieure sur le layer 52/0."""
 
         self.label_layer = self.layout.layer(52, 0)
         self.term_layer = self.layout.layer(45, 0)
-        def recursive_name(cell,parent_trans):
+
+        def recursive_name(cell, parent_trans):
             for inst in cell.instances:
-                
                 if hasattr(inst, "global_trans"):
                     global_trans = inst.global_trans
                 else:
-                    local_trans = inst.KLayoutInstance.trans
-                    global_trans = parent_trans * local_trans
+                    layout_inst = getattr(inst, "KLayoutInstance", None)
 
-                if hasattr(inst,"type") and inst.type == "JJ":
-                       
-                    portj = str(inst.name + " M2 M1")
-                    local_text_pos_portj = pya.Point(0,0)
-                    text_trans_portj = global_trans * pya.Trans(local_text_pos_portj)
-                    portjtxt = pya.Text(
-                        str(portj),
-                        text_trans_portj
+                    if layout_inst is None:
+                        print(f"WARNING: no KLayout instance for {getattr(inst, 'name', inst)}")
+                        continue
+
+                    global_trans = parent_trans * layout_inst.trans
+
+                inst_type = getattr(inst, "type", None)
+
+                if inst_type == "JJ":
+                    port_j = f"{inst.name} M2 M1"
+                    self.insert_managed_text(
+                        text=port_j,
+                        text_trans=global_trans * pya.Trans(pya.Point(0, 0)),
+                        label_layer=self.label_layer,
                     )
-                    self.layout_top.shapes(self.label_layer).insert(portjtxt)
 
-                    ray = sqrt((inst.Ic*10000000)/(10*3.14159*2))+8000 # This calculates the radius of the circle based on the critical current (Ic) of the Josephson junction. 
+                    ray = int(sqrt((inst.Ic * 10000000) / (10 * 3.14159 * 2)) + 8000)
+                    port_parallel = f"Prb{inst.name[1:]} M2 R2"
 
-                    port_par_resj = str("Prb"+inst.name[1:] + " M2 R2")
-                    local_text_pos_port_par_resj = pya.Point(0,-ray)
-                    text_trans_port_par_resj = global_trans * pya.Trans(local_text_pos_port_par_resj)
-                    port_par_resjtxt = pya.Text(
-                        str(port_par_resj),
-                        text_trans_port_par_resj
+                    self.insert_managed_text(
+                        text=port_parallel,
+                        text_trans=global_trans * pya.Trans(pya.Point(0, -ray)),
+                        label_layer=self.label_layer,
                     )
-                    self.layout_top.shapes(self.label_layer).insert(port_par_resjtxt)
+
                     inst.global_trans = global_trans
 
-                elif hasattr(inst,"type") and inst.type == "IB":
-                    ib_res_length = ((((2.6*10**6)/(inst.Ib*10**6))*5)/2)*1000000+2000
-                    port_ib = str(inst.name + " M3 M2")
-                    local_text_pos_port_ib = pya.Point(0,ib_res_length)
-                    text_trans_port_ib = global_trans * pya.Trans(local_text_pos_port_ib)
-                    port_ibtxt = pya.Text(
-                        str(port_ib),
-                        text_trans_port_ib
+                elif inst_type == "IB":
+                    ib_res_length = int(((((2.6 * 10**6) / (inst.Ib * 10**6)) * 5) / 2) * 1000000 + 2000)
+                    port_ib = f"{inst.name} M3 M2"
+
+                    self.insert_managed_text(
+                        text=port_ib,
+                        text_trans=global_trans * pya.Trans(pya.Point(0, ib_res_length)),
+                        label_layer=self.label_layer,
                     )
-                    self.layout_top.shapes(self.label_layer).insert(port_ibtxt)
+
                     inst.global_trans = global_trans
 
-                elif hasattr(inst,"type") and inst.type == "R":
-                    res_length = (((inst.R)*10)/2)*1000+1000
-                    port_res = str("P"+inst.name + " M2 R2")
-                    local_text_pos_port_res = pya.Point(0,res_length)
-                    text_trans_port_res = global_trans * pya.Trans(local_text_pos_port_res)
-                    port_ibtxt = pya.Text(
-                        str(port_res),
-                        text_trans_port_res
+                elif inst_type == "R":
+                    res_length = int(((inst.R * 10) / 2) * 1000 + 1000)
+                    port_res = f"P{inst.name} M2 R2"
+
+                    self.insert_managed_text(
+                        text=port_res,
+                        text_trans=global_trans * pya.Trans(pya.Point(0, res_length)),
+                        label_layer=self.label_layer,
                     )
-                    self.layout_top.shapes(self.label_layer).insert(port_ibtxt)
-                    inst.global_trans = global_trans
-                
-                elif hasattr(inst, "type") and inst.type == "L":
-                    # On mémorise UNIQUEMENT la transformation globale
+
                     inst.global_trans = global_trans
 
+                elif inst_type == "L":
+                    inst.global_trans = global_trans
 
                 elif hasattr(inst, "instances"):
-                    recursive_name(inst,global_trans)
+                    recursive_name(inst, global_trans)
 
-        recursive_name(self.circuit.TOP,pya.Trans())
-
-        self.layout.write(os.path.join(self.output_dir,"BIG_Cellname_New.gds"))
+        recursive_name(self.circuit.TOP, pya.Trans())
+        self.layout.write(str(self.layout_path))
