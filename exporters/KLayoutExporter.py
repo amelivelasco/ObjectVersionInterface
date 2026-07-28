@@ -385,7 +385,7 @@ class KLayoutExporter(BaseExporter):
 
             pname = f"P{elem.name} M2 M0"
             port_tag = f"AUTO_PORT:{pname}"
-            port_trans = elem.global_trans * pya.Trans(pya.Point(-5000, 0))
+            port_trans = elem.global_trans * pya.Trans(pya.Point(-6640, 0))
             anchor = port_trans.disp
 
             # Completely delete the old text and old path before drawing.
@@ -395,7 +395,7 @@ class KLayoutExporter(BaseExporter):
             port_text.halign = pya.Text.HAlignCenter
             port_text.valign = pya.Text.VAlignCenter
 
-            width, length = 300, 500 * 20
+            width, length = 500, 500 * 20
             path = pya.Path([pya.Point(0, -length // 2), pya.Point(0, length // 2)], width)
             path_t = path.transformed(port_trans)
 
