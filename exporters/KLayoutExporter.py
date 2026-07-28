@@ -459,15 +459,19 @@ class KLayoutExporter(BaseExporter):
             return
 
         xmin, xmax, ymax = bbox.left, bbox.right, bbox.top
+        path_width = 10
+        path_y = ymax - path_width // 2
         banner_height = 10
         text = "Pdc M3 M0"
         anchor = pya.Point((xmin + xmax) // 2, ymax - banner_height // 2)
-        banner_box = pya.Box(xmin, ymax - banner_height, xmax, ymax)
-
+        banner_path = pya.Path(
+            [pya.Point(xmin, path_y), pya.Point(xmax, path_y)],
+            path_width,
+        )
         self.insert_managed_text(
             text=text,
             text_trans=pya.Trans(anchor),
-            geometry=banner_box,
+            geometry=banner_path,
             geometry_layer=self.term_layer,
             label_layer=self.label_layer,
         )
