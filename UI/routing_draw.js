@@ -735,29 +735,19 @@ function drawPolarityForComponent(labelLayer, component, positiveSide) {
 }
 
 function drawBiasBasedPolaritySigns(labelLayer, placed) {
-  if (!labelLayer || !Array.isArray(placed)
-  ) { return; }
-
+  if (!labelLayer || !Array.isArray(placed)) {
+    return;
+  }
 
   labelLayer.querySelectorAll(".current-polarity-sign").forEach((sign) => sign.remove());
 
   const components = buildPolarityComponents(placed);
-  const graph = buildPolarityNetGraph(components);
-  const biases = buildPolarityBiases(placed, graph);
-
-  if (biases.length === 0) {
-    console.warn("No bias elements were available for polarity calculation.");
-
-    return;
-  }
 
   for (const component of components) {
     if (!component.sideA.netKey || !component.sideB.netKey) {
       continue;
     }
 
-    const closestBias = chooseClosestBiasForComponent(component, biases);
-    const positiveSide = choosePositiveComponentSide(component, closestBias);
-    drawPolarityForComponent(labelLayer, component, positiveSide);
+    drawPolarityForComponent(labelLayer, component, component.sideA);
   }
 }

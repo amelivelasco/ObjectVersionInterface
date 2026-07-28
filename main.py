@@ -15,6 +15,12 @@ def main():
         / "test_files"
         / "BasicCellsHomemade_MultiplexerAmeli.sp"
     )
+    
+    # netlist_path = (
+    #     base_dir
+    #     / "output_switcher"
+    #     / "FAM_project_Outputswitcher.sp"
+    # )
 
     layout_path = (
         base_dir
