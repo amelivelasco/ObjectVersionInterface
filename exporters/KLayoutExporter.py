@@ -395,7 +395,7 @@ class KLayoutExporter(BaseExporter):
             port_text.halign = pya.Text.HAlignCenter
             port_text.valign = pya.Text.VAlignCenter
 
-            width, length = 300, 5000
+            width, length = 300, 500 * 20
             path = pya.Path([pya.Point(0, -length // 2), pya.Point(0, length // 2)], width)
             path_t = path.transformed(port_trans)
 
