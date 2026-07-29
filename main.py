@@ -10,21 +10,21 @@ from parser.cdl_parser import CDLParser
 def main():
     base_dir = Path(__file__).resolve().parent
 
-    netlist_path = (
-        base_dir
-        / "test_files"
-        / "BasicCellsHomemade_MultiplexerAmeli.sp"
-    )
-    
     # netlist_path = (
     #     base_dir
-    #     / "output_switcher"
-    #     / "FAM_project_Outputswitcher.sp"
+    #     / "test_files"
+    #     / "BasicCellsHomemade_MultiplexerAmeli.sp"
     # )
+    
+    netlist_path = (
+        base_dir
+        / "Splitter" / "Splitter"
+        / "Netlist.sp"
+    )
 
     layout_path = (
-        base_dir
-        / "BIG_Cellname_New.gds"
+        base_dir / "Splitter" / "Splitter"
+        / "Layout.gds"
     )
 
     ordered_elems_path = (
@@ -132,6 +132,12 @@ def main():
         sp_file=netlist_path,
         map_file=ordered_elems_path,
     )
+    
+    schematic.refresh_ordered_components_file(
+        circuit=circuit,
+        first_level_layout_cells=first_level_layout_cells,
+    )
+
 
     ordered_components = (
         schematic.read_ordered_components(

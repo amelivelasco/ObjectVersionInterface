@@ -24,7 +24,7 @@ class SpiceExporter(BaseExporter):
         lines.append("*.PININFO DC:O SFQ_in:I VDD:I")
 
         self.walk_top_instances(lines)
-        filename = os.path.join(self.circuit.output_dir, "BIG_Cell_GeneratedNetlist.sp")
+        filename = os.path.join(self.circuit.output_dir, "Splitter/Splitter/Netlist.sp")
         lines.append(f".ends {self.circuit.TOP.name}")
 
         with open(filename, "a") as f:

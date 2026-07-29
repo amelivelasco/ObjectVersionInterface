@@ -90,6 +90,98 @@ class Schematic:
             f"{self.get_instance_path(component)}::"
             f"{component.layout_cell}"
         )
+        
+    def refresh_ordered_components_file(self, circuit, first_level_layout_cells):
+        previous_order = []
+
+        if self.map_file.exists():
+            with self.map_file.open("r", encoding="utf-8") as file:
+                for line in file:
+                    line = line.strip()
+
+                    if not line or line.startswith("generated_at:"):
+                        continue
+
+                    parsed = self.parse_mapping_line(line)
+                    if parsed is not None:
+                        previous_order.append(parsed["raw"])
+
+        current_components = []
+
+        def get_value(elem):
+            for attribute in ("L", "Ic", "Ib", "R"):
+                if hasattr(elem, attribute):
+                    return getattr(elem, attribute)
+            return None
+
+        def walk(cell):
+            for elem in cell.instances:
+                if hasattr(elem, "instances") and elem.instances:
+                    walk(elem)
+                    continue
+
+                raw = str(getattr(elem, "original_name", getattr(elem, "raw_name", elem.name)))
+                layout_inst = getattr(elem, "KLayoutInstance", None)
+                pid = layout_inst.property(102) if layout_inst is not None else None
+                layout_cell = first_level_layout_cells.get(raw)
+
+                if layout_cell is None and layout_inst is not None:
+                    layout_cell = layout_inst.cell.name
+
+                path = getattr(elem, "Path_name", None) or getattr(elem, "path", None) or raw
+                net_in = getattr(getattr(elem, "net_in", None), "name", None)
+                net_out = getattr(getattr(elem, "net_out", None), "name", None)
+
+                current_components.append(
+                    CircuitComponent(
+                        raw=raw,
+                        path=path,
+                        pid=pid,
+                        layout_cell=layout_cell,
+                        net_in=net_in,
+                        net_out=net_out,
+                        value=get_value(elem),
+                    )
+                )
+
+        walk(circuit.TOP)
+
+        current_by_raw = {component.raw: component for component in current_components}
+        ordered_components = []
+        already_added = set()
+
+        # Preserve the old order only for components that still exist.
+        for raw in previous_order:
+            if raw in current_by_raw and raw not in already_added:
+                ordered_components.append(current_by_raw[raw])
+                already_added.add(raw)
+
+        # Add all components from the current circuit that were not in the old file.
+        for component in current_components:
+            if component.raw not in already_added:
+                ordered_components.append(component)
+                already_added.add(component.raw)
+
+        self.map_file.parent.mkdir(parents=True, exist_ok=True)
+
+        with self.map_file.open("w", encoding="utf-8") as file:
+            file.write(f"generated_at: {datetime.now(timezone.utc).isoformat()}\n")
+
+            for component in ordered_components:
+                file.write(f"{component}\n")
+
+        removed_components = [
+            raw for raw in previous_order
+            if raw not in current_by_raw
+        ]
+
+        print(f"Refreshed ordered elements file: {self.map_file.resolve()}")
+        print(f"Current components written: {len(ordered_components)}")
+
+        if removed_components:
+            print("Removed stale components:", ", ".join(removed_components))
+
+        return ordered_components
                 
         
     def handle_layout_cell(
@@ -242,19 +334,34 @@ class Schematic:
 
         return ordered_components
     
+    @staticmethod
+    def get_junction_resistor_id(raw):
+        raw = str(raw).strip()
+
+        if raw.lower().startswith("xsj"):
+            raw = raw[3:]
+
+        if raw.lower().startswith("j"):
+            raw = raw[1:]
+
+        return f"R{raw}"
+    
     def get_component_type(self, component):
-        raw = str(component.raw)
+        raw = str(component.raw).strip()
 
-        if raw.startswith("L"):
-            return ("L", "")
-
-        if raw.startswith("Xsj"):
+        if raw.startswith("Xsj") or re.fullmatch(r"J\d+", raw, re.IGNORECASE):
             return ("JJ", "R")
 
-        if raw.startswith("Xpc"):
+        if raw.startswith("Xpc") or re.fullmatch(r"IB\d+", raw, re.IGNORECASE):
             return ("IB", "")
 
-        return "UNKNOWN"
+        if re.fullmatch(r"L.+", raw, re.IGNORECASE):
+            return ("L", "")
+
+        if re.fullmatch(r"R.+", raw, re.IGNORECASE):
+            return ("R", "")
+
+        return ("UNKNOWN", "")
 
 
     def get_component_image(self, component):
@@ -351,12 +458,8 @@ class Schematic:
                 # Include the generated resistor in the same
                 # layout cell as its JJ.
                 if component_type1 == "JJ":
-                    resistor_id = re.sub(
-                        r"^Xsj",
-                        "R",
-                        component.raw,
-                        count=1,
-                        flags=re.IGNORECASE,
+                    resistor_id = self.get_junction_resistor_id(
+                        component.raw
                     )
 
                     layout_element_ids.append(
@@ -473,12 +576,8 @@ class Schematic:
             })
             
             if component_type1 == "JJ":
-                resistor_id = re.sub(
-                    r"^Xsj",
-                    "R",
-                    component.raw,
-                    count=1,
-                    flags=re.IGNORECASE,
+                resistor_id = self.get_junction_resistor_id(
+                    component.raw
                 )
 
                 elements.append({

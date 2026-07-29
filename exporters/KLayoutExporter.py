@@ -395,50 +395,51 @@ class KLayoutExporter(BaseExporter):
 
     def mark_single_connection_nodes_in_layout(self):
         label_layer, property_id = self.layout.layer(52, 0), 9001
-        
-        excluded_port_names = {"VDD", "GND!", "0",}
+        output_path = os.path.join(self.output_dir, "BIG_Cell_inductex.cir")
 
-        declared_top_ports = getattr(self.circuit.TOP, "port_names", [],)
+        existing_connections = set()
+        new_connections = set()
+
+        if os.path.exists(output_path):
+            with open(output_path, "r", encoding="utf-8") as file:
+                for line in file:
+                    parts = line.split()
+                    if len(parts) == 3 and parts[0].startswith("P") and parts[2] == "0":
+                        existing_connections.add(tuple(parts))
+
+        excluded_port_names = {"VDD", "GND!", "0"}
+        declared_top_ports = getattr(self.circuit.TOP, "port_names", [])
 
         allowed_top_ports = {
             str(port_name).strip().upper()
             for port_name in declared_top_ports
-            if (str(port_name).strip().upper() not in excluded_port_names)
+            if str(port_name).strip().upper() not in excluded_port_names
         }
 
         print("=== MARK SINGLE-CONNECTION NODES IN LAYOUT ===")
 
         for node in self.list_nodes_top:
-            
-            node_name = str(getattr(node, "name", "")).strip()
+            original_node_name = str(getattr(node, "name", "")).strip()
 
-            if node_name.upper() not in allowed_top_ports:
+            if original_node_name.upper() not in allowed_top_ports:
                 continue
-            
-            connected_elements = getattr(node, "connected_elements", [],)
+
+            connected_elements = getattr(node, "connected_elements", [])
+            if len(connected_elements) != 1:
+                continue
+
             elem = connected_elements[0]
             if not hasattr(elem, "global_trans"):
                 continue
 
             pname = f"P{elem.name} M2 M0"
             port_tag = f"AUTO_PORT:{pname}"
-            port_trans = (
-                self.get_instance_visual_bottom_center_trans(
-                    elem,
-                    vertical_offset=260,
-                )
-            )
+            port_trans = self.get_instance_visual_bottom_center_trans(elem, vertical_offset=2000)
 
             if port_trans is None:
-                print(
-                    f"Skipping {node_name}: "
-                    f"could not find the bottom of "
-                    f"{elem.name}'s layout cell"
-                )
                 continue
-            anchor = port_trans.disp
 
-            # Completely delete the old text and old path before drawing.
+            anchor = port_trans.disp
             self.delete_old_port(pname, label_layer, anchor)
 
             port_text = pya.Text(pname, port_trans)
@@ -446,7 +447,10 @@ class KLayoutExporter(BaseExporter):
             port_text.valign = pya.Text.VAlignCenter
 
             width, length = 500, 500 * 20
-            path = pya.Path([pya.Point(-length // 2, 0), pya.Point(length // 2, 0)], width)
+            path = pya.Path(
+                [pya.Point(-length // 2, 0), pya.Point(length // 2, 0)],
+                width,
+            )
             path_t = path.transformed(port_trans)
 
             path_shape = self.layout_top.shapes(self.term_layer).insert(path_t)
@@ -455,15 +459,23 @@ class KLayoutExporter(BaseExporter):
             path_shape.set_property(property_id, port_tag)
             text_shape.set_property(property_id, port_tag)
 
-            port_name, node_name = f"P{elem.name}", str(node.GlobalName)
+            port_name = f"P{elem.name}"
+            global_node_name = str(node.GlobalName)
+            connection = (port_name, global_node_name, "0")
 
-            with open(os.path.join(self.output_dir, "BIG_Cell_inductex.cir"), "a") as file:
-                file.write("\n* --- Auto-added ground connection ---\n")
-                file.write(f"{port_name:<10} {node_name:<10} 0\n")
+            if connection in existing_connections:
+                print(f"Connection already exists, skipping: {' '.join(connection)}")
+            else:
+                new_connections.add(connection)
 
-            print(f"Node {node.GlobalName} -> {elem.name} ==> écrit '{pname}'")
+            print(f"Node {node.GlobalName} -> {elem.name} ==> wrote '{pname}'")
 
-        # Save to the exact same GDS that was originally loaded.
+        if new_connections:
+            with open(output_path, "a", encoding="utf-8") as file:
+                for port_name, node_name, ground in sorted(new_connections):
+                    file.write("\n* --- Auto-added ground connection ---\n")
+                    file.write(f"{port_name:<10} {node_name:<10} {ground}\n")
+
         self.layout.write(str(self.layout_path))
         
     
