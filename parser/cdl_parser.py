@@ -27,12 +27,16 @@ class CDLParser:
         tokens = line.split()
         cell_name = tokens[1]
         ports = tokens[2:]
+
         self.TOP = cell_name
         self.current_cell = Cell(name=cell_name)
         self.current_cell.lines.append(line_number)
-        
-        for p in ports:
-            self.current_cell.add_port_net(p)
+
+        # Preserve the exact ports declared after the .subckt name.
+        self.current_cell.port_names = ports.copy()
+
+        for port_name in ports:
+            self.current_cell.add_port_net(port_name)
     
     def _handle_ends(self, new_circuit, line_number):
         self.current_cell.lines.append(line_number)

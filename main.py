@@ -89,6 +89,17 @@ def main():
 
     circuit.assign_cell_ids()
     circuit.define_local_names()
+    
+    def save_original_component_names(cell):
+        for elem in cell.instances:
+            if hasattr(elem, "net_in"):
+                elem.original_name = elem.name
+            elif hasattr(elem, "instances"):
+                save_original_component_names(elem)
+
+
+    save_original_component_names(circuit.TOP)
+
     circuit.rename_all_elements_by_type()
 
     klayout_exp.write_cell_names()

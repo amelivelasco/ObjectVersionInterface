@@ -372,14 +372,28 @@ class KLayoutExporter(BaseExporter):
 
     def mark_single_connection_nodes_in_layout(self):
         label_layer, property_id = self.layout.layer(52, 0), 9001
+        
+        excluded_port_names = {"VDD", "GND!", "0",}
+
+        declared_top_ports = getattr(self.circuit.TOP, "port_names", [],)
+
+        allowed_top_ports = {
+            str(port_name).strip().upper()
+            for port_name in declared_top_ports
+            if (str(port_name).strip().upper() not in excluded_port_names)
+        }
 
         print("=== MARK SINGLE-CONNECTION NODES IN LAYOUT ===")
 
         for node in self.list_nodes_top:
-            if not hasattr(node, "connected_elements") or len(node.connected_elements) != 1:
-                continue
+            
+            node_name = str(getattr(node, "name", "")).strip()
 
-            elem = node.connected_elements[0]
+            if node_name.upper() not in allowed_top_ports:
+                continue
+            
+            connected_elements = getattr(node, "connected_elements", [],)
+            elem = connected_elements[0]
             if not hasattr(elem, "global_trans"):
                 continue
 

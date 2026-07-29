@@ -64,6 +64,7 @@ class Element(ABC):
         self.netInductex = None
         self.LayoutCell = None
         self.listAdditionalNode = []
+        self.original_name = None
 
     @abstractmethod
     def emit(self) -> list[str]:

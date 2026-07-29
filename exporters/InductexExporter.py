@@ -270,14 +270,31 @@ class InductexExporter(BaseExporter):
             """
 
             for elem in cell.instances:
+                elem_type = getattr(
+                    elem,
+                    "type",
+                    None,
+                )
 
-                elem_type = getattr(elem, "type", None)
-                emitter = emitters.get(elem_type)
+                emitter = emitters.get(
+                    elem_type
+                )
 
                 if emitter is not None:
+                    original_name = getattr(
+                        elem,
+                        "original_name",
+                        "<original name unavailable>",
+                    )
+
+                    print(
+                        f"NAME TRANSLATION: "
+                        f"{original_name} -> {elem.name}"
+                    )
+
                     emitter(elem)
                     continue
-                
+
                 if hasattr(elem, "instances"):
                     recursive_walk(elem)
 
