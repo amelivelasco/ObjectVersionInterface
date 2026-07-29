@@ -369,6 +369,29 @@ class KLayoutExporter(BaseExporter):
 
             for shape in to_delete:
                 shape.delete()
+                
+    def get_instance_visual_bottom_center_trans(self, elem, vertical_offset=0):
+        layout_inst = getattr(elem, "KLayoutInstance", None)
+        global_trans = getattr(elem, "global_trans", None)
+
+        if layout_inst is None or global_trans is None:
+            return None
+
+        bbox = layout_inst.cell.bbox()
+        if bbox.empty():
+            return global_trans
+
+        local_corners = [
+            pya.Point(bbox.left, bbox.bottom), pya.Point(bbox.right, bbox.bottom),
+            pya.Point(bbox.left, bbox.top), pya.Point(bbox.right, bbox.top),
+        ]
+        global_corners = [global_trans * corner for corner in local_corners]
+
+        left = min(point.x for point in global_corners)
+        right = max(point.x for point in global_corners)
+        bottom = min(point.y for point in global_corners)
+
+        return pya.Trans(pya.Point((left + right) // 2, bottom + vertical_offset))
 
     def mark_single_connection_nodes_in_layout(self):
         label_layer, property_id = self.layout.layer(52, 0), 9001
@@ -399,7 +422,20 @@ class KLayoutExporter(BaseExporter):
 
             pname = f"P{elem.name} M2 M0"
             port_tag = f"AUTO_PORT:{pname}"
-            port_trans = elem.global_trans * pya.Trans(pya.Point(-6640, 0))
+            port_trans = (
+                self.get_instance_visual_bottom_center_trans(
+                    elem,
+                    vertical_offset=260,
+                )
+            )
+
+            if port_trans is None:
+                print(
+                    f"Skipping {node_name}: "
+                    f"could not find the bottom of "
+                    f"{elem.name}'s layout cell"
+                )
+                continue
             anchor = port_trans.disp
 
             # Completely delete the old text and old path before drawing.
@@ -410,7 +446,7 @@ class KLayoutExporter(BaseExporter):
             port_text.valign = pya.Text.VAlignCenter
 
             width, length = 500, 500 * 20
-            path = pya.Path([pya.Point(0, -length // 2), pya.Point(0, length // 2)], width)
+            path = pya.Path([pya.Point(-length // 2, 0), pya.Point(length // 2, 0)], width)
             path_t = path.transformed(port_trans)
 
             path_shape = self.layout_top.shapes(self.term_layer).insert(path_t)
