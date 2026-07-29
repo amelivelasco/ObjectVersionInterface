@@ -26,6 +26,13 @@ def main():
         base_dir / "Splitter" / "Splitter"
         / "Layout.gds"
     )
+    
+    # layout_path = (
+    #     base_dir
+    #     / "BIG_Cellname_New.gds"
+    # )
+    
+    
 
     ordered_elems_path = (
         base_dir

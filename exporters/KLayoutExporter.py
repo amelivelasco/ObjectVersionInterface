@@ -370,7 +370,7 @@ class KLayoutExporter(BaseExporter):
             for shape in to_delete:
                 shape.delete()
                 
-    def get_instance_visual_bottom_center_trans(self, elem, vertical_offset=0):
+    def get_element_global_bounds(self, elem):
         layout_inst = getattr(elem, "KLayoutInstance", None)
         global_trans = getattr(elem, "global_trans", None)
 
@@ -379,67 +379,147 @@ class KLayoutExporter(BaseExporter):
 
         bbox = layout_inst.cell.bbox()
         if bbox.empty():
-            return global_trans
+            return None
 
-        local_corners = [
-            pya.Point(bbox.left, bbox.bottom), pya.Point(bbox.right, bbox.bottom),
-            pya.Point(bbox.left, bbox.top), pya.Point(bbox.right, bbox.top),
+        corners = [
+            global_trans * pya.Point(bbox.left, bbox.bottom),
+            global_trans * pya.Point(bbox.right, bbox.bottom),
+            global_trans * pya.Point(bbox.left, bbox.top),
+            global_trans * pya.Point(bbox.right, bbox.top),
         ]
-        global_corners = [global_trans * corner for corner in local_corners]
 
-        left = min(point.x for point in global_corners)
-        right = max(point.x for point in global_corners)
-        bottom = min(point.y for point in global_corners)
+        return (
+            min(point.x for point in corners),
+            min(point.y for point in corners),
+            max(point.x for point in corners),
+            max(point.y for point in corners),
+        )
+        
+    def instance_edge_touches_another(self, elem, edge="bottom", tolerance=500):
+        bounds = self.get_element_global_bounds(elem)
+        if bounds is None:
+            return False
 
-        return pya.Trans(pya.Point((left + right) // 2, bottom + vertical_offset))
+        left, bottom, right, top = bounds
+        edge_position = bottom if edge == "bottom" else top
+
+        def walk(cell):
+            for other in cell.instances:
+                if hasattr(other, "instances") and other.instances:
+                    yield from walk(other)
+                else:
+                    yield other
+
+        for other in walk(self.circuit.TOP):
+            if other is elem:
+                continue
+
+            other_bounds = self.get_element_global_bounds(other)
+            if other_bounds is None:
+                continue
+
+            other_left, other_bottom, other_right, other_top = other_bounds
+
+            horizontal_overlap = (
+                other_right >= left - tolerance
+                and other_left <= right + tolerance
+            )
+
+            edge_touched = (
+                other_bottom - tolerance
+                <= edge_position
+                <= other_top + tolerance
+            )
+
+            if horizontal_overlap and edge_touched:
+                print(
+                    f"{elem.name}: {edge} edge touches "
+                    f"{getattr(other, 'name', other)}"
+                )
+                return True
+
+        return False
+                
+    def get_instance_visual_bottom_center_trans(self, elem, vertical_offset=0):
+        bounds = self.get_element_global_bounds(elem)
+        if bounds is None:
+            return None
+
+        left, bottom, right, top = bounds
+        center_x = (left + right) // 2
+
+        bottom_touches = self.instance_edge_touches_another(
+            elem,
+            edge="bottom",
+            tolerance=500,
+        )
+
+        top_touches = self.instance_edge_touches_another(
+            elem,
+            edge="top",
+            tolerance=500,
+        )
+
+        if bottom_touches and not top_touches:
+            selected_edge = "top"
+            position = pya.Point(center_x, top - vertical_offset)
+        else:
+            selected_edge = "bottom"
+            position = pya.Point(center_x, bottom + vertical_offset)
+
+        print(
+            f"{elem.name}: bottom_touches={bottom_touches}, "
+            f"top_touches={top_touches}, selected={selected_edge}"
+        )
+
+        return pya.Trans(position)
 
     def mark_single_connection_nodes_in_layout(self):
         label_layer, property_id = self.layout.layer(52, 0), 9001
-        output_path = os.path.join(self.output_dir, "BIG_Cell_inductex.cir")
+        
+        excluded_port_names = {"VDD", "GND!", "0",}
 
-        existing_connections = set()
-        new_connections = set()
-
-        if os.path.exists(output_path):
-            with open(output_path, "r", encoding="utf-8") as file:
-                for line in file:
-                    parts = line.split()
-                    if len(parts) == 3 and parts[0].startswith("P") and parts[2] == "0":
-                        existing_connections.add(tuple(parts))
-
-        excluded_port_names = {"VDD", "GND!", "0"}
-        declared_top_ports = getattr(self.circuit.TOP, "port_names", [])
+        declared_top_ports = getattr(self.circuit.TOP, "port_names", [],)
 
         allowed_top_ports = {
             str(port_name).strip().upper()
             for port_name in declared_top_ports
-            if str(port_name).strip().upper() not in excluded_port_names
+            if (str(port_name).strip().upper() not in excluded_port_names)
         }
 
         print("=== MARK SINGLE-CONNECTION NODES IN LAYOUT ===")
 
         for node in self.list_nodes_top:
-            original_node_name = str(getattr(node, "name", "")).strip()
+            
+            node_name = str(getattr(node, "name", "")).strip()
 
-            if original_node_name.upper() not in allowed_top_ports:
+            if node_name.upper() not in allowed_top_ports:
                 continue
-
-            connected_elements = getattr(node, "connected_elements", [])
-            if len(connected_elements) != 1:
-                continue
-
+            
+            connected_elements = getattr(node, "connected_elements", [],)
             elem = connected_elements[0]
             if not hasattr(elem, "global_trans"):
                 continue
 
             pname = f"P{elem.name} M2 M0"
             port_tag = f"AUTO_PORT:{pname}"
-            port_trans = self.get_instance_visual_bottom_center_trans(elem, vertical_offset=2000)
+            port_trans = (
+                self.get_instance_visual_bottom_center_trans(
+                    elem,
+                    vertical_offset=260,
+                )
+            )
 
             if port_trans is None:
+                print(
+                    f"Skipping {node_name}: "
+                    f"could not find the bottom of "
+                    f"{elem.name}'s layout cell"
+                )
                 continue
-
             anchor = port_trans.disp
+
+            # Completely delete the old text and old path before drawing.
             self.delete_old_port(pname, label_layer, anchor)
 
             port_text = pya.Text(pname, port_trans)
@@ -447,10 +527,7 @@ class KLayoutExporter(BaseExporter):
             port_text.valign = pya.Text.VAlignCenter
 
             width, length = 500, 500 * 20
-            path = pya.Path(
-                [pya.Point(-length // 2, 0), pya.Point(length // 2, 0)],
-                width,
-            )
+            path = pya.Path([pya.Point(-length // 2, 0), pya.Point(length // 2, 0)], width)
             path_t = path.transformed(port_trans)
 
             path_shape = self.layout_top.shapes(self.term_layer).insert(path_t)
@@ -459,23 +536,15 @@ class KLayoutExporter(BaseExporter):
             path_shape.set_property(property_id, port_tag)
             text_shape.set_property(property_id, port_tag)
 
-            port_name = f"P{elem.name}"
-            global_node_name = str(node.GlobalName)
-            connection = (port_name, global_node_name, "0")
+            port_name, node_name = f"P{elem.name}", str(node.GlobalName)
 
-            if connection in existing_connections:
-                print(f"Connection already exists, skipping: {' '.join(connection)}")
-            else:
-                new_connections.add(connection)
+            with open(os.path.join(self.output_dir, "BIG_Cell_inductex.cir"), "a") as file:
+                file.write("\n* --- Auto-added ground connection ---\n")
+                file.write(f"{port_name:<10} {node_name:<10} 0\n")
 
-            print(f"Node {node.GlobalName} -> {elem.name} ==> wrote '{pname}'")
+            print(f"Node {node.GlobalName} -> {elem.name} ==> écrit '{pname}'")
 
-        if new_connections:
-            with open(output_path, "a", encoding="utf-8") as file:
-                for port_name, node_name, ground in sorted(new_connections):
-                    file.write("\n* --- Auto-added ground connection ---\n")
-                    file.write(f"{port_name:<10} {node_name:<10} {ground}\n")
-
+        # Save to the exact same GDS that was originally loaded.
         self.layout.write(str(self.layout_path))
         
     

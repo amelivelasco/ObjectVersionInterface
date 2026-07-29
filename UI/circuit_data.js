@@ -1,7 +1,15 @@
 window.circuitData = {
   "name": "ordered_elems",
-  "generated_at": "2026-07-29T10:41:33.822126+00:00",
+  "generated_at": "2026-07-29T11:18:17.567730+00:00",
   "nodes": [
+    {
+      "id": "VDD",
+      "label": "VDD"
+    },
+    {
+      "id": "net14",
+      "label": "net14"
+    },
     {
       "id": "net25",
       "label": "net25"
@@ -27,19 +35,28 @@ window.circuitData = {
       "label": "OUT2"
     },
     {
-      "id": "net14",
-      "label": "net14"
-    },
-    {
       "id": "IN",
       "label": "IN"
-    },
-    {
-      "id": "VDD",
-      "label": "VDD"
     }
   ],
   "elements": [
+    {
+      "id": "IB1",
+      "raw": "IB1",
+      "path": "splitter_1/IB1",
+      "pid": "IB1",
+      "layout_cell": "pwrcell_pcell_802c",
+      "layout_instance": "splitter_1::pwrcell_pcell_802c",
+      "instance_path": "splitter_1",
+      "type": [
+        "IB",
+        ""
+      ],
+      "net_in": "VDD",
+      "net_out": "net14",
+      "value": "570.0",
+      "image": "../img/biais_draw.png"
+    },
     {
       "id": "J2",
       "raw": "J2",
@@ -240,26 +257,21 @@ window.circuitData = {
       "net_out": "net10",
       "value": "1.1",
       "image": "../img/ind_draw.png"
-    },
-    {
-      "id": "IB1",
-      "raw": "IB1",
-      "path": "splitter_1/IB1",
-      "pid": "IB1",
-      "layout_cell": "pwrcell_pcell_802c",
-      "layout_instance": "splitter_1::pwrcell_pcell_802c",
-      "instance_path": "splitter_1",
-      "type": [
-        "IB",
-        ""
-      ],
-      "net_in": "VDD",
-      "net_out": "net14",
-      "value": "570.0",
-      "image": "../img/biais_draw.png"
     }
   ],
   "layout_cells": [
+    {
+      "id": "splitter_1::pwrcell_pcell_802c",
+      "layout_instance": "splitter_1::pwrcell_pcell_802c",
+      "layout_cell": "pwrcell_pcell_802c",
+      "instance_path": "splitter_1",
+      "display_name": "pwrcell_pcell_802c (splitter_1)",
+      "net_in": "VDD",
+      "net_out": "net14",
+      "elements": [
+        "IB1"
+      ]
+    },
     {
       "id": "splitter_1::jj_s_pcell_34fb",
       "layout_instance": "splitter_1::jj_s_pcell_34fb",
@@ -336,18 +348,6 @@ window.circuitData = {
       "net_out": "net10",
       "elements": [
         "L3"
-      ]
-    },
-    {
-      "id": "splitter_1::pwrcell_pcell_802c",
-      "layout_instance": "splitter_1::pwrcell_pcell_802c",
-      "layout_cell": "pwrcell_pcell_802c",
-      "instance_path": "splitter_1",
-      "display_name": "pwrcell_pcell_802c (splitter_1)",
-      "net_in": "VDD",
-      "net_out": "net14",
-      "elements": [
-        "IB1"
       ]
     }
   ]

@@ -1,4 +1,5 @@
-generated_at: 2026-07-29T10:41:33.801555+00:00
+generated_at: 2026-07-29T11:18:17.530767+00:00
+CircuitComponent(raw=IB1, path=splitter_1/IB1, pid=IB1, layout_cell=pwrcell_pcell_802c, net_in=VDD, net_out=net14, value=570.0)
 CircuitComponent(raw=J2, path=splitter_1/J2, pid=J2, layout_cell=jj_s_pcell_34fb, net_in=net25, net_out=GND!, value=250.0)
 CircuitComponent(raw=J3, path=splitter_1/J3, pid=J3, layout_cell=jj_s_pcell_34fb, net_in=net18, net_out=GND!, value=250.0)
 CircuitComponent(raw=J1, path=splitter_1/J1, pid=J1, layout_cell=jj_s_pcell_6976, net_in=net10, net_out=GND!, value=325.0)
@@ -8,4 +9,3 @@ CircuitComponent(raw=L7, path=splitter_1/L7, pid=L7, layout_cell=ind2_pcell_2c0c
 CircuitComponent(raw=L6, path=splitter_1/L6, pid=L6, layout_cell=ind2_pcell_2c0c, net_in=net14, net_out=net25, value=1.6)
 CircuitComponent(raw=L4, path=splitter_1/L4, pid=L4, layout_cell=ind2_pcell_4f32, net_in=net10, net_out=net14, value=1.4)
 CircuitComponent(raw=L3, path=splitter_1/L3, pid=L3, layout_cell=ind2_pcell_e6bf, net_in=IN, net_out=net10, value=1.1)
-CircuitComponent(raw=IB1, path=splitter_1/IB1, pid=IB1, layout_cell=pwrcell_pcell_802c, net_in=VDD, net_out=net14, value=570.0)
