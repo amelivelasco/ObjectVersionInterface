@@ -1,17 +1,67 @@
 
 === LAYOUT MAPPING AUDIT ===
-OK   | raw=XsjJ2              path=J2              pid=J2     layout_cell=jj_s_pcell_34fb device_cell=jj_s_pcell_34fb
-OK   | raw=XsjJ3              path=J3              pid=J3     layout_cell=jj_s_pcell_34fb device_cell=jj_s_pcell_34fb
-OK   | raw=XsjJ1              path=J1              pid=J1     layout_cell=jj_s_pcell_6976 device_cell=jj_s_pcell_6976
-OK   | raw=LL9                path=L9              pid=L9     layout_cell=ind2_pcell_1657 device_cell=ind2_pcell_1657
-OK   | raw=LL8                path=L8              pid=L8     layout_cell=ind2_pcell_1657 device_cell=ind2_pcell_1657
-OK   | raw=LL7                path=L7              pid=L7     layout_cell=ind2_pcell_2c0c device_cell=ind2_pcell_2c0c
-OK   | raw=LL6                path=L6              pid=L6     layout_cell=ind2_pcell_2c0c device_cell=ind2_pcell_2c0c
-OK   | raw=LL4                path=L4              pid=L4     layout_cell=ind2_pcell_4f32 device_cell=ind2_pcell_4f32
-OK   | raw=LL3                path=L3              pid=L3     layout_cell=ind2_pcell_e6bf device_cell=ind2_pcell_e6bf
-OK   | raw=XpcIB1             path=IB1             pid=IB1    layout_cell=pwrcell_pcell_802c device_cell=pwrcell_pcell_802c
+OK   | raw=XsjI23|J5          path=I23/J5          pid=J5     layout_cell=NDROM2 device_cell=jj_s_pcell_e6a0
+OK   | raw=XsjI23|J1          path=I23/J1          pid=J1     layout_cell=NDROM2 device_cell=jj_s_pcell_34fb
+OK   | raw=XsjI23|J2          path=I23/J2          pid=J2     layout_cell=NDROM2 device_cell=jj_s_pcell_e6a0
+OK   | raw=XsjI23|J4          path=I23/J4          pid=J4     layout_cell=NDROM2 device_cell=jj_s_pcell_34fb
+OK   | raw=XsjI23|J7          path=I23/J7          pid=J7     layout_cell=NDROM2 device_cell=jj_s_pcell_74b5
+OK   | raw=XsjI23|J10         path=I23/J10         pid=J10    layout_cell=NDROM2 device_cell=jj_s_pcell_7e54
+OK   | raw=XsjI23|J3          path=I23/J3          pid=J3     layout_cell=NDROM2 device_cell=jj_s_pcell_0a7e
+OK   | raw=XsjI23|J6          path=I23/J6          pid=J6     layout_cell=NDROM2 device_cell=jj_s_pcell_64e8
+OK   | raw=XsjI23|J8          path=I23/J8          pid=J8     layout_cell=NDROM2 device_cell=jj_s_pcell_bb5e
+OK   | raw=XsjI23|J11         path=I23/J11         pid=J11    layout_cell=NDROM2 device_cell=jj_s_pcell_f0fd
+OK   | raw=XsjI23|J9          path=I23/J9          pid=J9     layout_cell=NDROM2 device_cell=jj_s_pcell_34fb
+OK   | raw=XsjX100            path=X100            pid=X100   layout_cell=jj_s_pcell_750f device_cell=jj_s_pcell_750f
+OK   | raw=XsjX101            path=X101            pid=X101   layout_cell=jj_s_pcell_d93e device_cell=jj_s_pcell_d93e
+OK   | raw=XsjX82             path=X82             pid=X82    layout_cell=jj_s_pcell_750f device_cell=jj_s_pcell_750f
+OK   | raw=XsjX83             path=X83             pid=X83    layout_cell=jj_s_pcell_d93e device_cell=jj_s_pcell_d93e
+OK   | raw=XsjX0              path=X0              pid=X0     layout_cell=jj_s_pcell_750f device_cell=jj_s_pcell_750f
+OK   | raw=XsjX1              path=X1              pid=X1     layout_cell=jj_s_pcell_d93e device_cell=jj_s_pcell_d93e
+OK   | raw=XsjX4              path=X4              pid=X4     layout_cell=jj_s_pcell_d93e device_cell=jj_s_pcell_d93e
+OK   | raw=XsjX5              path=X5              pid=X5     layout_cell=jj_s_pcell_750f device_cell=jj_s_pcell_750f
+OK   | raw=LI23|L1            path=I23/L1          pid=L1     layout_cell=NDROM2 device_cell=ind2_pcell_c92d
+OK   | raw=LI23|L2            path=I23/L2          pid=L2     layout_cell=NDROM2 device_cell=ind2_pcell_e4a9
+OK   | raw=LI23|L3            path=I23/L3          pid=L3     layout_cell=NDROM2 device_cell=ind2_pcell_750f
+OK   | raw=LI23|L4            path=I23/L4          pid=L4     layout_cell=NDROM2 device_cell=ind2_pcell_74a8
+OK   | raw=LI23|L5            path=I23/L5          pid=L5     layout_cell=NDROM2 device_cell=ind2_pcell_ab88
+OK   | raw=LI23|L6            path=I23/L6          pid=L6     layout_cell=NDROM2 device_cell=ind2_pcell_3736
+OK   | raw=LI23|L7            path=I23/L7          pid=L7     layout_cell=NDROM2 device_cell=ind2_pcell_cd6a
+OK   | raw=LI23|L8            path=I23/L8          pid=L8     layout_cell=NDROM2 device_cell=ind2_pcell_3783
+OK   | raw=LI23|L9            path=I23/L9          pid=L9     layout_cell=NDROM2 device_cell=ind2_pcell_cd6a
+OK   | raw=LI23|L10           path=I23/L10         pid=L10    layout_cell=NDROM2 device_cell=ind2_pcell_1258
+OK   | raw=LI23|L11           path=I23/L11         pid=L11    layout_cell=NDROM2 device_cell=ind2_pcell_062b
+OK   | raw=LI23|L12           path=I23/L12         pid=L12    layout_cell=NDROM2 device_cell=ind2_pcell_4fa6
+OK   | raw=LI23|L74           path=I23/L74         pid=L74    layout_cell=NDROM2 device_cell=ind2_pcell_e4a9
+OK   | raw=LI23|L76           path=I23/L76         pid=L76    layout_cell=NDROM2 device_cell=ind2_pcell_0986
+OK   | raw=LI23|L75           path=I23/L75         pid=L75    layout_cell=NDROM2 device_cell=ind2_pcell_3b20
+OK   | raw=LL101              path=L101            pid=L101   layout_cell=ind2_pcell_5195 device_cell=ind2_pcell_5195
+OK   | raw=LL100              path=L100            pid=L100   layout_cell=ind2_pcell_a496 device_cell=ind2_pcell_a496
+OK   | raw=LL102              path=L102            pid=L102   layout_cell=ind2_pcell_70a1 device_cell=ind2_pcell_70a1
+OK   | raw=LL103              path=L103            pid=L103   layout_cell=ind2_pcell_dd14 device_cell=ind2_pcell_dd14
+OK   | raw=LL80               path=L80             pid=L80    layout_cell=ind2_pcell_4ed4 device_cell=ind2_pcell_4ed4
+OK   | raw=LL71               path=L71             pid=L71    layout_cell=ind2_pcell_4ed4 device_cell=ind2_pcell_4ed4
+OK   | raw=LL81               path=L81             pid=L81    layout_cell=ind2_pcell_150c device_cell=ind2_pcell_150c
+OK   | raw=LL73               path=L73             pid=L73    layout_cell=ind2_pcell_effd device_cell=ind2_pcell_effd
+OK   | raw=LL10               path=L10             pid=L10    layout_cell=ind2_pcell_70a1 device_cell=ind2_pcell_70a1
+OK   | raw=LL11               path=L11             pid=L11    layout_cell=ind2_pcell_dd14 device_cell=ind2_pcell_dd14
+OK   | raw=LL14               path=L14             pid=L14    layout_cell=ind2_pcell_dd14 device_cell=ind2_pcell_dd14
+OK   | raw=LL15               path=L15             pid=L15    layout_cell=ind2_pcell_70a1 device_cell=ind2_pcell_70a1
+OK   | raw=LL20               path=L20             pid=L20    layout_cell=ind2_pcell_5195 device_cell=ind2_pcell_5195
+OK   | raw=LL21               path=L21             pid=L21    layout_cell=ind2_pcell_a496 device_cell=ind2_pcell_a496
+OK   | raw=LL22               path=L22             pid=L22    layout_cell=ind2_pcell_5195 device_cell=ind2_pcell_5195
+OK   | raw=LL23               path=L23             pid=L23    layout_cell=ind2_pcell_a496 device_cell=ind2_pcell_a496
+OK   | raw=XpcIB3             path=IB3             pid=IB3    layout_cell=pwrcell_pcell_1940 device_cell=pwrcell_pcell_1940
+OK   | raw=XpcIB2             path=IB2             pid=IB2    layout_cell=pwrcell_pcell_1940 device_cell=pwrcell_pcell_1940
+OK   | raw=XpcIB1             path=IB1             pid=IB1    layout_cell=pwrcell_pcell_1940 device_cell=pwrcell_pcell_1940
+OK   | raw=XpcIB4             path=IB4             pid=IB4    layout_cell=pwrcell_pcell_fe68 device_cell=pwrcell_pcell_fe68
+OK   | raw=XpcI23|IB1         path=I23/IB1         pid=IB1    layout_cell=NDROM2 device_cell=pwrcell_pcell_0bb1
+OK   | raw=XpcI23|IB2         path=I23/IB2         pid=IB2    layout_cell=NDROM2 device_cell=pwrcell_pcell_d53e
+OK   | raw=XpcI23|IB3         path=I23/IB3         pid=IB3    layout_cell=NDROM2 device_cell=pwrcell_pcell_0bb1
+OK   | raw=XpcI23|IB4         path=I23/IB4         pid=IB4    layout_cell=NDROM2 device_cell=pwrcell_pcell_a26d
+OK   | raw=XpcI23|IB6         path=I23/IB6         pid=IB6    layout_cell=NDROM2 device_cell=pwrcell_pcell_0bb1
+OK   | raw=XpcI23|IB5         path=I23/IB5         pid=IB5    layout_cell=NDROM2 device_cell=pwrcell_pcell_0bb1
 
 === SUMMARY ===
-Total logical elements: 10
-Mapped: 10
+Total logical elements: 60
+Mapped: 60
 Unmapped: 0

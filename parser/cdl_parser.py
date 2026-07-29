@@ -5,6 +5,8 @@ from elements.inductor import InductorElement
 from elements.resistor import ResistorElement
 from Hierarchy.circuit import Circuit
 from Hierarchy.node import Node
+import ast
+import operator
 import re
 
 # Class description: 
@@ -22,6 +24,41 @@ class CDLParser:
         self.current_cell = None
         self.TOP = None
         self.is_a_cell = False
+        
+    def _compute_value(self, raw_value):
+        expression = str(raw_value).strip().strip("'\"")
+
+        operators = {
+            ast.Add: operator.add,
+            ast.Sub: operator.sub,
+            ast.Mult: operator.mul,
+            ast.Div: operator.truediv,
+            ast.Pow: operator.pow,
+            ast.USub: operator.neg,
+            ast.UAdd: operator.pos,
+        }
+
+        def evaluate(node):
+            if isinstance(node, ast.Expression):
+                return evaluate(node.body)
+
+            if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+                return float(node.value)
+
+            if isinstance(node, ast.BinOp) and type(node.op) in operators:
+                return operators[type(node.op)](
+                    evaluate(node.left),
+                    evaluate(node.right),
+                )
+
+            if isinstance(node, ast.UnaryOp) and type(node.op) in operators:
+                return operators[type(node.op)](
+                    evaluate(node.operand)
+                )
+
+            raise ValueError(f"Unsupported numeric expression: {raw_value}")
+
+        return evaluate(ast.parse(expression, mode="eval"))
         
     def _handle_subckt(self, line, line_number):
         tokens = line.split()
@@ -61,10 +98,18 @@ class CDLParser:
         net_out = tokens[2]
 
         ic = 100.0
-        for t in tokens:
-            if t.lower().startswith("ics="):
-                ic = float(t.split("=", 1)[1].replace("u", ""))
+        raw_value = None
+
+        for token in tokens:
+            if token.lower().startswith("ics="):
+                raw_value = token.split("=", 1)[1].strip().strip("'\"")
                 break
+
+        if raw_value is None:
+            ic = 100.0
+        else:
+            expression = raw_value.lower().replace("u", "")
+            ic = self._compute_value(expression)
         
         element = JJElement(name, None, None, ic)
         element.raw_name = head
@@ -79,16 +124,19 @@ class CDLParser:
         net_in = tokens[2]
         net_out = tokens[3]
 
-        ib = None
-        for t in tokens:
-            if t.lower().startswith("ib="):
-                ib = float(t.split("=", 1)[1].replace("u", ""))
+        raw_value = None
+
+        for token in tokens:
+            if token.lower().startswith("ib="):
+                raw_value = token.split("=", 1)[1].strip().strip("'\"")
                 break
 
-        if ib is None:
-            raise ValueError(
-                f"[ligne {line_number}] ib sans ib="
-            )
+        if raw_value is None:
+            raise ValueError(f"[ligne {line_number}] ib sans ib=")
+
+        expression = raw_value.lower().replace("u", "")
+        ib = self._compute_value(expression)
+
 
         element = BiasIBElement(name, None, None, ib)
         element.raw_name = head
@@ -98,20 +146,19 @@ class CDLParser:
         net_p = tokens[1]
         net_n = tokens[2]
 
-        lval = None
-        for t in tokens:
-            if t.lower().startswith("l="):
-                lval = float(
-                    t.split("=", 1)[1]
-                    .replace("p", "")
-                    .replace("n", "")
-                )
+        raw_value = None
+        for token in tokens:
+            if token.lower().startswith("l="):
+                raw_value = token.split("=", 1)[1].strip().strip("'\"")
                 break
 
-        if lval is None:
+        if raw_value is None:
             raise ValueError(
                 f"[ligne {line_number}] Inductance sans L="
             )
+
+        expression = raw_value.lower().replace("p", "").replace("n", "")
+        lval = self._compute_value(expression)
 
         element = InductorElement(name, None, None, lval)
         element.raw_name = head
@@ -122,14 +169,16 @@ class CDLParser:
         net_p = tokens[1]
         net_n = tokens[2]
 
-        rval = None
-        for t in tokens[3:]:
-            if t.lower().startswith("r="):
-                rval = float(t.split("=", 1)[1])
+        raw_value = None
+        for token in tokens[3:]:
+            if token.lower().startswith("r="):
+                raw_value = token.split("=", 1)[1]
                 break
 
-        if rval is None:
-            rval = float(tokens[-1])
+        if raw_value is None:
+            raw_value = tokens[-1]
+
+        rval = self._compute_value(raw_value)
 
         element = ResistorElement(name, None, None, rval)
         element.raw_name = head
