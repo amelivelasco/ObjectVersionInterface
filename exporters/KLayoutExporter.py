@@ -622,6 +622,50 @@ class KLayoutExporter(BaseExporter):
 
         self.layout.write(str(self.layout_path))
         
+    def get_closest_resistor_center_trans(self, inst, r2_layer_number, r2_datatype=0):
+        layout_inst = getattr(inst, "KLayoutInstance", None)
+        global_trans = getattr(inst, "global_trans", None)
+
+        if layout_inst is None or global_trans is None:
+            return None
+
+        r2_layer = self.layout.layer(r2_layer_number, r2_datatype)
+        resistor_boxes = []
+
+        for shape in layout_inst.cell.shapes(r2_layer).each():
+            bbox = shape.bbox()
+
+            if bbox.empty():
+                continue
+
+            # Keep horizontal resistor-like rectangles.
+            if bbox.width() > bbox.height():
+                resistor_boxes.append(bbox)
+
+        if not resistor_boxes:
+            print(f"WARNING: no R2 resistor found for {inst.name}")
+            return None
+
+        # The JJ anchor/origin in global layout coordinates.
+        jj_position = global_trans.disp
+
+        def distance_squared(resistor_bbox):
+            resistor_center = global_trans * resistor_bbox.center()
+            dx = resistor_center.x - jj_position.x
+            dy = resistor_center.y - jj_position.y
+            return dx * dx + dy * dy
+
+        closest_resistor_bbox = min(resistor_boxes, key=distance_squared)
+        closest_resistor_center = global_trans * closest_resistor_bbox.center()
+
+        print(
+            f"{inst.name}: closest resistor center="
+            f"({closest_resistor_center.x}, {closest_resistor_center.y})"
+        )
+
+        # Keep the label globally horizontal.
+        return pya.Trans(closest_resistor_center)
+        
     def write_cell_names(self):
         """Écrit les noms des composants dans la cellule supérieure sur le layer 52/0."""
 
@@ -645,20 +689,27 @@ class KLayoutExporter(BaseExporter):
 
                 if inst_type == "JJ":
                     port_j = f"{inst.name} M2 M1"
+
                     self.insert_managed_text(
                         text=port_j,
-                        text_trans=global_trans * pya.Trans(pya.Point(0, 0)),
+                        text_trans=global_trans,
                         label_layer=self.label_layer,
                     )
 
-                    ray = int(sqrt((inst.Ic * 10000000) / (10 * 3.14159 * 2)) + 8000)
                     port_parallel = f"Prb{inst.name[1:]} M2 R2"
 
-                    self.insert_managed_text(
-                        text=port_parallel,
-                        text_trans=global_trans * pya.Trans(pya.Point(0, -ray)),
-                        label_layer=self.label_layer,
+                    resistor_center_trans = self.get_closest_resistor_center_trans(
+                        inst,
+                        r2_layer_number=3,
+                        r2_datatype=0,
                     )
+
+                    if resistor_center_trans is not None:
+                        self.insert_managed_text(
+                            text=port_parallel,
+                            text_trans=resistor_center_trans,
+                            label_layer=self.label_layer,
+                        )
 
                     inst.global_trans = global_trans
 
