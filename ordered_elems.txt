@@ -1,4 +1,4 @@
-generated_at: 2026-07-29T11:18:17.530767+00:00
+generated_at: 2026-07-29T11:32:55.125677+00:00
 CircuitComponent(raw=IB1, path=splitter_1/IB1, pid=IB1, layout_cell=pwrcell_pcell_802c, net_in=VDD, net_out=net14, value=570.0)
 CircuitComponent(raw=J2, path=splitter_1/J2, pid=J2, layout_cell=jj_s_pcell_34fb, net_in=net25, net_out=GND!, value=250.0)
 CircuitComponent(raw=J3, path=splitter_1/J3, pid=J3, layout_cell=jj_s_pcell_34fb, net_in=net18, net_out=GND!, value=250.0)

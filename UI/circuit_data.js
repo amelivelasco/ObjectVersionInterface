@@ -1,6 +1,6 @@
 window.circuitData = {
   "name": "ordered_elems",
-  "generated_at": "2026-07-29T11:18:17.567730+00:00",
+  "generated_at": "2026-07-29T11:32:55.145140+00:00",
   "nodes": [
     {
       "id": "VDD",

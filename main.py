@@ -21,16 +21,28 @@ def main():
         / "Splitter" / "Splitter"
         / "Netlist.sp"
     )
+    
+    # netlist_path = (
+    #     base_dir
+    #     / "NDROMDrivers"
+    #     / "Netlist.sp"
+    # )
 
-    layout_path = (
-        base_dir / "Splitter" / "Splitter"
-        / "Layout.gds"
-    )
+    # layout_path = (
+    #     base_dir 
+    #     / "NDROMDrivers.custom_compiler.gds"
+    # )
     
     # layout_path = (
     #     base_dir
     #     / "BIG_Cellname_New.gds"
     # )
+    
+    layout_path = (
+        base_dir
+        / "Splitter" / "Splitter"
+        / "Layout.gds"
+    )
     
     
 
