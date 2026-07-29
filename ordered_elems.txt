@@ -1,4 +1,4 @@
-generated_at: 2026-07-29T11:41:20.534025+00:00
+generated_at: 2026-07-29T11:46:51.084701+00:00
 CircuitComponent(raw=IB1, path=NDROMDrivers_1/IB1, pid=IB1, layout_cell=pwrcell_pcell_0bb1, net_in=Src26, net_out=I23|net4, value=175.0)
 CircuitComponent(raw=I23|J5, path=NDROMDrivers_1/I23|J5, pid=J5, layout_cell=jj_s_pcell_e6a0, net_in=I23|net141, net_out=I23|net142, value=180.0)
 CircuitComponent(raw=I23|J1, path=NDROMDrivers_1/I23|J1, pid=J1, layout_cell=jj_s_pcell_34fb, net_in=I23|net4, net_out=GND!, value=250.0)
@@ -50,8 +50,8 @@ CircuitComponent(raw=L20, path=NDROMDrivers_1/L20, pid=L20, layout_cell=ind2_pce
 CircuitComponent(raw=L21, path=NDROMDrivers_1/L21, pid=L21, layout_cell=ind2_pcell_a496, net_in=net29, net_out=net28, value=0.5)
 CircuitComponent(raw=L22, path=NDROMDrivers_1/L22, pid=L22, layout_cell=ind2_pcell_5195, net_in=net35, net_out=net34, value=0.8)
 CircuitComponent(raw=L23, path=NDROMDrivers_1/L23, pid=L23, layout_cell=ind2_pcell_a496, net_in=net34, net_out=net33, value=0.5)
-CircuitComponent(raw=IB3, path=NDROMDrivers_1/IB3, pid=IB3, layout_cell=pwrcell_pcell_1940, net_in=Src26, net_out=net34, value=280.0)
-CircuitComponent(raw=IB2, path=NDROMDrivers_1/IB2, pid=IB2, layout_cell=pwrcell_pcell_1940, net_in=Src26, net_out=net29, value=280.0)
-CircuitComponent(raw=IB4, path=NDROMDrivers_1/IB4, pid=IB4, layout_cell=pwrcell_pcell_fe68, net_in=Src26, net_out=net3, value=250.0)
+CircuitComponent(raw=IB3, path=NDROMDrivers_1/IB3, pid=IB3, layout_cell=pwrcell_pcell_0bb1, net_in=Src26, net_out=I23|net119, value=175.0)
+CircuitComponent(raw=IB2, path=NDROMDrivers_1/IB2, pid=IB2, layout_cell=pwrcell_pcell_d53e, net_in=Src26, net_out=I23|net137, value=139.0)
+CircuitComponent(raw=IB4, path=NDROMDrivers_1/IB4, pid=IB4, layout_cell=pwrcell_pcell_a26d, net_in=Src26, net_out=I23|net100, value=158.0)
 CircuitComponent(raw=IB6, path=NDROMDrivers_1/IB6, pid=IB6, layout_cell=pwrcell_pcell_0bb1, net_in=Src26, net_out=I23|net139, value=175.0)
 CircuitComponent(raw=IB5, path=NDROMDrivers_1/IB5, pid=IB5, layout_cell=pwrcell_pcell_0bb1, net_in=Src26, net_out=I23|net110, value=175.0)

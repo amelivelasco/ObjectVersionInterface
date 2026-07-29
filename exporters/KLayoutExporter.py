@@ -526,9 +526,18 @@ class KLayoutExporter(BaseExporter):
             port_text.halign = pya.Text.HAlignCenter
             port_text.valign = pya.Text.VAlignCenter
 
-            width, length = 500, 500 * 20
-            path = pya.Path([pya.Point(-length // 2, 0), pya.Point(length // 2, 0)], width)
-            path_t = path.transformed(port_trans)
+            bounds = self.get_element_global_bounds(elem)
+            if bounds is None:
+                continue
+
+            left, bottom, right, top = bounds
+            width = 500
+            path_y = port_trans.disp.y
+
+            path_t = pya.Path(
+                [pya.Point(left, path_y), pya.Point(right, path_y)],
+                width,
+            )
 
             path_shape = self.layout_top.shapes(self.term_layer).insert(path_t)
             text_shape = self.layout_top.shapes(label_layer).insert(port_text)

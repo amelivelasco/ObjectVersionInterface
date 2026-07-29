@@ -1,6 +1,6 @@
 window.circuitData = {
   "name": "ordered_elems",
-  "generated_at": "2026-07-29T11:41:20.554703+00:00",
+  "generated_at": "2026-07-29T11:46:51.105764+00:00",
   "nodes": [
     {
       "id": "Src26",
@@ -1028,16 +1028,16 @@ window.circuitData = {
       "raw": "IB3",
       "path": "NDROMDrivers_1/IB3",
       "pid": "IB3",
-      "layout_cell": "pwrcell_pcell_1940",
-      "layout_instance": "NDROMDrivers_1::pwrcell_pcell_1940",
+      "layout_cell": "pwrcell_pcell_0bb1",
+      "layout_instance": "NDROMDrivers_1::pwrcell_pcell_0bb1",
       "instance_path": "NDROMDrivers_1",
       "type": [
         "IB",
         ""
       ],
       "net_in": "Src26",
-      "net_out": "net34",
-      "value": "280.0",
+      "net_out": "I23|net119",
+      "value": "175.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1045,16 +1045,16 @@ window.circuitData = {
       "raw": "IB2",
       "path": "NDROMDrivers_1/IB2",
       "pid": "IB2",
-      "layout_cell": "pwrcell_pcell_1940",
-      "layout_instance": "NDROMDrivers_1::pwrcell_pcell_1940",
+      "layout_cell": "pwrcell_pcell_d53e",
+      "layout_instance": "NDROMDrivers_1::pwrcell_pcell_d53e",
       "instance_path": "NDROMDrivers_1",
       "type": [
         "IB",
         ""
       ],
       "net_in": "Src26",
-      "net_out": "net29",
-      "value": "280.0",
+      "net_out": "I23|net137",
+      "value": "139.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1062,16 +1062,16 @@ window.circuitData = {
       "raw": "IB4",
       "path": "NDROMDrivers_1/IB4",
       "pid": "IB4",
-      "layout_cell": "pwrcell_pcell_fe68",
-      "layout_instance": "NDROMDrivers_1::pwrcell_pcell_fe68",
+      "layout_cell": "pwrcell_pcell_a26d",
+      "layout_instance": "NDROMDrivers_1::pwrcell_pcell_a26d",
       "instance_path": "NDROMDrivers_1",
       "type": [
         "IB",
         ""
       ],
       "net_in": "Src26",
-      "net_out": "net3",
-      "value": "250.0",
+      "net_out": "I23|net100",
+      "value": "158.0",
       "image": "../img/biais_draw.png"
     },
     {
@@ -1120,6 +1120,7 @@ window.circuitData = {
       "net_out": "I23|net110",
       "elements": [
         "IB1",
+        "IB3",
         "IB6",
         "IB5"
       ]
@@ -1505,26 +1506,25 @@ window.circuitData = {
       ]
     },
     {
-      "id": "NDROMDrivers_1::pwrcell_pcell_1940",
-      "layout_instance": "NDROMDrivers_1::pwrcell_pcell_1940",
-      "layout_cell": "pwrcell_pcell_1940",
+      "id": "NDROMDrivers_1::pwrcell_pcell_d53e",
+      "layout_instance": "NDROMDrivers_1::pwrcell_pcell_d53e",
+      "layout_cell": "pwrcell_pcell_d53e",
       "instance_path": "NDROMDrivers_1",
-      "display_name": "pwrcell_pcell_1940 (NDROMDrivers_1)",
+      "display_name": "pwrcell_pcell_d53e (NDROMDrivers_1)",
       "net_in": "Src26",
-      "net_out": "net29",
+      "net_out": "I23|net137",
       "elements": [
-        "IB3",
         "IB2"
       ]
     },
     {
-      "id": "NDROMDrivers_1::pwrcell_pcell_fe68",
-      "layout_instance": "NDROMDrivers_1::pwrcell_pcell_fe68",
-      "layout_cell": "pwrcell_pcell_fe68",
+      "id": "NDROMDrivers_1::pwrcell_pcell_a26d",
+      "layout_instance": "NDROMDrivers_1::pwrcell_pcell_a26d",
+      "layout_cell": "pwrcell_pcell_a26d",
       "instance_path": "NDROMDrivers_1",
-      "display_name": "pwrcell_pcell_fe68 (NDROMDrivers_1)",
+      "display_name": "pwrcell_pcell_a26d (NDROMDrivers_1)",
       "net_in": "Src26",
-      "net_out": "net3",
+      "net_out": "I23|net100",
       "elements": [
         "IB4"
       ]
