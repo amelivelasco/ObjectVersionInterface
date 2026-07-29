@@ -10,11 +10,11 @@ from parser.cdl_parser import CDLParser
 def main():
     base_dir = Path(__file__).resolve().parent
 
-    # netlist_path = (
-    #     base_dir
-    #     / "test_files"
-    #     / "BasicCellsHomemade_MultiplexerAmeli.sp"
-    # )
+    netlist_path = (
+        base_dir
+        / "test_files"
+        / "BasicCellsHomemade_MultiplexerAmeli.sp"
+    )
     
     # netlist_path = (
     #     base_dir
@@ -22,26 +22,32 @@ def main():
     #     / "Netlist.sp"
     # )
     
-    netlist_path = (
-        base_dir
-        / "NDROMDrivers"
-        / "Netlist.sp"
-    )
-
-    layout_path = (
-        base_dir / "NDROMDrivers"
-        / "NDROMDrivers.custom_compiler.gds"
-    )
-    
-    # layout_path = (
+    # netlist_path = (
     #     base_dir
-    #     / "BIG_Cellname_New.gds"
+    #     / "NDROMDrivers"
+    #     / "Netlist.sp"
     # )
+
+    # layout_path = (
+    #     base_dir / "NDROMDrivers"
+    #     / "NDROMDrivers.custom_compiler.gds"
+    # )
+    
+    layout_path = (
+        base_dir 
+        / "test_files" 
+        / "MultiplexerAmeli.custom_compiler.gds"
+    )
     
     # layout_path = (
     #     base_dir
     #     / "Splitter" / "Splitter"
     #     / "Layout.gds"
+    # )
+    
+    # layout_path = (
+    #     base_dir 
+    #     / "BIG_Cellname_New.gds"
     # )
     
     
@@ -112,7 +118,11 @@ def main():
     def save_original_component_names(cell):
         for elem in cell.instances:
             if hasattr(elem, "net_in"):
-                elem.original_name = elem.name
+                elem.original_name = getattr(
+                    elem,
+                    "raw_name",
+                    elem.name,
+                )
             elif hasattr(elem, "instances"):
                 save_original_component_names(elem)
 
@@ -223,7 +233,7 @@ def main():
     # 8. Regenerate circuit_data.js from the updated file
     # --------------------------------------------------
     schematic.write_circuit_data(
-        ordered_components_file=ordered_elems_path,
+        ordered_components=ordered_components,
         output_file=circuit_data_path,
     )
 

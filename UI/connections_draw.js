@@ -381,3 +381,36 @@ function getInductorImageObstacle(element, margin = 3) {
     isInductor: true,
   };
 }
+
+function axisAlignedSegmentsIntersect(first, second, epsilon = 0.5) {
+  const firstHorizontal = Math.abs(first.a.y - first.b.y) < epsilon;
+  const secondHorizontal = Math.abs(second.a.y - second.b.y) < epsilon;
+
+  const firstMinX = Math.min(first.a.x, first.b.x);
+  const firstMaxX = Math.max(first.a.x, first.b.x);
+  const firstMinY = Math.min(first.a.y, first.b.y);
+  const firstMaxY = Math.max(first.a.y, first.b.y);
+
+  const secondMinX = Math.min(second.a.x, second.b.x);
+  const secondMaxX = Math.max(second.a.x, second.b.x);
+  const secondMinY = Math.min(second.a.y, second.b.y);
+  const secondMaxY = Math.max(second.a.y, second.b.y);
+
+  if (firstHorizontal && secondHorizontal) {
+    return Math.abs(first.a.y - second.a.y) < epsilon &&
+      firstMaxX >= secondMinX - epsilon && secondMaxX >= firstMinX - epsilon;
+  }
+
+  if (!firstHorizontal && !secondHorizontal) {
+    return Math.abs(first.a.x - second.a.x) < epsilon &&
+      firstMaxY >= secondMinY - epsilon && secondMaxY >= firstMinY - epsilon;
+  }
+
+  const horizontal = firstHorizontal ? first : second;
+  const vertical = firstHorizontal ? second : first;
+
+  return vertical.a.x >= Math.min(horizontal.a.x, horizontal.b.x) - epsilon &&
+    vertical.a.x <= Math.max(horizontal.a.x, horizontal.b.x) + epsilon &&
+    horizontal.a.y >= Math.min(vertical.a.y, vertical.b.y) - epsilon &&
+    horizontal.a.y <= Math.max(vertical.a.y, vertical.b.y) + epsilon;
+}

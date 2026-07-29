@@ -55,32 +55,64 @@ class Schematic:
             "net_out": clean_value(match.group("net_out")),
             "value": clean_value(match.group("value")),
         }
-
+        
     def insert_component_by_net(self, ordered_components, new_component):
-        best_index = None
-        best_score = 0
+        ignored_nets = {"VDD", "GND", "GND!", "0", "", None}
 
-        for index, existing_component in enumerate(ordered_components):
-            shared_nets = new_component.nets.intersection(existing_component.nets)
-            score = len(shared_nets)
+        def clean_net(net):
+            if net is None:
+                return None
+            return str(net).strip()
 
-            if score > best_score:
-                best_score = score
-                best_index = index
+        new_net_in = clean_net(new_component.net_in)
+        new_net_out = clean_net(new_component.net_out)
 
-        if best_index is None:
-            ordered_components.append(new_component)
-        else:
-            ordered_components.insert(best_index + 1, new_component)
+        # Existing component must be followed by the new component:
+        #
+        # existing.net_in == new.net_out
+        if new_net_out not in ignored_nets:
+            for index, existing_component in enumerate(ordered_components):
+                existing_net_in = clean_net(existing_component.net_in)
+
+                if existing_net_in == new_net_out:
+                    ordered_components.insert(index + 1, new_component)
+                    return
+
+        # New component must be followed by an existing component:
+        #
+        # new.net_in == existing.net_out
+        if new_net_in not in ignored_nets:
+            for index, existing_component in enumerate(ordered_components):
+                existing_net_out = clean_net(existing_component.net_out)
+
+                if new_net_in == existing_net_out:
+                    ordered_components.insert(index, new_component)
+                    return
+
+        ordered_components.append(new_component)
     
     @staticmethod
     def get_instance_path(component):
-        path = str(
-            getattr(component, "path", "") or ""
-        ).strip()
+        path = str(getattr(component, "path", "") or "").strip().removeprefix("MultiplexerAmeli_1/")
 
         if "/" in path:
             return path.rsplit("/", 1)[0]
+
+        if "|" in path:
+            return path.rsplit("|", 1)[0]
+
+        raw = str(getattr(component, "raw", "") or "").strip()
+
+        for prefix in ("Xsj", "Xpc"):
+            if raw.startswith(prefix):
+                raw = raw[len(prefix):]
+                break
+
+        if raw.startswith("L") and "|" in raw:
+            raw = raw[1:]
+
+        if "|" in raw:
+            return raw.rsplit("|", 1)[0]
 
         return path or "root"
 
@@ -92,20 +124,6 @@ class Schematic:
         )
         
     def refresh_ordered_components_file(self, circuit, first_level_layout_cells):
-        previous_order = []
-
-        if self.map_file.exists():
-            with self.map_file.open("r", encoding="utf-8") as file:
-                for line in file:
-                    line = line.strip()
-
-                    if not line or line.startswith("generated_at:"):
-                        continue
-
-                    parsed = self.parse_mapping_line(line)
-                    if parsed is not None:
-                        previous_order.append(parsed["raw"])
-
         current_components = []
 
         def get_value(elem):
@@ -120,7 +138,7 @@ class Schematic:
                     walk(elem)
                     continue
 
-                raw = str(getattr(elem, "original_name", getattr(elem, "raw_name", elem.name)))
+                raw = str(getattr(elem, "raw_name", getattr(elem, "original_name", elem.name)))
                 layout_inst = getattr(elem, "KLayoutInstance", None)
                 pid = layout_inst.property(102) if layout_inst is not None else None
                 layout_cell = first_level_layout_cells.get(raw)
@@ -128,7 +146,8 @@ class Schematic:
                 if layout_cell is None and layout_inst is not None:
                     layout_cell = layout_inst.cell.name
 
-                path = getattr(elem, "Path_name", None) or getattr(elem, "path", None) or raw
+                path = str(getattr(elem, "Path_name", None) or getattr(elem, "path", None) or raw)
+                path = path.removeprefix("MultiplexerAmeli_1/")
                 net_in = getattr(getattr(elem, "net_in", None), "name", None)
                 net_out = getattr(getattr(elem, "net_out", None), "name", None)
 
@@ -146,42 +165,19 @@ class Schematic:
 
         walk(circuit.TOP)
 
-        current_by_raw = {component.raw: component for component in current_components}
-        ordered_components = []
-        already_added = set()
-
-        # Preserve the old order only for components that still exist.
-        for raw in previous_order:
-            if raw in current_by_raw and raw not in already_added:
-                ordered_components.append(current_by_raw[raw])
-                already_added.add(raw)
-
-        # Add all components from the current circuit that were not in the old file.
-        for component in current_components:
-            if component.raw not in already_added:
-                ordered_components.append(component)
-                already_added.add(component.raw)
-
         self.map_file.parent.mkdir(parents=True, exist_ok=True)
 
+        # "w" completely erases the previous file contents.
         with self.map_file.open("w", encoding="utf-8") as file:
             file.write(f"generated_at: {datetime.now(timezone.utc).isoformat()}\n")
 
-            for component in ordered_components:
+            for component in current_components:
                 file.write(f"{component}\n")
 
-        removed_components = [
-            raw for raw in previous_order
-            if raw not in current_by_raw
-        ]
+        print(f"Ordered elements file overwritten: {self.map_file.resolve()}")
+        print(f"Current components written: {len(current_components)}")
 
-        print(f"Refreshed ordered elements file: {self.map_file.resolve()}")
-        print(f"Current components written: {len(ordered_components)}")
-
-        if removed_components:
-            print("Removed stale components:", ", ".join(removed_components))
-
-        return ordered_components
+        return current_components
                 
         
     def handle_layout_cell(
@@ -241,8 +237,6 @@ class Schematic:
                 f"Ordered elements file not found: {self.map_file}"
             )
 
-        # Used only as a fallback when net information is missing
-        # from an ordered_elems.txt entry.
         net_lookup = {
             element["id"]: {
                 "net_in": element.get("net_in"),
@@ -253,46 +247,36 @@ class Schematic:
         }
 
         ordered_components = []
-        layout_cells = []
+        source_index = 0
 
         with self.map_file.open("r", encoding="utf-8") as file:
             for line_number, line in enumerate(file, start=1):
                 line = line.strip()
 
-                if not line:
-                    continue
-                
-                if line.startswith("generated_at:"):
+                if not line or line.startswith("generated_at:"):
                     continue
 
                 parsed = self.parse_mapping_line(line)
-                    
-                if parsed["raw"].startswith("Xsj"):
-                    print(
-                        "DEBUG JJ FROM FILE:",
-                        parsed["raw"],
-                        "value=",
-                        parsed["value"]
+
+                if parsed is None:
+                    raise ValueError(
+                        f"Invalid mapping line {line_number}: {line}"
                     )
-                
+
                 raw = parsed["raw"]
-                fallback_nets = net_lookup.get(raw, {})
+                fallback = net_lookup.get(raw, {})
 
                 net_in = parsed["net_in"]
-
                 if net_in is None:
-                    net_in = fallback_nets.get("net_in")
+                    net_in = fallback.get("net_in")
 
                 net_out = parsed["net_out"]
-
                 if net_out is None:
-                    net_out = fallback_nets.get("net_out")
-                    
-                value = fallback_nets.get("value")
+                    net_out = fallback.get("net_out")
 
+                value = parsed["value"]
                 if value is None:
-                    value = parsed["value"]
-
+                    value = fallback.get("value")
 
                 component = CircuitComponent(
                     raw=raw,
@@ -303,34 +287,31 @@ class Schematic:
                     net_out=net_out,
                     value=value,
                 )
-                
-                self.handle_layout_cell(
-                    layout_cells,
+
+                # Preserve where the component appeared in the source file.
+                component.original_index = line_number
+
+                self.insert_component_by_net(
+                    ordered_components,
                     component,
                 )
-                
-                component.original_index = len(ordered_components)
+        # Build the layout-cell groups after the components
+        # have been placed in their final order.
+        layout_cells = []
 
-                ordered_components.append(component)
-            
+        for component in ordered_components:
+            self.handle_layout_cell(
+                layout_cells,
+                component,
+            )
+
         for cell in layout_cells:
-            print(
-                f"\nLayout cell: "
-                f"{cell.layout_cell}"
-            )
-
-            print(
-                f"Net in: {cell.net_in}"
-            )
-
-            print(
-                f"Net out: {cell.net_out}"
-            )
+            print(f"\nLayout cell: {cell.layout_cell}")
+            print(f"Net in: {cell.net_in}")
+            print(f"Net out: {cell.net_out}")
 
             for element in cell.elements:
-                print(
-                    f"  - {element.raw}"
-                )
+                print(f"  - {element.raw}")
 
         return ordered_components
     
@@ -489,147 +470,68 @@ class Schematic:
         return layout_cells_data
 
 
-    def write_circuit_data(
-        self,
-        ordered_components_file,
-        output_file,
-    ):
-        ordered_components_file = Path(
-            ordered_components_file
-        )
-
+    def write_circuit_data(self, ordered_components, output_file):
         output_file = Path(output_file)
+        ordered_components = list(ordered_components)
 
-        if not ordered_components_file.exists():
-            raise FileNotFoundError(
-                f"Ordered components file not found: "
-                f"{ordered_components_file.resolve()}"
-            )
+        if not ordered_components:
+            raise ValueError("No current ordered components were provided.")
 
-        ordered_components = (
-            self.load_ordered_components_file(
-                ordered_components_file
-            )
-        )
+        print("Writing circuit_data.js from current components:", len(ordered_components))
+        print("First current component IDs:", [component.raw for component in ordered_components[:10]])
 
-        print(
-            "Number of ordered components loaded:",
-            len(ordered_components),
-        )
-
-        elements = []
-        nodes_seen = set()
-        nodes = []
+        elements, nodes, nodes_seen = [], [], set()
 
         def add_node(net):
             if net is None:
                 return
+            net = str(net).strip()
+            if not net or net in nodes_seen:
+                return
+            nodes_seen.add(net)
+            nodes.append({"id": net, "label": net})
 
-            if net not in nodes_seen:
-                nodes_seen.add(net)
-
-                nodes.append({
-                    "id": net,
-                    "label": net,
-                })
-
-        for index, component in enumerate(
-            ordered_components
-        ):
-            print(
-                index,
-                component.path,
-                component.raw,
-                component.net_in,
-                "->",
-                component.net_out,
-            )
-
+        for index, component in enumerate(ordered_components):
+            print(index, component.path, component.raw, component.net_in, "->", component.net_out)
             add_node(component.net_in)
             add_node(component.net_out)
 
-            (component_type1, component_type2) = self.get_component_type(
-                component
-            )
-            
-            elements.append({
-                "id": component.raw,
-                "raw": component.raw,
-                "path": component.path,
-                "pid": component.pid,
-                "layout_cell": component.layout_cell,
-                "layout_instance":
-                    self.get_layout_instance_id(
-                        component
-                    ),
-                    "instance_path":
-                self.get_instance_path(
-                    component
-                ),
-                "type": (component_type1, component_type2),
-                "net_in": component.net_in,
-                "net_out": component.net_out,
-                "value": component.value,
-                "image": self.get_component_image(
-                    component
-                ),
-            })
-            
-            if component_type1 == "JJ":
-                resistor_id = self.get_junction_resistor_id(
-                    component.raw
-                )
+            component_type1, component_type2 = self.get_component_type(component)
+            layout_instance = self.get_layout_instance_id(component)
+            instance_path = self.get_instance_path(component)
 
+            elements.append({
+                "id": component.raw, "raw": component.raw, "path": component.path, "pid": component.pid,
+                "layout_cell": component.layout_cell, "layout_instance": layout_instance,
+                "instance_path": instance_path, "type": (component_type1, component_type2),
+                "net_in": component.net_in, "net_out": component.net_out, "value": component.value,
+                "image": self.get_component_image(component),
+            })
+
+            if component_type1 == "JJ":
+                resistor_id = self.get_junction_resistor_id(component.raw)
                 elements.append({
-                    "id": resistor_id,
-                    "raw": resistor_id,
-                    "path": component.path,
-                    "pid": component.pid,
-                    "layout_cell": component.layout_cell,
-                        "layout_instance":
-                            self.get_layout_instance_id(
-                                component
-                            ),
-                            "instance_path":
-                        self.get_instance_path(
-                            component
-                        ),
-                    "type": ("R", ""),
-                    "net_in": component.net_in,
-                    "net_out": component.net_out,
-                    "image": "../img/res_draw.png",
+                    "id": resistor_id, "raw": resistor_id, "path": component.path, "pid": component.pid,
+                    "layout_cell": component.layout_cell, "layout_instance": layout_instance,
+                    "instance_path": instance_path, "type": ("R", ""), "net_in": component.net_in,
+                    "net_out": component.net_out, "value": None, "image": "../img/res_draw.png",
                 })
-                
-        layout_cells_data = self.write_layout_cells(ordered_components)
-        
+
         data = {
-            "name": ordered_components_file.stem,
-            "generated_at": datetime.now(
-                timezone.utc
-            ).isoformat(),
+            "name": self.sp_file.stem,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "nodes": nodes,
             "elements": elements,
-            "layout_cells": layout_cells_data,
+            "layout_cells": self.write_layout_cells(ordered_components),
         }
 
-        js_text = "window.circuitData = "
-        js_text += json.dumps(
-            data,
-            indent=2,
-        )
-        js_text += ";\n"
+        js_text = "window.circuitData = " + json.dumps(data, indent=2) + ";\n"
+        output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        output_file.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
+        temporary_file = output_file.with_suffix(output_file.suffix + ".tmp")
+        temporary_file.write_text(js_text, encoding="utf-8")
+        temporary_file.replace(output_file)
 
-        output_file.write_text(
-            js_text,
-            encoding="utf-8",
-        )
-
-        print(
-            f"Circuit data written to: "
-            f"{output_file.resolve()}"
-        )
+        print("circuit_data.js completely replaced:", output_file.resolve())
+        print("Circuit components written:", len(ordered_components))
+        print("Total JS elements written:", len(elements))

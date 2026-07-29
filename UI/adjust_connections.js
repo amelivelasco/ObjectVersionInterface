@@ -45,22 +45,18 @@ function findShortestOrthogonalRoute(start, end, obstacleBoxes, routedSegments, 
   }
 
   function segmentAllowed(first, second) {
-    const hitsComponent =
-      obstacleBoxes.some(
-        (box) => axisAlignedSegmentHitsBox(first, second, box)
-      );
+    const hitsComponent = obstacleBoxes.some((box) => axisAlignedSegmentHitsBox(first, second, box));
+    if (hitsComponent) { return false; }
 
-    if (hitsComponent) {return false;}
-    const candidate = {a: first, b: second,};
+    const candidate = {a: first, b: second};
 
-    const hitsAnotherNet =
-      routedSegments.some(
-        (existing) => {
-          if (existing.net && existing.net === net
-          ) { return false;}
-          return segmentsWithinClearance(candidate, existing, 3);
-        }
-      );
+    const hitsAnotherNet = routedSegments.some((existing) => {
+      if (!existing?.a || !existing?.b) { return false; }
+      if (existing.net && net && existing.net === net) { return false; }
+
+      return axisAlignedSegmentsIntersect(candidate, existing) ||
+        segmentsWithinClearance(candidate, existing, 3);
+    });
 
     return !hitsAnotherNet;
   }
@@ -230,8 +226,23 @@ function buildShortestFreeRoute(fromPoint, toPoint, fromTerminal, toTerminal, ce
     obstacleBoxes.push(getInductorImageObstacle(element,1));
   }
   const coreRoute = findShortestOrthogonalRoute(fromApproach, toApproach, obstacleBoxes, routedSegments, net);
-  if (!Array.isArray(coreRoute) || coreRoute.length < 2) { return null;}
-  return simplifyOrthogonalPoints([fromRoutingPoint, fromApproach, ...coreRoute, toApproach, toRoutingPoint,]);
+  if (!Array.isArray(coreRoute) || coreRoute.length < 2) { return null; }
+
+  const fullRoute = simplifyOrthogonalPoints([fromRoutingPoint, fromApproach, ...coreRoute, toApproach, toRoutingPoint]);
+  const crossesDifferentNet = routePointsToSegments(fullRoute).some((candidate) =>
+    routedSegments.some((existing) => {
+      if (!existing?.a || !existing?.b) { return false; }
+      if (existing.net && net && existing.net === net) { return false; }
+      return axisAlignedSegmentsIntersect(candidate, existing) || segmentsWithinClearance(candidate, existing, 3);
+    })
+  );
+
+  if (crossesDifferentNet) {
+    console.warn(`Rejected final route crossing another net: ${net}`);
+    return null;
+  }
+
+  return fullRoute;
 }
 
 function getLongestHorizontalSegment(points) {
@@ -497,7 +508,6 @@ function drawSharedOutputNet(
       continue;
     }
 
-    routePoints = separateRouteFromJR(routePoints, net, jrRails,  jrMargin);
 
     drawPath(wireLayer, routePoints[0], routePoints[routePoints.length - 1],
       {
