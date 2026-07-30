@@ -213,37 +213,31 @@ function getInductorApproachPoint(terminal, point, clearance = 18) {
 }
 
 function buildShortestFreeRoute(fromPoint, toPoint, fromTerminal, toTerminal, cellElements, routedSegments, net) {
-  const fromRoutingPoint = getTerminalRoutingPoint(fromTerminal, fromPoint);
-  const toRoutingPoint = getTerminalRoutingPoint(toTerminal, toPoint);
-  const fromApproach = getInductorApproachPoint(fromTerminal, fromRoutingPoint);
-  const toApproach = getInductorApproachPoint(toTerminal, toRoutingPoint);
-  const endpointElements = [fromTerminal?.element, toTerminal?.element,].filter(Boolean);
+  let first = { terminal: fromTerminal, point: getTerminalRoutingPoint(fromTerminal, fromPoint) };
+  let second = { terminal: toTerminal, point: getTerminalRoutingPoint(toTerminal, toPoint) };
 
+  first.approach = getInductorApproachPoint(first.terminal, first.point);
+  second.approach = getInductorApproachPoint(second.terminal, second.point);
+
+  if (first.approach.x > second.approach.x) { [first, second] = [second, first]; }
+
+  const endpointElements = [first.terminal?.element, second.terminal?.element].filter(Boolean);
   const excludedIds = new Set(endpointElements.map((element) => element.id).filter(Boolean));
   const obstacleBoxes = buildRoutingObstacleBoxes(cellElements, excludedIds, 10);
 
   for (const element of endpointElements) {
-    if (getElementType(element) !== "L") { continue;}
-    obstacleBoxes.push(getInductorImageObstacle(element,1));
-  }
-  const coreRoute = findShortestOrthogonalRoute(fromApproach, toApproach, obstacleBoxes, routedSegments, net);
-  if (!Array.isArray(coreRoute) || coreRoute.length < 2) { return null; }
-
-  const fullRoute = simplifyOrthogonalPoints([fromRoutingPoint, fromApproach, ...coreRoute, toApproach, toRoutingPoint]);
-  const crossesDifferentNet = routePointsToSegments(fullRoute).some((candidate) =>
-    routedSegments.some((existing) => {
-      if (!existing?.a || !existing?.b) { return false; }
-      if (existing.net && net && existing.net === net) { return false; }
-      return axisAlignedSegmentsIntersect(candidate, existing) || segmentsWithinClearance(candidate, existing, 3);
-    })
-  );
-
-  if (crossesDifferentNet) {
-    console.warn(`Rejected final route crossing another net: ${net}`);
-    return null;
+    if (getElementType(element) === "L") { obstacleBoxes.push(getInductorImageObstacle(element, 1)); }
   }
 
-  return fullRoute;
+  let coreRoute = findShortestOrthogonalRoute(first.approach, second.approach, obstacleBoxes, routedSegments, net);
+
+  if (!Array.isArray(coreRoute) || coreRoute.length < 2) {
+    coreRoute = Math.abs(first.approach.y - second.approach.y) < 0.5
+      ? [first.approach, second.approach]
+      : simplifyOrthogonalPoints([first.approach, { x: second.approach.x, y: first.approach.y }, second.approach]);
+  }
+
+  return simplifyOrthogonalPoints([first.point, first.approach, ...coreRoute, second.approach, second.point]);
 }
 
 function getLongestHorizontalSegment(points) {
