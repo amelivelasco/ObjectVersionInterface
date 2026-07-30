@@ -33,50 +33,72 @@ function isJJResistorPair(jj, resistor) {
   );
 }
 
-function getJJPairGeometry(jj, resistor, rise = 25) {
+function getJJPairGeometry(jj, resistor, rise = 25, verticalGap = 70) {
   const halfSize = drawConfig.imageSize / 2;
 
+  if (!isGroundNet(jj.net_out)) {
+    const centerX = (jj.x + resistor.x) / 2;
+    const mainWireY = Math.min(jj.y, resistor.y);
+
+    jj.x = centerX;
+    jj.y = mainWireY;
+    resistor.x = centerX;
+    resistor.y = mainWireY + verticalGap;
+
+    jj.forcedRotation = 90;
+    resistor.forcedRotation = 0;
+    jj.jrRotated = resistor.jrRotated = true;
+    jj.jrOrientation = resistor.jrOrientation = "horizontal";
+
+    const jjPinOffset = getPinOffsetForElement(jj);
+    const resistorPinOffset = getPinOffsetForElement(resistor);
+
+    jj.inputPin = { x: jj.x - jjPinOffset, y: jj.y, net: jj.net_in };
+    jj.outputPin = { x: jj.x + jjPinOffset, y: jj.y, net: jj.net_out };
+    resistor.inputPin = { x: resistor.x - resistorPinOffset, y: resistor.y, net: resistor.net_in };
+    resistor.outputPin = { x: resistor.x + resistorPinOffset, y: resistor.y, net: resistor.net_out };
+
+    const jjTop = { x: jj.x - halfSize, y: jj.y };
+    const resistorTop = { x: resistor.x - halfSize, y: resistor.y };
+    const jjBottom = { x: jj.x + halfSize, y: jj.y };
+    const resistorBottom = { x: resistor.x + halfSize, y: resistor.y };
+    const topX = Math.min(jjTop.x, resistorTop.x) - rise;
+    const bottomX = Math.max(jjBottom.x, resistorBottom.x) + rise;
+    const topAtJJ = { x: topX, y: jj.y };
+    const topAtResistor = { x: topX, y: resistor.y };
+    const bottomAtJJ = { x: bottomX, y: jj.y };
+    const bottomAtResistor = { x: bottomX, y: resistor.y };
+    const middleY = (jj.y + resistor.y) / 2;
+    const topMiddle = { x: topX, y: middleY };
+    const bottomMiddle = { x: bottomX, y: middleY };
+
+    return {
+      orientation: "horizontal", jjTop, resistorTop, jjBottom, resistorBottom, topAtJJ, topAtResistor,
+      bottomAtJJ, bottomAtResistor, topMiddle, bottomMiddle,
+      inputAnchors: [topMiddle, topAtJJ, topAtResistor],
+      outputAnchors: [bottomMiddle, bottomAtJJ, bottomAtResistor],
+    };
+  }
+
+  jj.jrRotated = resistor.jrRotated = false;
+  jj.jrOrientation = resistor.jrOrientation = "vertical";
+
   const jjTop = { x: jj.x, y: jj.y - halfSize };
-  const resistorTop = {
-    x: resistor.x,
-    y: resistor.y - halfSize,
-  };
-
+  const resistorTop = { x: resistor.x, y: resistor.y - halfSize };
   const jjBottom = { x: jj.x, y: jj.y + halfSize };
-  const resistorBottom = {
-    x: resistor.x,
-    y: resistor.y + halfSize,
-  };
-
+  const resistorBottom = { x: resistor.x, y: resistor.y + halfSize };
   const topY = Math.min(jjTop.y, resistorTop.y) - rise;
   const bottomY = Math.max(jjBottom.y, resistorBottom.y) + rise;
-
   const topAtJJ = { x: jj.x, y: topY };
   const topAtResistor = { x: resistor.x, y: topY };
   const bottomAtJJ = { x: jj.x, y: bottomY };
   const bottomAtResistor = { x: resistor.x, y: bottomY };
-
-  const topMiddle = {
-    x: (jj.x + resistor.x) / 2,
-    y: topY,
-  };
-
-  const bottomMiddle = {
-    x: (jj.x + resistor.x) / 2,
-    y: bottomY,
-  };
+  const topMiddle = { x: (jj.x + resistor.x) / 2, y: topY };
+  const bottomMiddle = { x: (jj.x + resistor.x) / 2, y: bottomY };
 
   return {
-    jjTop,
-    resistorTop,
-    jjBottom,
-    resistorBottom,
-    topAtJJ,
-    topAtResistor,
-    bottomAtJJ,
-    bottomAtResistor,
-    topMiddle,
-    bottomMiddle,
+    orientation: "vertical", jjTop, resistorTop, jjBottom, resistorBottom, topAtJJ, topAtResistor,
+    bottomAtJJ, bottomAtResistor, topMiddle, bottomMiddle,
     inputAnchors: [topMiddle, topAtJJ, topAtResistor],
     outputAnchors: [bottomMiddle, bottomAtJJ, bottomAtResistor],
   };
@@ -707,49 +729,42 @@ function getOutwardSignPoint(componentCenter, terminalPoint, offset = 10) {
 }
 
 function drawPolarityForComponent(labelLayer, component, positiveSide) {
-  if (!labelLayer || !component ||!component.sideA || !component.sideB) {
-    return;
-  }
+  if (!labelLayer || !component?.sideA || !component?.sideB) { return; }
 
-  if (
-    component.kind === "jr-pair"
-  ) { const sideAIsGround = isGroundNet(component.sideA.net);
-
-    const sideBIsGround = isGroundNet(component.sideB.net);
-
-    if (sideAIsGround && !sideBIsGround ) { positiveSide = component.sideB;
-    } else if (sideBIsGround && !sideAIsGround ) { positiveSide = component.sideA; }
+  if (component.kind === "jr-pair") {
+    const sideAIsGround = isGroundNet(component.sideA.net), sideBIsGround = isGroundNet(component.sideB.net);
+    if (sideAIsGround && !sideBIsGround) { positiveSide = component.sideB; }
+    else if (sideBIsGround && !sideAIsGround) { positiveSide = component.sideA; }
   }
 
   if (!positiveSide) { return; }
 
-  const negativeSide =positiveSide ===component.sideA ? component.sideB : component.sideA;
+  const negativeSide = positiveSide === component.sideA ? component.sideB : component.sideA;
 
-  if ( component.kind === "jr-pair"
-  ) { 
-    const {jj, resistor,} = component;
-    const halfSize = drawConfig.imageSize / 2;
+  if (component.kind === "jr-pair") {
+    const { jj, resistor, geometry } = component;
+    const halfSize = drawConfig.imageSize / 2, offset = 9;
     const sideAIsPositive = positiveSide === component.sideA;
-    const sideASign = sideAIsPositive ? "+" : "−";
-    const sideBSign = sideAIsPositive ? "−" : "+";
-    const topSign = component.sideA.name === "top" ? sideASign : sideBSign;
-    const bottomSign = component.sideA.name === "bottom" ? sideASign : sideBSign;
-    const verticalOffset = 9;
+    const sideASign = sideAIsPositive ? "+" : "−", sideBSign = sideAIsPositive ? "−" : "+";
+    const horizontal = geometry?.orientation === "horizontal" || jj.jrRotated || resistor.jrRotated;
 
-    drawPolaritySign(labelLayer,  topSign, { x: jj.x, y: jj.y - halfSize - verticalOffset,},"jj-polarity-top" );
-    drawPolaritySign(labelLayer, bottomSign, {x: jj.x, y: jj.y + halfSize + verticalOffset,}, "jj-polarity-bottom");
-    drawPolaritySign(labelLayer, topSign, {x: resistor.x, y: resistor.y - halfSize - verticalOffset, }, "resistor-polarity-top");
-    drawPolaritySign(labelLayer, bottomSign, { x: resistor.x, y: resistor.y + halfSize + verticalOffset, }, "resistor-polarity-bottom");
+    if (horizontal) {
+      drawPolaritySign(labelLayer, sideASign, { x: jj.x - halfSize - offset, y: jj.y }, "jj-polarity-left");
+      drawPolaritySign(labelLayer, sideBSign, { x: jj.x + halfSize + offset, y: jj.y }, "jj-polarity-right");
+      drawPolaritySign(labelLayer, sideASign, { x: resistor.x - halfSize - offset, y: resistor.y }, "resistor-polarity-left");
+      drawPolaritySign(labelLayer, sideBSign, { x: resistor.x + halfSize + offset, y: resistor.y }, "resistor-polarity-right");
+    } else {
+      drawPolaritySign(labelLayer, sideASign, { x: jj.x, y: jj.y - halfSize - offset }, "jj-polarity-top");
+      drawPolaritySign(labelLayer, sideBSign, { x: jj.x, y: jj.y + halfSize + offset }, "jj-polarity-bottom");
+      drawPolaritySign(labelLayer, sideASign, { x: resistor.x, y: resistor.y - halfSize - offset }, "resistor-polarity-top");
+      drawPolaritySign(labelLayer, sideBSign, { x: resistor.x, y: resistor.y + halfSize + offset }, "resistor-polarity-bottom");
+    }
 
     return;
   }
 
-
-  const positivePoint = getOutwardSignPoint(component.center, positiveSide.point, 10);
-  const negativePoint = getOutwardSignPoint(component.center, negativeSide.point, 10 );
-
-  drawPolaritySign(labelLayer, "+", positivePoint, `${component.kind}-polarity-positive`);
-  drawPolaritySign(labelLayer, "−", negativePoint, `${component.kind}-polarity-negative`);
+  drawPolaritySign(labelLayer, "+", getOutwardSignPoint(component.center, positiveSide.point, 10), `${component.kind}-polarity-positive`);
+  drawPolaritySign(labelLayer, "−", getOutwardSignPoint(component.center, negativeSide.point, 10), `${component.kind}-polarity-negative`);
 }
 
 function drawBiasBasedPolaritySigns(labelLayer, placed) {

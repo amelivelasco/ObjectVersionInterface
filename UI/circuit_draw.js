@@ -183,7 +183,8 @@ function drawComponent(layer, element, jjval = -1) {
   });
 
   const componentType = getElementType(element);
-  if (componentType === "R") { image.setAttribute("transform", `rotate(90 ${element.x} ${element.y})`);}
+  if (componentType === "R" && element.net_out === "GND!") { image.setAttribute("transform", `rotate(90 ${element.x} ${element.y})`);}
+  if (componentType === "JJ" && element.net_out !== "GND!") { image.setAttribute("transform", `rotate(90 ${element.x} ${element.y})`);}
 
   if (componentType === "IB" && Number.isFinite(element.biasRotation)
   ) {
@@ -504,6 +505,10 @@ function wiresTouch(firstSegments, secondSegments) {
   }
 
   return false;
+}
+
+function rotateJRpairs() {
+  
 }
 
 function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
