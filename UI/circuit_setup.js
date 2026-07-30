@@ -24,23 +24,23 @@ const drawConfig = {
 
   fontFamily: "Arial, sans-serif",
   
-  layoutCellMarginX: 70,
-  layoutCellMarginY: 70,
+  layoutCellMarginX: 90,
+  layoutCellMarginY: 90,
 
-  layoutCellGapX: 90,
-  layoutCellGapY: 90,
+  layoutCellGapX: 140,
+  layoutCellGapY: 140,
 
-  layoutCellPaddingX: 65,
-  layoutCellPaddingTop: 95,
-  layoutCellPaddingBottom: 60,
+  layoutCellPaddingX: 120,
+  layoutCellPaddingTop: 140,
+  layoutCellPaddingBottom: 90,
 
-  layoutCellElementGapX: 125,
-  layoutCellElementGapY: 135,
+  layoutCellElementGapX: 165,
+  layoutCellElementGapY: 180,
 
-  layoutCellMinWidth: 340,
-  layoutCellMinHeight: 250,
+  layoutCellMinWidth: 1200,
+  layoutCellMinHeight: 520,
 
-  layoutCellRowWidth: 1500,
+  layoutCellRowWidth: 3200,
 
 
   biasBranchOffset: 45,
@@ -92,8 +92,8 @@ function buildOrderedLayout(elements) {
     const row = Math.floor(index / columns);
     const indexInRow = index % columns;
 
-    const direction = row % 2 === 0 ? 1 : -1;
-    const col = direction === 1 ? indexInRow : columns - 1 - indexInRow;
+    const direction = 1;
+    const col = indexInRow ;
     const x = drawConfig.marginX + col * drawConfig.gapX;
     const y = drawConfig.marginY + row * drawConfig.gapY;
     const inputPin = {
@@ -232,4 +232,23 @@ function setupPanZoom(svg, fullWidth, fullHeight) {
   applyViewBox();
 }
 
+function applyJJPairSpacing(jj, resistor, pairSpacing = 70) {
+  const centerX = (jj.x + resistor.x) / 2;
 
+  jj.x = centerX - pairSpacing / 2;
+  resistor.x = centerX + pairSpacing / 2;
+}
+
+function applyJJPairSpacingToPlaced(placed, pairSpacing = 70) {
+  for (let index = 0; index < placed.length - 1; index++) {
+    const jj = placed[index];
+    const resistor = placed[index + 1];
+
+    if (!isJJResistorPair(jj, resistor)) {
+      continue;
+    }
+
+    applyJJPairSpacing(jj, resistor, pairSpacing);
+    index++;
+  }
+}

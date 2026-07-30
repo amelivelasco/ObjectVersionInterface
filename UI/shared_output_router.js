@@ -404,9 +404,7 @@ function addParallelChannelMidpoints(routedSegments, xValues, yValues, wireClear
 
   for (const segment of routedSegments) {
     if (!segment?.a || !segment?.b) { continue; }
-
     const horizontal = Math.abs(segment.a.y - segment.b.y ) < epsilon;
-
     const vertical = Math.abs(segment.a.x - segment.b.x) < epsilon;
 
     if (horizontal) {
@@ -425,7 +423,6 @@ function addParallelChannelMidpoints(routedSegments, xValues, yValues, wireClear
   }
 
   horizontalSegments.sort((first, second) => first.y - second.y);
-
   verticalSegments.sort((first, second) => first.x - second.x);
 
   const addedMiddleX = new Set();
@@ -443,11 +440,8 @@ function addParallelChannelMidpoints(routedSegments, xValues, yValues, wireClear
       if (gap > maximumChannelGap) { break; }
 
       if (gap < wireClearance * 2) {continue;}
-
       const overlapStart = Math.max(first.minX, second.minX);
-
       const overlapEnd = Math.min(first.maxX, second.maxX);
-
       if (overlapEnd - overlapStart < epsilon
       ) { continue; }
 

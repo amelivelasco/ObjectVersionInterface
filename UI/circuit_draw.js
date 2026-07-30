@@ -298,6 +298,8 @@ function drawCircuit(data) {
   const {placedCells, canvasWidth, canvasHeight,} = buildLayoutCellLayout(data);
   const placed = buildPlacedElements(data, placedCells);
 
+  applyJJPairSpacingToPlaced(placed, 70); 
+
   const svg = createSvg(canvasWidth, canvasHeight);
   board.appendChild(svg);
   const layoutCellLayer =createSvgElement("g",{class:"layout-cell-layer"});
@@ -505,9 +507,9 @@ function wiresTouch(firstSegments, secondSegments) {
 }
 
 function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
+  const geometry = getJJPairGeometry(current, next, 25);
   drawComponent(componentLayer, current);
   drawComponent(componentLayer, next, current.value);
-  const geometry = getJJPairGeometry(current, next, 25);
   const jrValue = formatComponentValue(current);
   if (jrValue) {
     const jrCenterX = (current.x + next.x) / 2;

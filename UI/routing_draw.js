@@ -35,18 +35,36 @@ function isJJResistorPair(jj, resistor) {
 
 function getJJPairGeometry(jj, resistor, rise = 25) {
   const halfSize = drawConfig.imageSize / 2;
-  const jjTop = {x: jj.x, y: jj.y - halfSize,};
-  const resistorTop = {x: resistor.x, y: resistor.y - halfSize,};
-  const jjBottom = {x: jj.x, y: jj.y + halfSize, };
-  const resistorBottom = {x: resistor.x, y: resistor.y + halfSize,};
+
+  const jjTop = { x: jj.x, y: jj.y - halfSize };
+  const resistorTop = {
+    x: resistor.x,
+    y: resistor.y - halfSize,
+  };
+
+  const jjBottom = { x: jj.x, y: jj.y + halfSize };
+  const resistorBottom = {
+    x: resistor.x,
+    y: resistor.y + halfSize,
+  };
+
   const topY = Math.min(jjTop.y, resistorTop.y) - rise;
   const bottomY = Math.max(jjBottom.y, resistorBottom.y) + rise;
-  const topAtJJ = {x: jj.x, y: topY,};
-  const topAtResistor = { x: resistor.x, y: topY,};
-  const bottomAtJJ = {x: jj.x, y: bottomY, };
-  const bottomAtResistor = {x: resistor.x, y: bottomY,};
-  const topMiddle = { x:(jj.x + resistor.x) / 2, y: topY,};
-  const bottomMiddle = { x:(jj.x + resistor.x) / 2, y: bottomY, };
+
+  const topAtJJ = { x: jj.x, y: topY };
+  const topAtResistor = { x: resistor.x, y: topY };
+  const bottomAtJJ = { x: jj.x, y: bottomY };
+  const bottomAtResistor = { x: resistor.x, y: bottomY };
+
+  const topMiddle = {
+    x: (jj.x + resistor.x) / 2,
+    y: topY,
+  };
+
+  const bottomMiddle = {
+    x: (jj.x + resistor.x) / 2,
+    y: bottomY,
+  };
 
   return {
     jjTop,
@@ -59,8 +77,8 @@ function getJJPairGeometry(jj, resistor, rise = 25) {
     bottomAtResistor,
     topMiddle,
     bottomMiddle,
-    inputAnchors: [topMiddle, topAtJJ, topAtResistor,],
-    outputAnchors: [bottomMiddle, bottomAtJJ, bottomAtResistor,],
+    inputAnchors: [topMiddle, topAtJJ, topAtResistor],
+    outputAnchors: [bottomMiddle, bottomAtJJ, bottomAtResistor],
   };
 }
 

@@ -122,11 +122,10 @@ function buildBlockConnections(blocks) {
 
 
 function slotToGridPosition(slotIndex, columns) {
-  const row = Math.floor(slotIndex / columns);
-  const indexInRow = slotIndex % columns;
-  const direction = row % 2 === 0 ? 1 : -1;
-  const column = direction === 1 ? indexInRow : columns - 1 - indexInRow;
-  return {row, column, };
+  return {
+    row: Math.floor(slotIndex / columns),
+    column: slotIndex % columns,
+  };
 }
 
 function getBlockGridPositions(orderedBlocks, columns) {
@@ -151,6 +150,11 @@ function getBlockGridPositions(orderedBlocks, columns) {
   }
 
   return positions;
+}
+
+function isPowerNet(net) {
+  const value = String(net || "").trim().toUpperCase().replace(/!+$/, "");
+  return value === "VDD" || value === "GND" || value === "GROUND" || value === "VSS" || value === "0";
 }
 
 function calculatePlacementCost(orderedBlocks, connections, columns) {
@@ -191,6 +195,41 @@ function calculatePlacementCost(orderedBlocks, connections, columns) {
       cost +=  Math.abs(index - block.originalIndex) * 0.5;
     }
   );
+  const orderById = new Map(orderedBlocks.map((block, index) => [block.id, index]));
+
+  for (const block of orderedBlocks) {
+    const position = positions.get(block.id);
+
+    if (block.startsAtTerminal && position) {
+      const startPosition = slotToGridPosition(position.startSlot, columns);
+      cost += startPosition.column * 100000;
+    }
+  }
+
+  for (const producer of orderedBlocks) {
+    const producerElement = producer.primary ||
+      producer.elements.find((element) => getElementType(element) !== "R") ||
+      producer.elements[0];
+
+    if (!producerElement?.net_out || isPowerNet(producerElement.net_out)) { continue; }
+
+    for (const consumer of orderedBlocks) {
+      if (producer === consumer) { continue; }
+
+      const consumerElement = consumer.primary ||
+        consumer.elements.find((element) => getElementType(element) !== "R") ||
+        consumer.elements[0];
+
+      if (producerElement.net_out !== consumerElement?.net_in) { continue; }
+
+      const producerIndex = orderById.get(producer.id);
+      const consumerIndex = orderById.get(consumer.id);
+
+      if (producerIndex >= consumerIndex) {
+        cost += 100000;
+      }
+    }
+  }
 
   return cost;
 }
@@ -198,9 +237,24 @@ function calculatePlacementCost(orderedBlocks, connections, columns) {
 
 function optimizeElementOrderByConnectivity( elements, columns) {
   const blocks = createPlacementBlocks(elements);
+  if (blocks.length <= 2) { return [...elements]; }
+  const producedNets = new Set();
+  for (const block of blocks) {
+    block.primary = block.elements.find((element) => getElementType(element) !== "R") || block.elements[0];
 
-  if (blocks.length <= 2) { return [...elements];}
+    if (block.primary?.net_out && !isPowerNet(block.primary.net_out)) {
+      producedNets.add(block.primary.net_out);
+    }
+  }
+  for (const block of blocks) {
+    const inputNet = block.primary?.net_in;
 
+    block.startsAtTerminal = Boolean(
+      inputNet &&
+      !isPowerNet(inputNet) &&
+      !producedNets.has(inputNet)
+    );
+  }
   const connections = buildBlockConnections(blocks);
 
   const degree = new Map(blocks.map((block) => [block.id, 0]));
@@ -211,9 +265,11 @@ function optimizeElementOrderByConnectivity( elements, columns) {
     degree.set(connection.secondId, degree.get(connection.secondId) + connection.weight);
   }
 
-  const startBlock = [...blocks].sort(
-    (first, second) =>
-      degree.get(second.id) - degree.get(first.id) || first.originalIndex - second.originalIndex)[0];
+  const startBlock = [...blocks].sort((first, second) =>
+    Number(second.startsAtTerminal) - Number(first.startsAtTerminal) ||
+    degree.get(second.id) - degree.get(first.id) ||
+    first.originalIndex - second.originalIndex
+  )[0];
 
   let orderedBlocks = [startBlock];
   const remaining = blocks.filter((block) => block !== startBlock);

@@ -65,12 +65,13 @@ function findFreeBiasX(bias, desiredX, centerY, placed
 function placeBiasElementsAboveNetOut(placed) {
   const halfSize = drawConfig.imageSize / 2;
 
-  for (const bias of placed) { 
+  for (const bias of placed) {
     if (!isBiasElement(bias)) { continue; }
 
-    const target = findBiasTarget(bias, placed);
+    if (bias.inlineJRBias || bias.biasPlacementLocked) { continue; }
 
-    if (!target) {continue;}
+    const target = findBiasTarget(bias, placed);
+    if (!target) { continue; }
 
     bias.biasPlacementLocked = false;
     bias.biasSnappedToNet = false;
@@ -82,27 +83,30 @@ function placeBiasElementsAboveNetOut(placed) {
     const rawTargetPin = connectsToOutput ? target.outputPin : target.inputPin;
 
     if (!rawTargetPin) { continue; }
-    const targetTerminal = { net: bias.net_out, kind: targetKind, element: target, ownerId: target.id,};
-    const targetPin = targetIsInductor ? getTerminalRoutingPoint(targetTerminal, rawTargetPin) : rawTargetPin;
+
+    const targetTerminal = {
+      net: bias.net_out,
+      kind: targetKind,
+      element: target,
+      ownerId: target.id,
+    };
+
+    const targetPin = targetIsInductor
+      ? getTerminalRoutingPoint(targetTerminal, rawTargetPin)
+      : rawTargetPin;
+
     const targetDirection = target.electricalDirection ?? target.direction ?? 1;
     const desiredJoinX = targetPin.x - targetDirection * drawConfig.biasBranchOffset;
     const netY = targetPin.y;
-
     const biasCenterY = netY - halfSize - drawConfig.biasOutputGap;
     const biasCenterX = findFreeBiasX(bias, desiredJoinX, biasCenterY, placed);
+
     bias.x = biasCenterX;
     bias.y = biasCenterY;
     bias.biasRotation = 0;
-    bias.biasFrontPin = {
-      x: biasCenterX,
-      y: biasCenterY + halfSize,
-    };
-    bias.biasNetJoin = {
-      x: biasCenterX,
-      y: netY,
-    };
-
-    bias.outputPin = { ...bias.biasNetJoin, net: bias.net_out,};
+    bias.biasFrontPin = { x: biasCenterX, y: biasCenterY + halfSize };
+    bias.biasNetJoin = { x: biasCenterX, y: netY };
+    bias.outputPin = { ...bias.biasNetJoin, net: bias.net_out };
     bias.biasTarget = target.id;
   }
 }
@@ -392,4 +396,107 @@ function snapBiasElementsToNearestNet(wireLayer, placed) {
     bias.biasSnappedToNet = true;
     bias.biasPlacementLocked = true;
     }
+}
+
+
+function getPlacementBlockPrimary(block) {
+  return block.elements.find((element) => getElementType(element) !== "R") || block.elements[0];
+}
+
+function getChainSpan(chain) {
+  return chain.reduce((total, block) => total + block.span, 0);
+}
+
+function buildLongestDirectedChains(elements) {
+  const blocks = createPlacementBlocks(elements).map((block) => {
+    const primary = getPlacementBlockPrimary(block);
+
+    return {
+      ...block,
+      primary,
+      netIn: primary?.net_in || null,
+      netOut: primary?.net_out || null,
+      span: block.elements.length,
+    };
+  });
+
+  const blockById = new Map(blocks.map((block) => [block.id, block]));
+  const successors = new Map(blocks.map((block) => [block.id, []]));
+  const predecessors = new Map(blocks.map((block) => [block.id, []]));
+
+  for (const producer of blocks) {
+    if (!producer.netOut || isPowerNet(producer.netOut)) { continue; }
+
+    for (const consumer of blocks) {
+      if (producer === consumer || producer.netOut !== consumer.netIn) { continue; }
+
+      successors.get(producer.id).push(consumer);
+      predecessors.get(consumer.id).push(producer);
+    }
+  }
+
+  const remaining = new Set(blocks.map((block) => block.id));
+  const chains = [];
+
+  function longestPathFrom(block, visiting = new Set(), memo = new Map()) {
+    if (!remaining.has(block.id) || visiting.has(block.id)) { return []; }
+    if (memo.has(block.id)) { return memo.get(block.id); }
+
+    const nextVisiting = new Set(visiting);
+    nextVisiting.add(block.id);
+
+    let bestContinuation = [];
+
+    for (const successor of successors.get(block.id) || []) {
+      if (!remaining.has(successor.id)) { continue; }
+
+      const candidate = longestPathFrom(successor, nextVisiting, memo);
+
+      if (getChainSpan(candidate) > getChainSpan(bestContinuation)) {
+        bestContinuation = candidate;
+      }
+    }
+
+    const result = [block, ...bestContinuation];
+    memo.set(block.id, result);
+    return result;
+  }
+
+  while (remaining.size > 0) {
+    const remainingBlocks = [...remaining].map((id) => blockById.get(id));
+
+    const roots = remainingBlocks.filter((block) =>
+      (predecessors.get(block.id) || []).every((predecessor) => !remaining.has(predecessor.id))
+    );
+
+    const startingBlocks = roots.length > 0 ? roots : remainingBlocks;
+    const memo = new Map();
+    let longestChain = [];
+
+    for (const block of startingBlocks) {
+      const candidate = longestPathFrom(block, new Set(), memo);
+
+      if (
+        getChainSpan(candidate) > getChainSpan(longestChain) ||
+        (
+          getChainSpan(candidate) === getChainSpan(longestChain) &&
+          candidate[0]?.originalIndex < longestChain[0]?.originalIndex
+        )
+      ) {
+        longestChain = candidate;
+      }
+    }
+
+    if (longestChain.length === 0) {
+      longestChain = [remainingBlocks[0]];
+    }
+
+    chains.push(longestChain);
+
+    for (const block of longestChain) {
+      remaining.delete(block.id);
+    }
+  }
+
+  return chains;
 }

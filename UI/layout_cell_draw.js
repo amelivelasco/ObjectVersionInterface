@@ -27,24 +27,24 @@ function resolveLayoutCellElements(layoutCell, elementMap) {
   return resolvedElements;
 }
 
-function measureLayoutCell(elementCount) {
-  const safeCount = Math.max(1, elementCount);
-
-  const columns = Math.max(1, Math.ceil(Math.sqrt(safeCount * 1.5)));
-
-  const rows = Math.max(1, Math.ceil(safeCount / columns));
-
-  const contentWidth = drawConfig.imageSize + Math.max(0, columns - 1) * drawConfig.layoutCellElementGapX;
-
-  const contentHeight = drawConfig.imageSize + Math.max(0, rows - 1) * drawConfig.layoutCellElementGapY;
-
+function measureLayoutCell(elements) {
+  const sequentialPlan = buildSequentialTerminalPlan(elements);
+  const contentWidth = drawConfig.imageSize + sequentialPlan.rightTerminalColumn * drawConfig.layoutCellElementGapX;
+  const contentHeight = drawConfig.imageSize + Math.max(0, sequentialPlan.rows - 1) * drawConfig.layoutCellElementGapY;
   const width = Math.max(drawConfig.layoutCellMinWidth, drawConfig.layoutCellPaddingX * 2 + contentWidth);
-
   const height = Math.max(drawConfig.layoutCellMinHeight, drawConfig.layoutCellPaddingTop + contentHeight + drawConfig.layoutCellPaddingBottom);
 
-  return {columns, rows, contentWidth, contentHeight, width, height, };
+  return {
+    sequentialPlan,
+    columns: sequentialPlan.columns,
+    rows: sequentialPlan.rows,
+    contentWidth,
+    contentHeight,
+    width,
+    height,
+  };
 }
- 
+
 function buildLayoutCellLayout(data) {
   const elementMap = createElementMap(data.elements || []);
 
@@ -52,8 +52,7 @@ function buildLayoutCellLayout(data) {
       (layoutCell) => {
         const resolvedElements = resolveLayoutCellElements(layoutCell, elementMap);
 
-        const measurement = measureLayoutCell(resolvedElements.length);
-
+        const measurement = measureLayoutCell(resolvedElements);
         const layoutInstance = layoutCell.layout_instance || layoutCell.id || layoutCell.layout_cell;
 
         return {
@@ -160,49 +159,125 @@ function buildLayoutCellLayout(data) {
 
 
 function placeElementsInsideLayoutCell(cell) {
-  const orderedElements = optimizeElementOrderByConnectivity(cell.elements, cell.columns);
-
-  const contentStartX = cell.x + (cell.width - cell.contentWidth) / 2;
-
+  const plan = buildSequentialTerminalPlan(cell.elements);
+  const halfSize = drawConfig.imageSize / 2;
+  const contentWidth = drawConfig.imageSize + Math.max(0, plan.columns - 1) * drawConfig.layoutCellElementGapX;
+  const contentStartX = cell.x + (cell.width - contentWidth) / 2;
   const contentStartY = cell.y + drawConfig.layoutCellPaddingTop;
 
-    const placed = orderedElements.map(
-      (element, index) => { const row = Math.floor(index / cell.columns);
-        const indexInRow = index % cell.columns;
-        const direction = row % 2 === 0 ? 1 : -1;
-        const column = direction === 1 ? indexInRow : cell.columns - 1 - indexInRow;
-        const x = contentStartX + drawConfig.imageSize / 2 + column * drawConfig.layoutCellElementGapX;
-        const y = contentStartY + drawConfig.imageSize / 2 + row * drawConfig.layoutCellElementGapY;
-        const pinOffset = getPinOffsetForElement(element);
-        const isInductor = getElementType(element) === "L";
+  function getX(column) {
+    return contentStartX + halfSize + column * drawConfig.layoutCellElementGapX;
+  }
 
-        const inputPin = {
-          x: isInductor ? x - pinOffset : x - direction * pinOffset,
-          y,
-          net: element.net_in,
-        };
+  function getY(row) {
+    return contentStartY + halfSize + row * drawConfig.layoutCellElementGapY;
+  }
 
-        const outputPin = {
-          x: isInductor ? x + pinOffset : x + direction * pinOffset,
-          y,
-          net: element.net_out,
-        };
-      return {
+  function getJRMembers(block) {
+    const jj = block.elements.find((element) => getElementType(element) === "JJ");
+    const resistor = block.elements.find((element) => getElementType(element) === "R");
+
+    if (!jj || !resistor || !isJJResistorPair(jj, resistor)) { return null; }
+    return { jj, resistor };
+  }
+
+  const orderedPlacements = [...plan.placements.values()].sort(
+    (first, second) =>
+      first.row - second.row ||
+      first.col - second.col ||
+      (first.block.originalIndex ?? Infinity) - (second.block.originalIndex ?? Infinity)
+  );
+
+  const placed = [];
+  let layoutOrder = 0;
+
+  for (const placement of orderedPlacements) {
+    const jrMembers = getJRMembers(placement.block);
+    const hostWireY = getY(placement.row);
+
+    for (let memberIndex = 0; memberIndex < placement.block.elements.length; memberIndex++) {
+      const element = placement.block.elements[memberIndex];
+      const componentType = getElementType(element);
+
+      let x;
+      let y;
+
+      if (placement.placementMode === "inline-grounded-jr" && jrMembers) {
+        const pairCenterX = getX(placement.centerCol);
+        const pairSpacing = placement.pairSpacing ?? 70;
+        const rise = placement.rise ?? 25;
+
+        y = hostWireY + halfSize + rise;
+        x = componentType === "JJ" ? pairCenterX - pairSpacing / 2 : pairCenterX + pairSpacing / 2;
+      } else if (placement.placementMode === "inline-jr-bias") {
+        x = getX(placement.centerCol);
+        y = hostWireY - halfSize - drawConfig.biasOutputGap;
+      } else if (jrMembers) {
+        const pairCenterColumn = placement.col + (Math.max(1, placement.span) - 1) / 2;
+        const pairCenterX = getX(pairCenterColumn);
+        const pairSpacing = 70;
+
+        x = componentType === "JJ" ? pairCenterX - pairSpacing / 2 : pairCenterX + pairSpacing / 2;
+        y = getY(placement.row);
+      } else {
+        x = getX(placement.col + memberIndex);
+        y = getY(placement.row);
+      }
+
+      const direction = 1;
+      const pinOffset = getPinOffsetForElement(element);
+      const isInductor = componentType === "L";
+
+      const inputPin = {
+        x: isInductor ? x - pinOffset : x - direction * pinOffset,
+        y,
+        net: element.net_in,
+      };
+
+      const outputPin = {
+        x: isInductor ? x + pinOffset : x + direction * pinOffset,
+        y,
+        net: element.net_out,
+      };
+
+      const positionedElement = {
         ...element,
         x,
         y,
-        row,
-        col: column,
+        row: placement.row,
+        col: placement.centerCol ?? placement.col + memberIndex,
         direction,
-        layoutOrder: index,
+        layoutOrder: layoutOrder++,
         inputPin,
         outputPin,
+        placementMode: placement.placementMode || null,
         parentLayoutCell: cell.layout_instance || cell.id,
         parentLayoutCellType: cell.layout_cell,
         instancePath: cell.instance_path,
       };
+
+      if (placement.placementMode === "inline-grounded-jr") {
+        positionedElement.inlineGroundedJR = true;
+        positionedElement.inlineJRHostNet = placement.hostNet;
+        positionedElement.inlineJRHostProducerId = placement.hostProducerId;
+        positionedElement.inlineJRHostConsumerId = placement.hostConsumerId;
+      }
+
+      if (placement.placementMode === "inline-jr-bias") {
+        positionedElement.inlineJRBias = true;
+        positionedElement.biasRotation = 0;
+        positionedElement.biasPlacementLocked = true;
+        positionedElement.biasSnappedToNet = true;
+        positionedElement.biasNetSegment = null;
+        positionedElement.biasFrontPin = { x, y: y + halfSize };
+        positionedElement.biasNetJoin = { x, y: hostWireY };
+        positionedElement.outputPin = { x, y: hostWireY, net: positionedElement.net_out };
+        positionedElement.biasTarget = placement.hostJRId;
+      }
+
+      placed.push(positionedElement);
     }
-  );
+  }
 
   const requiredOrientation = new Map();
 
@@ -210,32 +285,25 @@ function placeElementsInsideLayoutCell(cell) {
     const existing = requiredOrientation.get(element);
 
     if (existing && existing.orientation !== orientation) {
-      console.warn(
-        `Conflicting inductor orientation for ${element.id}`,
-        {
-          firstNet: existing.sharedNet,
-          secondNet: sharedNet,
-        }
-      );
+      console.warn(`Conflicting inductor orientation for ${element.id}`, {
+        firstNet: existing.sharedNet,
+        secondNet: sharedNet,
+      });
 
       return;
     }
 
-    requiredOrientation.set(
-      element,
-      { orientation, sharedNet, }
-    );
+    requiredOrientation.set(element, { orientation, sharedNet });
   }
 
   for (let firstIndex = 0; firstIndex < placed.length; firstIndex++) {
     const first = placed[firstIndex];
-
-    if (getElementType(first) !== "L") { continue;}
+    if (getElementType(first) !== "L") { continue; }
 
     for (let secondIndex = firstIndex + 1; secondIndex < placed.length; secondIndex++) {
       const second = placed[secondIndex];
-
       if (getElementType(second) !== "L") { continue; }
+
       const sameRow = first.row === second.row;
       const neighboringColumns = Math.abs(first.col - second.col) === 1;
 
@@ -246,42 +314,50 @@ function placeElementsInsideLayoutCell(cell) {
 
       let sharedNet = null;
 
-      if (left.net_out && left.net_out === right.net_in
-      ) {
+      if (left.net_out && left.net_out === right.net_in) {
         sharedNet = left.net_out;
       } else if (left.net_in && left.net_in === right.net_out) {
         sharedNet = left.net_in;
       } else {
-        sharedNet = [left.net_in, left.net_out,].find((net) => net && ( net === right.net_in || net === right.net_out )) || null;
+        sharedNet = [left.net_in, left.net_out].find(
+          (net) => net && (net === right.net_in || net === right.net_out)
+        ) || null;
       }
 
       if (!sharedNet) { continue; }
 
       const leftSharedTerminal = left.net_in === sharedNet ? "input" : "output";
-      const rightSharedTerminal = right.net_in === sharedNet ? "input"  : "output";
+      const rightSharedTerminal = right.net_in === sharedNet ? "input" : "output";
 
       requireOrientation(left, leftSharedTerminal === "input" ? -1 : 1, sharedNet);
-
       requireOrientation(right, rightSharedTerminal === "input" ? 1 : -1, sharedNet);
     }
   }
 
-
   for (const element of placed) {
-    if (getElementType(element) !== "L") {continue;}
+    if (getElementType(element) !== "L") { continue; }
 
     const requirement = requiredOrientation.get(element);
     const electricalDirection = requirement?.orientation ?? 1;
     const pinOffset = getPinOffsetForElement(element);
 
-    element.inputPin = {x: element.x - electricalDirection * pinOffset, y: element.y, net: element.net_in, };
-    element.outputPin = {x: element.x + electricalDirection * pinOffset, y: element.y, net: element.net_out,};
+    element.inputPin = {
+      x: element.x - electricalDirection * pinOffset,
+      y: element.y,
+      net: element.net_in,
+    };
+
+    element.outputPin = {
+      x: element.x + electricalDirection * pinOffset,
+      y: element.y,
+      net: element.net_out,
+    };
+
     element.electricalDirection = electricalDirection;
   }
 
   return placed;
 }
-
 
 function buildPlacedElements(data, placedCells) {
   const positionById = new Map();
