@@ -507,10 +507,6 @@ function wiresTouch(firstSegments, secondSegments) {
   return false;
 }
 
-function rotateJRpairs() {
-  
-}
-
 function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
   const geometry = getJJPairGeometry(current, next, 25);
   drawComponent(componentLayer, current);

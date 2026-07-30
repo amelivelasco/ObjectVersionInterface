@@ -107,7 +107,6 @@ function buildSequentialTerminalPlan(elements) {
     if (unplacedBlocks.length !== 1 || !isGroundedJRBlock(unplacedBlocks[0])) { return false; }
 
     const jrBlock = unplacedBlocks[0];
-    if (!hasBiasForNet(jrBlock.netIn)) { return false; }
 
     const jrPathIndex = path.indexOf(jrBlock);
     const producer = [...path.slice(0, jrPathIndex)].reverse().find(
