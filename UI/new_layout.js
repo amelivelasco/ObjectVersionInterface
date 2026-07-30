@@ -349,14 +349,13 @@ function buildSequentialTerminalPlan(elements) {
     const paths = enumeratePathsFromNet(inputNet);
     if (paths.length === 0) { continue; }
 
-    const principalPath = paths[0];
+    const principalPath = paths.find((path) => !isGroundedJRBlock(path.at(-1))) || paths[0];
     placePathSegments(principalPath, inputNet, true);
 
-    for (let pathIndex = 1; pathIndex < paths.length; pathIndex++) {
-      const shorterPath = paths[pathIndex];
-
-      if (tryPlaceInlineGroundedJRPath(shorterPath, principalPath)) { continue; }
-      placePathSegments(shorterPath, inputNet, false);
+    for (const branchPath of paths) {
+      if (branchPath === principalPath) { continue; }
+      if (tryPlaceInlineGroundedJRPath(branchPath, principalPath)) { continue; }
+      placePathSegments(branchPath, inputNet, false);
     }
   }
 

@@ -1,4 +1,4 @@
-generated_at: 2026-07-29T13:38:31.784008+00:00
+generated_at: 2026-07-30T13:26:24.659178+00:00
 CircuitComponent(raw=LI0|L2, path=I0|L2, pid=L2, layout_cell=NDROM2, net_in=I0|net4, net_out=I0|net136, value=1.55)
 CircuitComponent(raw=XpcI0|IB1, path=IB1, pid=IB1, layout_cell=NDROM2, net_in=VDD, net_out=I0|net4, value=175.0)
 CircuitComponent(raw=XsjI0|J1, path=I0|J1, pid=J1, layout_cell=NDROM2, net_in=I0|net4, net_out=GND!, value=250.0)
