@@ -3,7 +3,7 @@ function getPlacementBlockPrimary(block) {
 }
 
 function getPathSpan(path) {
-  return path.reduce((total, block) => total + block.span, 0);
+  return path.length ? path.reduce((total, block) => total + block.span + 1, 0) - 1 : 0;
 }
 
 function buildSequentialTerminalPlan(elements) {
@@ -172,6 +172,18 @@ function buildSequentialTerminalPlan(elements) {
     }
   }
 
+
+  function shiftColumnsFrom(startColumn, amount) {
+    if (amount <= 0) { return; }
+    for (const placement of placements.values()) {
+      if (placement.col < startColumn) { continue; }
+      placement.col += amount;
+      if (Number.isFinite(placement.centerCol)) { placement.centerCol += amount; }
+    }
+    for (const terminal of inputTerminalMap.values()) { if (terminal.col >= startColumn) { terminal.col += amount; } }
+    for (const terminal of outputTerminalMap.values()) { if (terminal.col >= startColumn) { terminal.col += amount; } }
+  }
+
   function columnRangesOverlap(firstStart, firstSpan, secondStart, secondSpan) {
     const firstEnd = firstStart + firstSpan - 1;
     const secondEnd = secondStart + secondSpan - 1;
@@ -226,7 +238,7 @@ function buildSequentialTerminalPlan(elements) {
 
     for (const block of sequence) {
       placements.set(block.id, { block, row, col: column, span: block.span, occupiesGrid: true });
-      column += block.span;
+      column += block.span + 1;
     }
 
     return column;
@@ -266,33 +278,51 @@ function buildSequentialTerminalPlan(elements) {
       let row;
       let startColumn;
 
-      if (!predecessorPlacement && !successorPlacement && principalPath) {
-        row = getNextPrincipalRow();
-        startColumn = 1;
-      } else if (successorPlacement) {
-        const slot = findClosestBranchSlot(successor.id, segmentSpan, "merge");
+      if (!principalPath && successorPlacement) {
+        const inlineBlock = segment.at(-1), remainingBlocks = segment.slice(0, -1);
+        const mainRow = successorPlacement.row, insertionColumn = successorPlacement.col;
+        const remainingSpan = getPathSpan(remainingBlocks), requiredWidth = remainingSpan + inlineBlock.span + 1;
 
-        if (!slot) {
-          row = getNextPrincipalRow();
-          startColumn = 1;
-        } else {
-          row = slot.row;
-          startColumn = slot.startColumn;
-        }
-      } else if (predecessorPlacement) {
-        const slot = findClosestBranchSlot(predecessor.id, segmentSpan, "diverge");
+        shiftColumnsFrom(insertionColumn, requiredWidth);
+        placements.set(inlineBlock.id, { block: inlineBlock, row: mainRow, col: insertionColumn + remainingSpan, span: inlineBlock.span, occupiesGrid: true, placementMode: "branch-inline-merge" });
 
-        if (!slot) {
-          row = getNextPrincipalRow();
-          startColumn = 1;
-        } else {
-          row = slot.row;
-          startColumn = slot.startColumn;
+        if (remainingBlocks.length) {
+          const branchRow = mainRow + 1;
+          shiftRowsFrom(branchRow);
+          placeBlockSequence(remainingBlocks, branchRow, insertionColumn);
+          if (segmentStart === 0 && inputTerminalNet) { ensureInputTerminal(inputTerminalNet, branchRow); }
+        } else if (segmentStart === 0 && inputTerminalNet) {
+          ensureInputTerminal(inputTerminalNet, mainRow);
         }
-      } else {
-        row = getNextPrincipalRow();
-        startColumn = 1;
+
+        placedAnySegment = true;
+        if (segmentEnd === path.length) { ensureOutputTerminal(inlineBlock.netOut, mainRow); }
+        continue;
       }
+
+      if (!principalPath && predecessorPlacement && !successorPlacement) {
+        const inlineBlock = segment[0], remainingBlocks = segment.slice(1);
+        const mainRow = predecessorPlacement.row, insertionColumn = getPlacementRightColumn(predecessorPlacement) + 1;
+        const requiredWidth = inlineBlock.span + 1 + getPathSpan(remainingBlocks);
+
+        shiftColumnsFrom(insertionColumn, requiredWidth);
+        placements.set(inlineBlock.id, { block: inlineBlock, row: mainRow, col: insertionColumn, span: inlineBlock.span, occupiesGrid: true, placementMode: "branch-inline-diverge" });
+
+        if (remainingBlocks.length) {
+          const branchRow = mainRow + 1, remainingColumn = insertionColumn + inlineBlock.span + 1;
+          shiftRowsFrom(branchRow);
+          placeBlockSequence(remainingBlocks, branchRow, remainingColumn);
+          if (segmentEnd === path.length) { ensureOutputTerminal(remainingBlocks.at(-1).netOut, branchRow); }
+        } else if (segmentEnd === path.length) {
+          ensureOutputTerminal(inlineBlock.netOut, mainRow);
+        }
+
+        placedAnySegment = true;
+        continue;
+      }
+
+      row = getNextPrincipalRow();
+      startColumn = 1;
 
       placeBlockSequence(segment, row, startColumn);
       placedAnySegment = true;
@@ -470,7 +500,7 @@ function buildSequentialTerminalPlan(elements) {
     );
   }
 
-  const rightTerminalColumn = Math.ceil(maximumComponentColumn) + 1;
+  const rightTerminalColumn = Math.ceil(maximumComponentColumn) + 2;
 
   for (const terminal of outputTerminalMap.values()) {
     terminal.col = rightTerminalColumn;
