@@ -31,8 +31,8 @@ const drawConfig = {
   layoutCellGapY: 140,
 
   layoutCellPaddingX: 120,
-  layoutCellPaddingTop: 140,
-  layoutCellPaddingBottom: 90,
+  layoutCellPaddingTop: 10,
+  layoutCellPaddingBottom: 200,
 
   layoutCellElementGapX: 165,
   layoutCellElementGapY: 180,
