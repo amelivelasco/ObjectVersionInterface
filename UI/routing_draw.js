@@ -136,22 +136,22 @@ function collectNetTerminals(elements) {
     index++;
   }
 
-  for (const pair of pairs) {
-    const layoutInstance = getLayoutInstance(pair.jj);
+    for (const pair of pairs) {
+      const layoutInstance = getLayoutInstance(pair.jj);
+      const horizontal = pair.geometry.orientation === "horizontal";
+      const inputPoint = horizontal ? pair.geometry.topAtJJ : pair.geometry.topMiddle;
+      const outputPoint = horizontal ? pair.geometry.bottomAtJJ : pair.geometry.bottomMiddle;
 
-    addTerminal(pair.jj.net_in,
-      {net: pair.jj.net_in, kind: "in", element: pair.jj, ownerId: `pair:${pair.jj.id}`,
-        layoutInstance, candidatePoints: [pair.geometry.topMiddle,],
-      }
-    );
+      addTerminal(pair.jj.net_in, {
+        net: pair.jj.net_in, kind: "in", element: pair.jj, ownerId: `pair:${pair.jj.id}`,
+        layoutInstance, point: inputPoint, candidatePoints: [inputPoint],
+      });
 
-    addTerminal(
-      pair.jj.net_out,
-      {net: pair.jj.net_out, kind: "out", element: pair.jj, ownerId: `pair:${pair.jj.id}`,
-        layoutInstance, candidatePoints: [ pair.geometry.bottomMiddle, ],
-      }
-    );
-  }
+      addTerminal(pair.jj.net_out, {
+        net: pair.jj.net_out, kind: "out", element: pair.jj, ownerId: `pair:${pair.jj.id}`,
+        layoutInstance, point: outputPoint, candidatePoints: [outputPoint],
+      });
+    }
 
 
     for (const element of elements) {
