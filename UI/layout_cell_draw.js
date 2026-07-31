@@ -496,7 +496,7 @@ function drawLayoutCellBoundaries(layer, placedCells) {
           x: cell.x + cell.width / 2,
           y: cell.y + 20,
           "font-family": drawConfig.fontFamily,
-          "font-size": "16px",
+          "font-size": "30px",
           "font-weight": "700",
           fill: "#0f172a",
           "text-anchor": "middle",

@@ -20,23 +20,20 @@ function drawPath(layer, a, b, options = {}) {
 }
 
 function drawLine(lineLayer, labelLayer, element, a, b, options = {}) {
-  const line =
-    createSvgElement(
-      "line",
-      {
-        x1: a.x,
-        y1: a.y,
-        x2: b.x,
-        y2: b.y,
-        stroke: options.stroke || drawConfig.wireStroke,
-        "data-original-stroke": options.stroke ||  drawConfig.wireStroke,
-        "stroke-width": options.strokeWidth || drawConfig.wireStrokeWidth,
-        "stroke-linecap": "round",
-        "data-net": options.net || "",
-        "data-kind": options.kind || "",
-        class: "edge",
-      }
-    );
+  const layoutInstance = options.layoutInstance || getLayoutInstance(element) || "";
+
+  const line = createSvgElement("line", {
+    x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+    stroke: options.stroke || drawConfig.wireStroke,
+    "data-original-stroke": options.stroke || drawConfig.wireStroke,
+    "stroke-width": options.strokeWidth || drawConfig.wireStrokeWidth,
+    "data-original-stroke-width": options.strokeWidth || drawConfig.wireStrokeWidth,
+    "stroke-linecap": "round",
+    "data-net": options.net || "",
+    "data-layout-instance": layoutInstance,
+    "data-kind": options.kind || "",
+    class: "edge",
+  });
 
   lineLayer.appendChild(line);
   return line;
@@ -78,13 +75,12 @@ function drawDot(layer, point, options = {}) {
 }
 
 function drawLabel(labelLayer, text, x, y, options = {}) {
-  if (!text) {
-    return;
-  }
+  if (!text) return null;
 
   const label = createSvgElement("text", {
-    x,
-    y,
+    x, y,
+    "data-net": options.net || text,
+    "data-layout-instance": options.layoutInstance || "",
     "text-anchor": options.anchor || "middle",
     "dominant-baseline": "middle",
     "font-family": drawConfig.fontFamily,
@@ -99,6 +95,7 @@ function drawLabel(labelLayer, text, x, y, options = {}) {
 
   label.textContent = text;
   labelLayer.appendChild(label);
+  return label;
 }
 
 function formatComponentValue(element) {
@@ -485,17 +482,45 @@ function collectConnectedWireChain(startWire, allWires) {
 
 
 function wiresTouch(firstSegments, secondSegments) {
-  const epsilon = 0.5;
+  const epsilon = 0.75;
+  const between = (value, first, second) =>
+    value >= Math.min(first, second) - epsilon &&
+    value <= Math.max(first, second) + epsilon;
+
+  function segmentsTouch(first, second) {
+    const firstHorizontal = Math.abs(first.a.y - first.b.y) <= epsilon;
+    const firstVertical = Math.abs(first.a.x - first.b.x) <= epsilon;
+    const secondHorizontal = Math.abs(second.a.y - second.b.y) <= epsilon;
+    const secondVertical = Math.abs(second.a.x - second.b.x) <= epsilon;
+
+    if (firstHorizontal && secondHorizontal) {
+      return Math.abs(first.a.y - second.a.y) <= epsilon &&
+        Math.max(Math.min(first.a.x, first.b.x), Math.min(second.a.x, second.b.x)) <=
+        Math.min(Math.max(first.a.x, first.b.x), Math.max(second.a.x, second.b.x)) + epsilon;
+    }
+
+    if (firstVertical && secondVertical) {
+      return Math.abs(first.a.x - second.a.x) <= epsilon &&
+        Math.max(Math.min(first.a.y, first.b.y), Math.min(second.a.y, second.b.y)) <=
+        Math.min(Math.max(first.a.y, first.b.y), Math.max(second.a.y, second.b.y)) + epsilon;
+    }
+
+    if (firstHorizontal && secondVertical) {
+      return between(second.a.x, first.a.x, first.b.x) &&
+        between(first.a.y, second.a.y, second.b.y);
+    }
+
+    if (firstVertical && secondHorizontal) {
+      return between(first.a.x, second.a.x, second.b.x) &&
+        between(second.a.y, first.a.y, first.b.y);
+    }
+
+    return false;
+  }
+
   for (const first of firstSegments) {
     for (const second of secondSegments) {
-      const points = [first.a, first.b,];
-      const otherPoints = [second.a, second.b,];
-      for (const p of points) {
-        for (const q of otherPoints) {
-          if (Math.abs(p.x - q.x) < epsilon && Math.abs(p.y - q.y) < epsilon
-          ) { return true; }
-        }
-      }
+      if (segmentsTouch(first, second)) return true;
     }
   }
 
@@ -504,39 +529,100 @@ function wiresTouch(firstSegments, secondSegments) {
 
 function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
   const geometry = getJJPairGeometry(current, next, 25);
+  const layoutInstance = getLayoutInstance(current);
+
   drawComponent(componentLayer, current);
   drawComponent(componentLayer, next, current.value);
-  const jrValue = formatComponentValue(current);
-  if (jrValue) {
-    const jrCenterX = (current.x + next.x) / 2;
-    const jrCenterY = (geometry.topMiddle.y + geometry.bottomMiddle.y) / 2 + drawConfig.jrValueOffsetY;
-    drawComponentValueText(labelLayer, current.path, current.x, current.y,
-      { size: drawConfig.componentValueFontSize, fill: "#7c2d12", className: "jj-pathname", }
-    );
-    const res_path = `${(current.path || "").split("|")[0]}|R${(current.pid || "").match(/\d+/)?.[0] || ""}`;
 
-    drawComponentValueText(labelLayer, res_path, next.x, next.y,
-      { size: drawConfig.componentValueFontSize, fill: "#7c2d12", className: "jj-pathname", }
-    );
+  const value = formatComponentValue(current);
 
-    drawComponentValueText(labelLayer, jrValue, jrCenterX, jrCenterY,
-      { size: drawConfig.jrValueFontSize, weight: "700", fill: "#7c2d12",
-        background: "#f8fafc", backgroundWidth: 4, className: "jr-jj-value",
-      }
-    );
+  if (value) {
+    const centerX = (current.x + next.x) / 2;
+    const centerY = (geometry.topMiddle.y + geometry.bottomMiddle.y) / 2 + drawConfig.jrValueOffsetY;
+    const resistorPath = `${(current.path || "").split("|")[0]}|R${(current.pid || "").match(/\d+/)?.[0] || ""}`;
+
+    drawComponentValueText(labelLayer, current.path, current.x, current.y, {
+      size: drawConfig.componentValueFontSize,
+      fill: "#7c2d12",
+      className: "jj-pathname",
+    });
+
+    drawComponentValueText(labelLayer, resistorPath, next.x, next.y, {
+      size: drawConfig.componentValueFontSize,
+      fill: "#7c2d12",
+      className: "jj-pathname",
+    });
+
+    drawComponentValueText(labelLayer, value, centerX, centerY, {
+      size: drawConfig.jrValueFontSize,
+      weight: "700",
+      fill: "#7c2d12",
+      background: "#f8fafc",
+      backgroundWidth: 4,
+      className: "jr-jj-value",
+    });
   }
 
-  drawLine(wireLayer, labelLayer, current, geometry.jjTop, geometry.topAtJJ, { net: current.net_in, kind:"jr-input",});
-  drawLine(wireLayer, labelLayer,  current, geometry.topAtJJ, geometry.topAtResistor, { net: current.net_in, kind: "jr-internal", });
-  drawLine(wireLayer, labelLayer, current, geometry.topAtResistor, geometry.resistorTop, { net: current.net_out, kind: "jr-internal", });
-  drawLabel(labelLayer, current.net_in, geometry.topMiddle.x, geometry.topMiddle.y, { size: "8.5px", fill: "#334155", });
-  drawLine(wireLayer, labelLayer, current, geometry.jjBottom, geometry.bottomAtJJ,);
-  drawLine(wireLayer, labelLayer, current, geometry.bottomAtJJ, geometry.bottomAtResistor, { net: current.net_out, kind: "jr-internal", });
-  drawLine(wireLayer, labelLayer, current, geometry.bottomAtResistor, geometry.resistorBottom, { net: current.net_out, kind: "jr-internal", });
+  drawLine(wireLayer, labelLayer, current, geometry.jjTop, geometry.topAtJJ, {
+    net: current.net_in,
+    layoutInstance,
+    kind: "jr-input",
+  });
+
+  drawLine(wireLayer, labelLayer, current, geometry.topAtJJ, geometry.topAtResistor, {
+    net: current.net_in,
+    layoutInstance,
+    kind: "jr-input",
+  });
+
+  drawLine(wireLayer, labelLayer, current, geometry.topAtResistor, geometry.resistorTop, {
+    net: current.net_in,
+    layoutInstance,
+    kind: "jr-input",
+  });
+
+  drawLabel(labelLayer, current.net_in, geometry.topMiddle.x, geometry.topMiddle.y, {
+    net: current.net_in,
+    layoutInstance,
+    size: "8.5px",
+    fill: "#334155",
+  });
+
+  drawLine(wireLayer, labelLayer, current, geometry.jjBottom, geometry.bottomAtJJ, {
+    net: current.net_out,
+    layoutInstance,
+    kind: "jr-output",
+  });
+
+  drawLine(wireLayer, labelLayer, current, geometry.bottomAtJJ, geometry.bottomAtResistor, {
+    net: current.net_out,
+    layoutInstance,
+    kind: "jr-output",
+  });
+
+  drawLine(wireLayer, labelLayer, current, geometry.bottomAtResistor, geometry.resistorBottom, {
+    net: current.net_out,
+    layoutInstance,
+    kind: "jr-output",
+  });
+
   if (current.net_out === "GND!") {
-    drawGNDStub(wireLayer, labelLayer, current,  componentLayer, geometry.bottomMiddle.x, geometry.bottomMiddle.y,);
+    drawGNDStub(
+      wireLayer,
+      labelLayer,
+      current,
+      componentLayer,
+      geometry.bottomMiddle.x,
+      geometry.bottomMiddle.y
+    );
   }
-  drawLabel(labelLayer, current.net_out, geometry.bottomMiddle.x, geometry.bottomMiddle.y, { size: "8.5px", fill: "#334155", });
+
+  drawLabel(labelLayer, current.net_out, geometry.bottomMiddle.x, geometry.bottomMiddle.y, {
+    net: current.net_out,
+    layoutInstance,
+    size: "8.5px",
+    fill: "#334155",
+  });
 }
 
 function drawGNDStub( wireLayer, labelLayer, current, componentLayer, x, y) {

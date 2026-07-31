@@ -502,262 +502,98 @@ function isTerminalNode(node) {
 
 
 function setupInterCellTerminalHighlights(svg) {
-  if (!svg) { return; }
+  if (!svg) return;
 
-  const terminalDots = Array.from(svg.querySelectorAll(".terminal-net-dot[data-net][data-layout-instance]"));
+  const triggers = [...svg.querySelectorAll(".terminal-net-dot[data-net]")];
+  const netElements = [...svg.querySelectorAll("[data-net]")].filter(element => element.dataset.net);
+  const original = new Map();
+  let activeNet = null;
 
-  const terminalLabels = Array.from(svg.querySelectorAll(".terminal-net-label[data-net][data-layout-instance]"));
-
-  const instancesByNet = new Map();
-
-  for (const dot of terminalDots) {
-    const net =
-      dot.dataset.net;
-
-    const layoutInstance =
-      dot.dataset.layoutInstance;
-
-    if (!net || !layoutInstance
-    ) { continue; }
-
-    if (!instancesByNet.has(net)
-    ) {
-      instancesByNet.set(net, new Set());
-    }
-
-    instancesByNet.get(net).add(layoutInstance);
+  for (const element of netElements) {
+    original.set(element, {
+      stroke: element.getAttribute("stroke"),
+      strokeWidth: element.getAttribute("stroke-width"),
+      fill: element.getAttribute("fill"),
+      radius: element.getAttribute("r"),
+      fontSize: element.getAttribute("font-size"),
+      fontWeight: element.getAttribute("font-weight"),
+      filter: element.style.filter,
+    });
   }
 
-  const interCellNets =
-    new Set(Array.from(instancesByNet.entries())
-        .filter(
-          (
-            [
-              ,
-              layoutInstances,
-            ]
-          ) =>
-            layoutInstances.size >= 2
-        )
-        .map(
-          ([net]) =>
-            net
-        )
-    );
+  function restore(element) {
+    const values = original.get(element);
+    if (!values) return;
 
-  const interCellDots = terminalDots.filter((dot) => interCellNets.has(dot.dataset.net));
-  const interCellLabels = terminalLabels.filter((label) => interCellNets.has(label.dataset.net));
+    const attributes = {
+      stroke: values.stroke,
+      "stroke-width": values.strokeWidth,
+      fill: values.fill,
+      r: values.radius,
+      "font-size": values.fontSize,
+      "font-weight": values.fontWeight,
+    };
 
-  const originalAttributes = new Map();
-
-  function saveAttributes(element, attributeNames) {
-    if (originalAttributes.has(element)
-    ) { return; }
-
-    const values = {};
-
-    for (const attributeName of attributeNames
-    ) { values[attributeName] = element.getAttribute(attributeName);
+    for (const [name, value] of Object.entries(attributes)) {
+      if (value === null) element.removeAttribute(name);
+      else element.setAttribute(name, value);
     }
 
-    originalAttributes.set(element, values);
-  }
-
-  function restoreElement(element) {
-    const values = originalAttributes.get(element);
-
-    if (!values) {return;}
-
-    for (
-      const [attributeName, value,] of Object.entries(values)
-    ) {
-      if (value === null) {
-        element.removeAttribute(attributeName);
-      } else {
-        element.setAttribute(attributeName, value);
-      }
-    }
-
-    element.style.removeProperty("filter");
+    element.style.filter = values.filter || "";
     element.classList.remove("is-net-highlighted");
   }
 
-  for (const dot of interCellDots) {
-    saveAttributes(dot,
-      ["r", "fill", "stroke", "stroke-width", "opacity",]
-    );
-
-    dot.style.cursor = "pointer";
-    dot.style.outline = "none";
-    dot.setAttribute("role", "button");
-
-    dot.setAttribute("aria-pressed", "false");
-
-    const net = dot.dataset.net;
-    const layoutInstance = dot.dataset.layoutInstance;
-
-    dot.setAttribute("aria-label", `${net} terminal in ${layoutInstance}`);
+  function clearHighlight() {
+    for (const element of netElements) restore(element);
+    activeNet = null;
   }
 
-  for (const label of interCellLabels) {
-    saveAttributes(
-      label,
-      ["fill",  "font-size", "font-weight", "stroke", "stroke-width", "opacity",]
-    );
-  }
+  function highlightNet(net) {
+    for (const element of netElements) restore(element);
 
-  let lockedNet = null;
-  let hoveredNet = null;
-  let ignoreHoverUntilLeave = null;
+    activeNet = net;
 
-  function clearVisualHighlight() {
-    for (const dot of interCellDots) {
-      restoreElement(dot);
+    for (const element of netElements) {
+      if (String(element.dataset.net).trim() !== net) continue;
 
-      const dotNet = dot.dataset.net;
+      const tag = element.tagName.toLowerCase();
+      element.classList.add("is-net-highlighted");
 
-      dot.setAttribute("aria-pressed", lockedNet === dotNet ? "true" : "false");
-    }
-
-    for (const label of interCellLabels) {
-      restoreElement(label);
+      if (tag === "line" || tag === "path") {
+        const width = Number(original.get(element)?.strokeWidth || drawConfig.wireStrokeWidth);
+        element.setAttribute("stroke", "#ef4444");
+        element.setAttribute("stroke-width", width + 2);
+        element.style.filter = "drop-shadow(0 0 2px rgba(239, 68, 68, 0.75))";
+      } else if (tag === "circle") {
+        element.setAttribute("r", "8");
+        element.setAttribute("fill", "#facc15");
+        element.setAttribute("stroke", "#ef4444");
+        element.setAttribute("stroke-width", "3");
+      } else if (tag === "text") {
+        element.setAttribute("fill", "#dc2626");
+        element.setAttribute("font-weight", "800");
+      }
     }
   }
 
-  function applyHighlight(activeNet) {
-    clearVisualHighlight();
+  for (const trigger of triggers) {
+    trigger.style.cursor = "pointer";
 
-    if (!activeNet || !interCellNets.has(activeNet)
-    ) { return; }
+    trigger.addEventListener("mousedown", event => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
 
-  
-    for (const dot of interCellDots
-    ) { if (dot.dataset.net !== activeNet) { continue; }
+    trigger.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
 
-      dot.setAttribute("r", "9");
-      dot.setAttribute("fill", "#facc15");
-      dot.setAttribute( "stroke", "#b45309");
-      dot.setAttribute("stroke-width", "3");
-      dot.style.filter = "drop-shadow(0 0 4px rgba(245, 158, 11, 0.95))";
-      dot.classList.add("is-net-highlighted");
-    }
+      const net = String(trigger.dataset.net).trim();
 
- 
-    for (const label of interCellLabels) {
-      if ( label.dataset.net !== activeNet ) { continue; }
-
-      label.setAttribute("fill", "#dc2626");
-      label.setAttribute("font-size", "13px");
-      label.setAttribute("font-weight", "800");
-      label.setAttribute("stroke", "#ffffff");
-      label.setAttribute("stroke-width", "5");
-      label.style.filter = "drop-shadow(0 0 2px rgba(255, 255, 255, 0.9))";
-      label.classList.add("is-net-highlighted");
-    }
+      if (activeNet === net) clearHighlight();
+      else highlightNet(net);
+    });
   }
 
-  function refreshHighlight() {
-    const activeNet = hoveredNet || lockedNet;
-    applyHighlight(activeNet);
-  }
-
-  function toggleLockedNet(net) {
-    if ( lockedNet === net) {
-      lockedNet = null;
-      hoveredNet = null;
-      ignoreHoverUntilLeave = net;
-
-      refreshHighlight();
-      return;
-    }
-
-    lockedNet = net;
-    hoveredNet = null;
-    ignoreHoverUntilLeave = null;
-
-    refreshHighlight();
-  }
-
-  for (const dot of interCellDots
-  ) {
-    const net = dot.dataset.net;
-
-    dot.addEventListener(
-      "mousedown",
-      (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    );
-
-    dot.addEventListener(
-      "pointerenter",
-      () => {
-        if (ignoreHoverUntilLeave === net) { return; }
-        hoveredNet = net;
-        refreshHighlight();
-      }
-    );
-
-    dot.addEventListener(
-      "pointerleave",
-      () => {
-        if (ignoreHoverUntilLeave === net) {
-          ignoreHoverUntilLeave = null;
-        }
-
-        if (hoveredNet === net) {
-          hoveredNet = null;
-        }
-
-        refreshHighlight();
-      }
-    );
-
-    dot.addEventListener(
-      "click",
-      (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        toggleLockedNet(net);
-        dot.blur();
-      }
-    );
-
-    dot.addEventListener(
-      "focus",
-      () => {
-        if (ignoreHoverUntilLeave === net) {
-          return;
-        }
-        hoveredNet = net;
-        refreshHighlight();
-      }
-    );
-
-    dot.addEventListener(
-      "blur",
-      () => {
-        if (hoveredNet === net) {
-          hoveredNet = null;
-        }
-        refreshHighlight();
-      }
-    );
-
-    dot.addEventListener(
-      "keydown",
-      (event) => {
-        if (event.key !== "Enter" && event.key !== " "
-        ) { return; }
-
-        event.preventDefault();
-        event.stopPropagation();
-
-        toggleLockedNet(
-          net
-        );
-      }
-    );
-  }
+  svg.addEventListener("click", clearHighlight);
 }
