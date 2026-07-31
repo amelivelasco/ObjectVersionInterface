@@ -31,11 +31,11 @@ const drawConfig = {
   layoutCellGapY: 140,
 
   layoutCellPaddingX: 120,
-  layoutCellPaddingTop: 10,
+  layoutCellPaddingTop: 1,
   layoutCellPaddingBottom: 200,
 
   layoutCellElementGapX: 165,
-  layoutCellElementGapY: 180,
+  layoutCellElementGapY: 230,
 
   layoutCellMinWidth: 1200,
   layoutCellMinHeight: 520,

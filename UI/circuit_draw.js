@@ -518,7 +518,7 @@ function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
     drawComponentValueText(labelLayer, current.path, current.x, current.y,
       { size: drawConfig.componentValueFontSize, fill: "#7c2d12", className: "jj-pathname", }
     );
-    const res_path = `${(current.path || "").split("/")[0]}/R${(current.pid || "").match(/\d+/)?.[0] || ""}`;
+    const res_path = `${(current.path || "").split("|")[0]}|R${(current.pid || "").match(/\d+/)?.[0] || ""}`;
 
     drawComponentValueText(labelLayer, res_path, next.x, next.y,
       { size: drawConfig.componentValueFontSize, fill: "#7c2d12", className: "jj-pathname", }

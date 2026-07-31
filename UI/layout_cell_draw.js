@@ -48,113 +48,180 @@ function measureLayoutCell(elements) {
 function buildLayoutCellLayout(data) {
   const elementMap = createElementMap(data.elements || []);
 
-  const measuredCells = (data.layout_cells || []).map(
-      (layoutCell) => {
-        const resolvedElements = resolveLayoutCellElements(layoutCell, elementMap);
-
-        const measurement = measureLayoutCell(resolvedElements);
-        const layoutInstance = layoutCell.layout_instance || layoutCell.id || layoutCell.layout_cell;
-
-        return {
-          id: layoutInstance,
-          layout_instance: layoutInstance,
-          layout_cell: layoutCell.layout_cell,
-          instance_path: layoutCell.instance_path || "",
-          display_name: layoutCell.display_name ||
-            (layoutCell.instance_path ? `${layoutCell.layout_cell} (${layoutCell.instance_path})` : layoutCell.layout_cell),
-          net_in: layoutCell.net_in,
-          net_out: layoutCell.net_out,
-          elementIds: [...(layoutCell.elements || []),],
-          elements: resolvedElements, ...measurement,
-          x: 0,
-          y: 0,
-        };
-      }
+  const measuredCells = (data.layout_cells || []).map((layoutCell) => {
+    const resolvedElements = resolveLayoutCellElements(
+      layoutCell,
+      elementMap
     );
 
-  const ndromCells = measuredCells.filter((cell) => String(cell.layout_cell || "").trim().toUpperCase().startsWith("NDROM2"));
-  const otherCells = measuredCells.filter((cell) =>!ndromCells.includes(cell));
+    const measurement = measureLayoutCell(resolvedElements);
 
-  if (ndromCells.length >= 2 && otherCells.length >= 1) {
-    const leftCell = ndromCells[0];
-    const rightCell = ndromCells[1];
-    const bottomCell = otherCells[0];
-    const marginX = drawConfig.layoutCellMarginX;
-    const marginY = drawConfig.layoutCellMarginY;
-    const gapX = drawConfig.layoutCellGapX;
-    const gapY = drawConfig.layoutCellGapY;
-    const topRowWidth = leftCell.width + gapX + rightCell.width;
-    const topRowHeight = Math.max(leftCell.height, rightCell.height);
-    const groupWidth = Math.max(topRowWidth, bottomCell.width);
+    const layoutInstance =
+      layoutCell.layout_instance ||
+      layoutCell.id ||
+      layoutCell.layout_cell;
 
-    const topRowX = marginX + (groupWidth - topRowWidth) / 2;
+    return {
+      id: layoutInstance,
+      layout_instance: layoutInstance,
+      layout_cell: layoutCell.layout_cell,
+      instance_path: layoutCell.instance_path || "",
+      display_name:
+        layoutCell.display_name ||
+        (layoutCell.instance_path
+          ? `${layoutCell.layout_cell} (${layoutCell.instance_path})`
+          : layoutCell.layout_cell),
+      net_in: layoutCell.net_in,
+      net_out: layoutCell.net_out,
+      elementIds: [...(layoutCell.elements || [])],
+      elements: resolvedElements,
+      ...measurement,
+      x: 0,
+      y: 0,
+    };
+  });
 
-    leftCell.x = topRowX;
-    leftCell.y = marginY;
-    rightCell.x = topRowX + leftCell.width + gapX;
-    rightCell.y = marginY;
-    bottomCell.x = marginX + (groupWidth - bottomCell.width) / 2;
-    bottomCell.y = marginY + topRowHeight +gapY;
+  const marginX = drawConfig.layoutCellMarginX;
+  const marginY = drawConfig.layoutCellMarginY;
+  const gapX = drawConfig.layoutCellGapX;
+  const gapY = drawConfig.layoutCellGapY;
 
-    const placedCells = [leftCell, rightCell, bottomCell,];
-    const usedCells = new Set(placedCells);
-
-    const extraCells = measuredCells.filter((cell) => !usedCells.has(cell));
-
-    let extraY = bottomCell.y + bottomCell.height + gapY;
-
-    for (const extraCell of extraCells
-    ) {
-      extraCell.x = marginX + (groupWidth - extraCell.width) / 2;
-      extraCell.y = extraY;
-      placedCells.push(extraCell);
-      extraY += extraCell.height + gapY;
-    }
-
-    const maximumRight = Math.max(...placedCells.map((cell) => cell.x + cell.width));
-    const maximumBottom = Math.max(...placedCells.map((cell) => cell.y + cell.height));
-    const canvasWidth = Math.max(900, maximumRight + marginX);
-    const canvasHeight = Math.max(550, maximumBottom + marginY);
-
-    return {placedCells, canvasWidth, canvasHeight,};
+  /*
+   * Converts names such as:
+   *
+   * "NDROM (i1)" -> "NDROM"
+   * "NDROM (I2)" -> "NDROM"
+   * "NDROM2   (instance_3)" -> "NDROM2"
+   *
+   * Comparison is case-insensitive.
+   */
+  function getCellNameFamily(cell) {
+    return String(cell.display_name || cell.layout_cell || "")
+      .replace(/\s*\([^()]*\)\s*$/, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toUpperCase();
   }
 
-  const placedCells = [];
-
-  let x = drawConfig.layoutCellMarginX;
-  let y = drawConfig.layoutCellMarginY;
-
-  let currentRowHeight = 0;
-  let maximumRight = 0;
-
-  const rowRightLimit = drawConfig.layoutCellMarginX +drawConfig.layoutCellRowWidth;
+  const cellsByFamily = new Map();
 
   for (const cell of measuredCells) {
-    const shouldStartNewRow = x !== drawConfig.layoutCellMarginX && x + cell.width > rowRightLimit;
+    const family = getCellNameFamily(cell);
 
-    if (shouldStartNewRow) {
-      x = drawConfig.layoutCellMarginX;
-      y += currentRowHeight + drawConfig.layoutCellGapY;
-      currentRowHeight = 0;
+    if (!cellsByFamily.has(family)) {
+      cellsByFamily.set(family, []);
     }
 
-    cell.x = x;
-    cell.y = y;
-
-    placedCells.push(cell);
-
-    maximumRight = Math.max(maximumRight, cell.x + cell.width);
-
-    currentRowHeight = Math.max(currentRowHeight, cell.height);
-
-    x += cell.width + drawConfig.layoutCellGapX;
+    cellsByFamily.get(family).push(cell);
   }
 
-  const canvasWidth = Math.max(900, maximumRight + drawConfig.layoutCellMarginX);
+  const rows = [];
+  const remainingCells = [];
 
-  const canvasHeight = Math.max(550, y + currentRowHeight + drawConfig.layoutCellMarginY);
+  /*
+   * First, create rows from cells with matching base names.
+   *
+   * Example:
+   * NDROM (i1) and NDROM (I2) are guaranteed to share a row.
+   *
+   * If four matching instances exist, they become two rows.
+   */
+  for (const familyCells of cellsByFamily.values()) {
+    let index = 0;
 
-  return { placedCells, canvasWidth, canvasHeight,};
+    while (index + 1 < familyCells.length) {
+      rows.push([
+        familyCells[index],
+        familyCells[index + 1],
+      ]);
+
+      index += 2;
+    }
+
+    if (index < familyCells.length) {
+      remainingCells.push(familyCells[index]);
+    }
+  }
+
+  /*
+   * Place unmatched cells two by two after the matching-name pairs.
+   */
+  for (let index = 0; index < remainingCells.length; index += 2) {
+    rows.push(remainingCells.slice(index, index + 2));
+  }
+
+  const rowMeasurements = rows.map((rowCells) => {
+    const width =
+      rowCells.reduce(
+        (totalWidth, cell) => totalWidth + cell.width,
+        0
+      ) +
+      Math.max(0, rowCells.length - 1) * gapX;
+
+    const height = Math.max(
+      ...rowCells.map((cell) => cell.height),
+      0
+    );
+
+    return {
+      cells: rowCells,
+      width,
+      height,
+    };
+  });
+
+  const groupWidth = Math.max(
+    ...rowMeasurements.map((row) => row.width),
+    0
+  );
+
+  const placedCells = [];
+  let currentY = marginY;
+
+  for (const row of rowMeasurements) {
+    let currentX =
+      marginX +
+      (groupWidth - row.width) / 2;
+
+    for (const cell of row.cells) {
+      cell.x = currentX;
+      cell.y = currentY;
+
+      placedCells.push(cell);
+
+      currentX += cell.width + gapX;
+    }
+
+    currentY += row.height + gapY;
+  }
+
+  const maximumRight = placedCells.length
+    ? Math.max(
+        ...placedCells.map((cell) => cell.x + cell.width)
+      )
+    : marginX;
+
+  const maximumBottom = placedCells.length
+    ? Math.max(
+        ...placedCells.map((cell) => cell.y + cell.height)
+      )
+    : marginY;
+
+  const canvasWidth = Math.max(
+    900,
+    maximumRight + marginX
+  );
+
+  const canvasHeight = Math.max(
+    550,
+    maximumBottom + marginY
+  );
+
+  return {
+    placedCells,
+    canvasWidth,
+    canvasHeight,
+  };
 }
 
 
