@@ -1,40 +1,41 @@
 function drawPath(layer, a, b, options = {}) {
-  const path = createSvgElement("path",
-      {
-        d: options.pathData || orthogonalPath(a, b),
-        fill: "none",
-        "data-original-stroke": options.stroke || drawConfig.wireStroke,
-        stroke: options.stroke || drawConfig.wireStroke,
-        "stroke-width": options.strokeWidth || drawConfig.wireStrokeWidth,
-        "stroke-linecap": "round",
-        "stroke-linejoin": "round",
-        "stroke-dasharray": options.dash || "",
-        "data-net": options.net || "",
-        "data-kind": options.kind || "",
-        class: "edge",
-      }
-    );
+  const path = createSvgElement("path", {
+    d: options.pathData || orthogonalPath(a, b),
+    fill: "none",
+    stroke: options.stroke || drawConfig.wireStroke,
+    "data-original-stroke": options.stroke || drawConfig.wireStroke,
+    "stroke-width": options.strokeWidth || drawConfig.wireStrokeWidth,
+    "data-original-stroke-width": options.strokeWidth || drawConfig.wireStrokeWidth,
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    "stroke-dasharray": options.dash || "",
+    "data-net": options.net || "",
+    "data-kind": options.kind || "",
+    class: "edge",
+  });
 
+  addNetTooltip(path, options.net);
   layer.appendChild(path);
   return path;
 }
 
 function drawLine(lineLayer, labelLayer, element, a, b, options = {}) {
-  const layoutInstance = options.layoutInstance || getLayoutInstance(element) || "";
-
   const line = createSvgElement("line", {
-    x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+    x1: a.x,
+    y1: a.y,
+    x2: b.x,
+    y2: b.y,
     stroke: options.stroke || drawConfig.wireStroke,
     "data-original-stroke": options.stroke || drawConfig.wireStroke,
     "stroke-width": options.strokeWidth || drawConfig.wireStrokeWidth,
     "data-original-stroke-width": options.strokeWidth || drawConfig.wireStrokeWidth,
     "stroke-linecap": "round",
     "data-net": options.net || "",
-    "data-layout-instance": layoutInstance,
     "data-kind": options.kind || "",
     class: "edge",
   });
 
+  addNetTooltip(line, options.net);
   lineLayer.appendChild(line);
   return line;
 }
@@ -401,13 +402,15 @@ function setupWireSelection(svg, hitMargin = 3) {
     wire.style.cursor = "pointer";
     wire.style.pointerEvents = "stroke";
 
-    const hitArea =  wire.cloneNode(false);
+    const hitArea = wire.cloneNode(false);
 
     hitArea.removeAttribute("id");
     hitArea.classList.remove("edge", "is-wire-selected");
     hitArea.classList.add("wire-hit-area");
     hitArea.setAttribute("fill", "none");
     hitArea.setAttribute("stroke", "transparent");
+
+    addNetTooltip(hitArea, wire.dataset.net);
 
     const visibleStrokeWidth = Number(wire.dataset.originalStrokeWidth || drawConfig.wireStrokeWidth);
     hitArea.setAttribute("stroke-width", visibleStrokeWidth + hitMargin * 2);
@@ -525,6 +528,15 @@ function wiresTouch(firstSegments, secondSegments) {
   }
 
   return false;
+}
+
+function addNetTooltip(element, net) {
+  net = String(net || "").trim();
+  if (!net) return;
+
+  const title = createSvgElement("title");
+  title.textContent = net;
+  element.appendChild(title);
 }
 
 function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
