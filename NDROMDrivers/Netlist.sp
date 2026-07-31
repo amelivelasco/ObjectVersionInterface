@@ -9,7 +9,7 @@
 * Cell             : NDROMDrivers
 * View             : flat
 * View Search List : auCdl schematic
-* View Stop List   : auCdl
+* View Stop List   : auCdl 
 ********************************************************************************
 .subckt NDROMDrivers CLK DX DX_bar Out Src26
 *.PININFO CLK:I DX:I DX_bar:I Out:O Src26:I

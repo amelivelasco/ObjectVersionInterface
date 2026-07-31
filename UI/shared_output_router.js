@@ -246,8 +246,7 @@ function getWirePenalty(first, second, routedSegments) {
   for (const existing of routedSegments) {
     const relation = getWireRelation(candidate, existing);
 
-    if (relation === "overlap") { penalty += 1000000000000; } 
-    else if (relation === "cross") { penalty += 1000000000; }
+    if (relation === "cross") { penalty += 1000000000; }
   }
 
   return penalty;

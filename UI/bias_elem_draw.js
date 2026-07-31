@@ -64,49 +64,109 @@ function findFreeBiasX(bias, desiredX, centerY, placed
 
 function placeBiasElementsAboveNetOut(placed) {
   const halfSize = drawConfig.imageSize / 2;
+  const gap = Math.max(6, drawConfig.biasOutputGap ?? 12);
 
   for (const bias of placed) {
-    if (!isBiasElement(bias)) { continue; }
+    if (!isBiasElement(bias) || !bias.net_out) {
+      continue;
+    }
 
-    if (bias.inlineJRBias || bias.biasPlacementLocked) { continue; }
-
-    const target = findBiasTarget(bias, placed);
-    if (!target) { continue; }
-
+    /*
+     * Always allow bias elements to be repositioned.
+     * Do not preserve a horizontal inline placement.
+     */
     bias.biasPlacementLocked = false;
     bias.biasSnappedToNet = false;
     bias.biasNetSegment = null;
 
-    const targetIsInductor = getElementType(target) === "L";
-    const connectsToOutput = targetIsInductor && target.net_out === bias.net_out;
-    const targetKind = connectsToOutput ? "out" : "in";
-    const rawTargetPin = connectsToOutput ? target.outputPin : target.inputPin;
+    const target = findBiasTarget(bias, placed);
 
-    if (!rawTargetPin) { continue; }
+    if (!target) {
+      continue;
+    }
+
+    const targetIsInductor = getElementType(target) === "L";
+    const connectsToOutput =
+      targetIsInductor &&
+      target.net_out === bias.net_out;
+
+    const targetKind = connectsToOutput ? "out" : "in";
+
+    const rawTargetPin = connectsToOutput
+      ? target.outputPin
+      : target.inputPin;
+
+    if (!rawTargetPin) {
+      continue;
+    }
 
     const targetTerminal = {
       net: bias.net_out,
       kind: targetKind,
       element: target,
       ownerId: target.id,
+      layoutInstance: getLayoutInstance(target),
     };
 
     const targetPin = targetIsInductor
       ? getTerminalRoutingPoint(targetTerminal, rawTargetPin)
       : rawTargetPin;
 
-    const targetDirection = target.electricalDirection ?? target.direction ?? 1;
-    const desiredJoinX = targetPin.x - targetDirection * drawConfig.biasBranchOffset;
+    const targetDirection =
+      target.electricalDirection ??
+      target.direction ??
+      1;
+
+    const desiredJoinX =
+      targetPin.x -
+      targetDirection * drawConfig.biasBranchOffset;
+
     const netY = targetPin.y;
-    const biasCenterY = netY - halfSize - drawConfig.biasOutputGap;
-    const biasCenterX = findFreeBiasX(bias, desiredJoinX, biasCenterY, placed);
+
+    /*
+     * Leave `gap` pixels between the arrow tip and the wire.
+     *
+     * Bias center:
+     *     netY - halfSize - gap
+     *
+     * Arrow tip:
+     *     netY - gap
+     *
+     * Wire connection:
+     *     netY
+     */
+    const biasCenterY = netY - halfSize - gap;
+
+    const biasCenterX = findFreeBiasX(
+      bias,
+      desiredJoinX,
+      biasCenterY,
+      placed
+    );
 
     bias.x = biasCenterX;
     bias.y = biasCenterY;
+
+    // Force the bias arrow to point downward.
     bias.biasRotation = 0;
-    bias.biasFrontPin = { x: biasCenterX, y: biasCenterY + halfSize };
-    bias.biasNetJoin = { x: biasCenterX, y: netY };
-    bias.outputPin = { ...bias.biasNetJoin, net: bias.net_out };
+
+    // Bottom tip of the downward-pointing arrow.
+    bias.biasFrontPin = {
+      x: biasCenterX,
+      y: biasCenterY + halfSize,
+    };
+
+    // Point located directly on the connecting wire.
+    bias.biasNetJoin = {
+      x: biasCenterX,
+      y: netY,
+    };
+
+    bias.outputPin = {
+      ...bias.biasNetJoin,
+      net: bias.net_out,
+    };
+
     bias.biasTarget = target.id;
   }
 }
@@ -249,153 +309,212 @@ function connectBiasStubsToInductors(wireLayer, labelLayer, placed) {
 
 function snapBiasElementsToNearestNet(wireLayer, placed) {
   const halfSize = drawConfig.imageSize / 2;
-  const gap = drawConfig.biasOutputGap;
-  for (const bias of placed) {
-    if (!isBiasElement(bias) || !bias.net_out
-    ) { continue; }
+  const gap = Math.max(6, drawConfig.biasOutputGap ?? 12);
+  const spacing = drawConfig.biasPlacementSpacing || 35;
 
-    if (bias.biasPlacementLocked) { continue; }
+  for (const bias of placed) {
+    if (!isBiasElement(bias) || !bias.net_out) {
+      continue;
+    }
+
+    /*
+     * Reconsider every bias, including biases that previously had
+     * an inline or locked placement.
+     */
+    bias.biasPlacementLocked = false;
 
     const originalX = bias.x;
     const originalY = bias.y;
-
     const layoutInstance = getLayoutInstance(bias);
-    const cellElements = placed.filter((element) => getLayoutInstance(element) === layoutInstance);
 
-    const jrObstacleBoxes =
-      buildRoutingObstacleBoxes(cellElements, new Set([bias.id,]), 8).filter((box) => box.isJRPair);
+    const cellElements = placed.filter(
+      (element) =>
+        getLayoutInstance(element) === layoutInstance
+    );
+
+    const jrObstacleBoxes = buildRoutingObstacleBoxes(
+      cellElements,
+      new Set([bias.id]),
+      8
+    ).filter((box) => box.isJRPair);
 
     let best = null;
 
     for (const child of wireLayer.children) {
       const childNet = child.dataset.net;
-      const childKind = child.dataset.kind;
+      const childKind = child.dataset.kind || "";
+
       if (
         childNet !== bias.net_out ||
-        String(childKind || "").startsWith("bias-")
-      ) { continue; }
+        childKind.startsWith("bias-")
+      ) {
+        continue;
+      }
 
       const segments = extractWireSegmentsFromElement(child);
 
       for (const segment of segments) {
-        const horizontal = Math.abs(segment.a.y - segment.b.y) < 0.5;
-        const vertical = Math.abs(segment.a.x - segment.b.x) < 0.5;
-        let joinPoint = null;
+        /*
+         * Bias elements must come down onto a horizontal wire.
+         * Ignore vertical segments.
+         */
+        const horizontal =
+          Math.abs(segment.a.y - segment.b.y) < 0.5;
 
-        if (horizontal) {
-          const minimumX = Math.min(segment.a.x, segment.b.x);
-          const maximumX = Math.max(segment.a.x, segment.b.x );
-
-          joinPoint = {
-            x: Math.max(minimumX, Math.min(originalX, maximumX)),
-            y: segment.a.y,
-          };
-        } else if (vertical) {
-          const minimumY =  Math.min(segment.a.y, segment.b.y);
-
-          const maximumY = Math.max(segment.a.y, segment.b.y);
-
-          joinPoint = {
-            x: segment.a.x,
-            y: Math.max(minimumY, Math.min(originalY, maximumY)),
-          };
+        if (!horizontal) {
+          continue;
         }
 
-        if (!joinPoint) { continue; }
-        const candidates = [];
-        if (horizontal) {
-          candidates.push(
-            {
-              x: joinPoint.x,
-              y: joinPoint.y - halfSize - gap,
+        const minimumX = Math.min(
+          segment.a.x,
+          segment.b.x
+        );
+
+        const maximumX = Math.max(
+          segment.a.x,
+          segment.b.x
+        );
+
+        const netY = segment.a.y;
+
+        const projectedX = Math.max(
+          minimumX,
+          Math.min(originalX, maximumX)
+        );
+
+        const offsets = [
+          0,
+          -spacing,
+          spacing,
+          -spacing * 2,
+          spacing * 2,
+          -spacing * 3,
+          spacing * 3,
+        ];
+
+        const testedPositions = new Set();
+
+        for (const offset of offsets) {
+          const candidateX = Math.max(
+            minimumX,
+            Math.min(projectedX + offset, maximumX)
+          );
+
+          const positionKey = candidateX.toFixed(3);
+
+          if (testedPositions.has(positionKey)) {
+            continue;
+          }
+
+          testedPositions.add(positionKey);
+
+          /*
+           * Position the bias above the net while preserving a
+           * vertical gap for the connecting line.
+           */
+          const candidateY =
+            netY -
+            halfSize -
+            gap;
+
+          const frontPin = {
+            x: candidateX,
+            y: netY - gap,
+          };
+
+          const joinPoint = {
+            x: candidateX,
+            y: netY,
+          };
+
+          const overlapsJRPair = jrObstacleBoxes.some(
+            (box) =>
+              !(
+                candidateX + halfSize <= box.left ||
+                candidateX - halfSize >= box.right ||
+                candidateY + halfSize <= box.top ||
+                candidateY - halfSize >= box.bottom
+              )
+          );
+
+          const stubCrossesJRPair = jrObstacleBoxes.some(
+            (box) =>
+              axisAlignedSegmentHitsBox(
+                frontPin,
+                joinPoint,
+                box
+              )
+          );
+
+          if (overlapsJRPair || stubCrossesJRPair) {
+            continue;
+          }
+
+          const isFree = isBiasPositionFree(
+            bias,
+            candidateX,
+            candidateY,
+            placed
+          );
+
+          if (!isFree) {
+            continue;
+          }
+
+          const movement =
+            Math.abs(originalX - candidateX) +
+            Math.abs(originalY - candidateY);
+
+          if (!best || movement < best.score) {
+            best = {
+              x: candidateX,
+              y: candidateY,
               rotation: 0,
-              frontPin: {
-                x: joinPoint.x,
-                y: joinPoint.y - gap,
-              },
+              frontPin,
               joinPoint,
-            },
-
-            {
-              x: joinPoint.x,
-              y: joinPoint.y + halfSize + gap,
-              rotation: 180,
-              frontPin: {
-                x: joinPoint.x,
-                y: joinPoint.y + gap,
-              },
-              joinPoint,
-            }
-          );
-        } else if (vertical) {
-          candidates.push(
-            {
-              x: joinPoint.x - halfSize - gap,
-              y: joinPoint.y,
-              rotation: -90,
-              frontPin: { 
-                x: joinPoint.x - gap,
-                y: joinPoint.y,
-              },
-              joinPoint,
-            },
-
-            {
-              x: joinPoint.x + halfSize + gap,
-              y: joinPoint.y,
-              rotation: 90,
-              frontPin: {
-                x: joinPoint.x + gap,
-                y: joinPoint.y,
-              },
-              joinPoint,
-            }
-          );
-        }
-
-        for (const candidate of candidates) {
-          const halfSize = drawConfig.imageSize / 2;
-
-          const overlapsJRPair =
-            jrObstacleBoxes.some(
-              (box) => !(candidate.x +  halfSize <=  box.left || candidate.x - halfSize >= box.right ||
-                  candidate.y + halfSize <= box.top || candidate.y - halfSize >= box.bottom )
-            );
-
-
-          const stubCrossesJRPair =
-            jrObstacleBoxes.some(
-              (box) => axisAlignedSegmentHitsBox(candidate.frontPin, joinPoint, box)
-            );
-
-          if (overlapsJRPair || stubCrossesJRPair
-          ) { continue; }
-          const isFree = isBiasPositionFree(bias, candidate.x, candidate.y, placed);
-          const movement = Math.abs(originalX - candidate.x) + Math.abs(originalY - candidate.y );
-          const score = movement + (isFree ? 0 : 1000000);
-
-          if (!best ||  score < best.score
-          ) { best = {...candidate, score,};
+              score: movement,
+            };
           }
         }
       }
     }
 
+    /*
+     * The preliminary placement from
+     * placeBiasElementsAboveNetOut() remains valid when no matching
+     * horizontal SVG wire was found.
+     */
     if (!best) {
+      bias.biasRotation = 0;
       bias.biasSnappedToNet = false;
       continue;
     }
 
     bias.x = best.x;
     bias.y = best.y;
-    bias.biasRotation = best.rotation;
-    bias.biasFrontPin = {...best.frontPin,};
-    bias.biasNetJoin = {...best.joinPoint,};
-    bias.outputPin = {...best.joinPoint, net: bias.net_out,};
+
+    // Downward arrow.
+    bias.biasRotation = 0;
+
+    // Arrow tip above the wire.
+    bias.biasFrontPin = {
+      ...best.frontPin,
+    };
+
+    // Connection point on the wire.
+    bias.biasNetJoin = {
+      ...best.joinPoint,
+    };
+
+    bias.outputPin = {
+      ...best.joinPoint,
+      net: bias.net_out,
+    };
+
     bias.biasNetSegment = null;
     bias.biasSnappedToNet = true;
     bias.biasPlacementLocked = true;
-    }
+  }
 }
 
 
