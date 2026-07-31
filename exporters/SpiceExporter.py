@@ -137,3 +137,4 @@ class SpiceExporter(BaseExporter):
         lines.append(
             f"L{inst.name} {node0} {net_out} ind2 l={inst.JJIndParral}p"
         )
+        

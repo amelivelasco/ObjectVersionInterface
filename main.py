@@ -10,11 +10,11 @@ from parser.cdl_parser import CDLParser
 def main():
     base_dir = Path(__file__).resolve().parent
 
-    netlist_path = (
-        base_dir
-        / "test_files"
-        / "BasicCellsHomemade_MultiplexerAmeli.sp"
-    )
+    # netlist_path = (
+    #     base_dir
+    #     / "test_files"
+    #     / "BasicCellsHomemade_MultiplexerAmeli.sp"
+    # )
     
     # netlist_path = (
     #     base_dir
@@ -22,22 +22,22 @@ def main():
     #     / "Netlist.sp"
     # )
     
-    # netlist_path = (
-    #     base_dir
-    #     / "NDROMDrivers"
-    #     / "Netlist.sp"
-    # )
-
-    # layout_path = (
-    #     base_dir / "NDROMDrivers"
-    #     / "NDROMDrivers.custom_compiler.gds"
-    # )
-    
-    layout_path = (
-        base_dir 
-        / "test_files" 
-        / "MultiplexerAmeli.custom_compiler.gds"
+    netlist_path = (
+        base_dir
+        / "NDROMDrivers"
+        / "Netlist.sp"
     )
+
+    layout_path = (
+        base_dir / "NDROMDrivers"
+        / "NDROMDrivers.custom_compiler.gds"
+    )
+    
+    # layout_path = (
+    #     base_dir 
+    #     / "test_files" 
+    #     / "MultiplexerAmeli.custom_compiler.gds"
+    # )
     
     # layout_path = (
     #     base_dir

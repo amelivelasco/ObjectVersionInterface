@@ -93,11 +93,11 @@ class Schematic:
     
     @staticmethod
     def get_instance_path(component):
-        path = str(getattr(component, "path", "") or "").strip().removeprefix("MultiplexerAmeli_1/")
+        path = str(getattr(component, "path", "") or "").strip()
+        path = re.sub(r"^[^/\\]+[/\\]", "", path, count=1)
 
         if "/" in path:
             return path.rsplit("/", 1)[0]
-
         if "|" in path:
             return path.rsplit("|", 1)[0]
 
@@ -147,7 +147,7 @@ class Schematic:
                     layout_cell = layout_inst.cell.name
 
                 path = str(getattr(elem, "Path_name", None) or getattr(elem, "path", None) or raw)
-                path = path.removeprefix("MultiplexerAmeli_1/")
+                path = re.sub(r"^[^/\\]+[/\\]", "", path, count=1)
                 net_in = getattr(getattr(elem, "net_in", None), "name", None)
                 net_out = getattr(getattr(elem, "net_out", None), "name", None)
 

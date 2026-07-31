@@ -102,42 +102,37 @@ function drawLabel(labelLayer, text, x, y, options = {}) {
 }
 
 function formatComponentValue(element) {
-  const rawValue = element?.value;
-  if ( rawValue === null || rawValue === undefined
-  ) { return ""; }
+  const raw = element?.value;
+  if (raw === null || raw === undefined || raw === "") return "";
 
-  const value = String(rawValue).trim();
+  const text = String(raw).trim();
+  if (!text || ["none", "null"].includes(text.toLowerCase())) return "";
 
-  if (!value ||  value.toLowerCase() === "none" || value.toLowerCase() === "null"
-  ) { return ""; }
+  const type = getElementType(element);
+  const format = value => Number(Number(value).toFixed(2)).toString();
 
-  const componentType = getElementType(element);
+  if (type === "L") {
+    if (/p$/i.test(text)) return `${format(text.slice(0, -1))} pH`;
+    if (/n$/i.test(text)) return `${format(text.slice(0, -1))} nH`;
+    if (/[a-zA-Zµ]$/.test(text)) return text;
 
-  if (componentType === "L") {
-    if (/p$/i.test(value)) {
-      return (`${value.slice(0, -1)} pH`);
-    }
-
-    if (/n$/i.test(value)) {
-      return ( `${value.slice(0, -1)} nH`);
-    }
-
-
-    if (/[a-zA-Zµ]$/.test( value)
-    ) { return value;}
-    return `${value} pH`;
+    const value = Number(text);
+    if (!Number.isFinite(value)) return text;
+    return `${format(Math.abs(value) < 1e-6 ? value * 1e12 : value)} pH`;
   }
 
+  if (type === "JJ" || type === "IB") {
+    if (/u$/i.test(text)) return `${format(text.slice(0, -1))} µA`;
+    if (/µa$/i.test(text)) return `${format(text.replace(/µa$/i, ""))} µA`;
+    if (/[a-zA-Zµ]$/.test(text)) return text;
 
-  if (componentType === "JJ" || componentType === "IB") {
-    if (/u$/i.test(value)) { return (`${value.slice(0, -1)} µA`); }
-    if ( /µa$/i.test(value)) { return value;}
-    if (/[a-zA-Zµ]$/.test(value)) { return value; }
-
-    return `${value} µA`;
+    const value = Number(text);
+    if (!Number.isFinite(value)) return text;
+    return `${format(Math.abs(value) < 1 ? value * 1e6 : value)} µA`;
   }
 
-  return value;
+  const value = Number(text);
+  return Number.isFinite(value) ? format(value) : text;
 }
 
 function drawComponentValueText(parent, text, x, y, options = {}) {

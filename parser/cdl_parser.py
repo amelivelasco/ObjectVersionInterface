@@ -25,40 +25,38 @@ class CDLParser:
         self.TOP = None
         self.is_a_cell = False
         
-    def _compute_value(self, raw_value):
-        expression = str(raw_value).strip().strip("'\"")
+    def _compute_value(self, raw_value, target_suffix=None):
+        expression = str(raw_value).strip().strip("'\"").lower()
+        scales = {"t": 1e12, "g": 1e9, "meg": 1e6, "k": 1e3, "m": 1e-3, "u": 1e-6, "n": 1e-9, "p": 1e-12, "f": 1e-15}
+        target_scale = scales.get(target_suffix, 1.0)
+        pattern = re.compile(r"(?<![a-z0-9_.])((?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)(meg|[tgkmunpf])(?![a-z])", re.I)
+        expression = pattern.sub(lambda match: str(float(match.group(1)) * scales[match.group(2).lower()] / target_scale), expression)
 
-        operators = {
-            ast.Add: operator.add,
-            ast.Sub: operator.sub,
-            ast.Mult: operator.mul,
-            ast.Div: operator.truediv,
-            ast.Pow: operator.pow,
-            ast.USub: operator.neg,
-            ast.UAdd: operator.pos,
-        }
+        operators = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv, ast.Pow: operator.pow, ast.USub: operator.neg, ast.UAdd: operator.pos}
 
         def evaluate(node):
             if isinstance(node, ast.Expression):
                 return evaluate(node.body)
-
             if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
                 return float(node.value)
-
             if isinstance(node, ast.BinOp) and type(node.op) in operators:
-                return operators[type(node.op)](
-                    evaluate(node.left),
-                    evaluate(node.right),
-                )
-
+                return operators[type(node.op)](evaluate(node.left), evaluate(node.right))
             if isinstance(node, ast.UnaryOp) and type(node.op) in operators:
-                return operators[type(node.op)](
-                    evaluate(node.operand)
-                )
-
+                return operators[type(node.op)](evaluate(node.operand))
             raise ValueError(f"Unsupported numeric expression: {raw_value}")
 
-        return evaluate(ast.parse(expression, mode="eval"))
+        try:
+            return evaluate(ast.parse(expression, mode="eval"))
+        except (SyntaxError, ValueError, ZeroDivisionError) as error:
+            raise ValueError(f"Invalid SPICE value '{raw_value}'") from error
+
+    @staticmethod
+    def _get_x_model_index(tokens):
+        for index in range(len(tokens) - 1, 0, -1):
+            token = tokens[index].strip()
+            if "=" not in token and token.lower() != "params:":
+                return index
+        raise ValueError(f"Unable to determine model from: {' '.join(tokens)}")
         
     def _handle_subckt(self, line, line_number):
         tokens = line.split()
@@ -80,179 +78,155 @@ class CDLParser:
         new_circuit.add_cell(self.current_cell)
         self.current_cell= None
         
-    def _handle_xi(self, head, tokens, filename, new_circuit):
-        model = tokens[-1]                    # 'JTL'
-        nets = tokens[1:-1]
-        list_node_to_send_down = []
-        for i in nets: 
-            list_node_to_send_down.append(self.current_cell.get_node(i,[]))
+    def _handle_xi(self, head, tokens, filename, new_circuit, line_number):
+        model_index = self._get_x_model_index(tokens)
+        model, nets = tokens[model_index], tokens[1:model_index]
+        model_cell = new_circuit.get_cell(model)
+
+        if model_cell is None:
+            raise ValueError(f"[line {line_number}] Unknown subcircuit model: {model}")
+
+        parent_nodes = [self.current_cell.get_node(net, []) for net in nets]
         added_cell = Cell(model)
-        added_cell.rebuild(filename,new_circuit.get_cell(model).lines,new_circuit,nets,list_node_to_send_down)
-        added_cell.name = head[1:]
-        added_cell.raw_name = head
+        added_cell.rebuild(filename, model_cell.lines, new_circuit, nets, parent_nodes)
+        added_cell.name, added_cell.raw_name = head[1:], head
         self.current_cell.add_cell_instance(added_cell)
     
-    def _handle_xsjj(self, head, tokens):
-        name = re.sub(r"^xsj", "", head, flags=re.I)
-        net_in = tokens[1]
-        net_out = tokens[2]
+    def _handle_xsjj(self, head, tokens, line_number):
+        if len(tokens) < 4:
+            raise ValueError(f"[line {line_number}] Invalid JJ: {' '.join(tokens)}")
 
-        ic = 100.0
-        raw_value = None
-
-        for token in tokens:
-            if token.lower().startswith("ics="):
-                raw_value = token.split("=", 1)[1].strip().strip("'\"")
-                break
-
-        if raw_value is None:
-            ic = 100.0
-        else:
-            expression = raw_value.lower().replace("u", "")
-            ic = self._compute_value(expression)
+        name = head[3:] if head.lower().startswith("xsj") else head[1:]
+        raw_value = self._get_parameter_value(tokens, {"ics", "ic"})
+        ic = 100.0 if raw_value is None else self._compute_value(raw_value, "u")
         
+
         element = JJElement(name, None, None, ic)
         element.raw_name = head
-        self.current_cell.add_element(element, net_in, net_out, [])
+        self.current_cell.add_element(element, tokens[1], tokens[2], [])
     
     def _handle_xpcib(self, head, tokens, line_number):
-        name = head
-        if "|" in head:
-            name = head.split("|")[-1]
-        name = re.sub(r"^xpc", "", name, flags=re.I)
+        if len(tokens) < 5:
+            raise ValueError(f"[line {line_number}] Invalid pwrcell: {' '.join(tokens)}")
 
-        net_in = tokens[2]
-        net_out = tokens[3]
-
-        raw_value = None
-
-        for token in tokens:
-            if token.lower().startswith("ib="):
-                raw_value = token.split("=", 1)[1].strip().strip("'\"")
-                break
+        name = head[3:] if head.lower().startswith("xpc") else head[1:]
+        raw_value = self._get_parameter_value(tokens, {"ib"})
 
         if raw_value is None:
-            raise ValueError(f"[ligne {line_number}] ib sans ib=")
+            raise ValueError(f"[line {line_number}] pwrcell without ib=")
 
-        expression = raw_value.lower().replace("u", "")
-        ib = self._compute_value(expression)
-
-
-        element = BiasIBElement(name, None, None, ib)
+        element = BiasIBElement(name, None, None, self._compute_value(raw_value, "u"))
         element.raw_name = head
-        self.current_cell.add_element(element, net_in, net_out, [])
+        self.current_cell.add_element(element, tokens[2], tokens[3], [])
+
     def _handle_ll(self, head, tokens, line_number):
-        name = head[1:]
-        net_p = tokens[1]
-        net_n = tokens[2]
+        if len(tokens) < 4:
+            raise ValueError(f"[line {line_number}] Invalid inductor: {' '.join(tokens)}")
 
-        raw_value = None
-        for token in tokens:
-            if token.lower().startswith("l="):
-                raw_value = token.split("=", 1)[1].strip().strip("'\"")
-                break
-
+        raw_value = self._get_parameter_value(tokens, {"l"})
         if raw_value is None:
-            raise ValueError(
-                f"[ligne {line_number}] Inductance sans L="
-            )
+            raise ValueError(f"[line {line_number}] Inductor without l=")
 
-        expression = raw_value.lower().replace("p", "").replace("n", "")
-        lval = self._compute_value(expression)
-
-        element = InductorElement(name, None, None, lval)
+        element = InductorElement(head[1:], None, None, self._compute_value(raw_value, "p"))
         element.raw_name = head
-        self.current_cell.add_element(element, net_p, net_n, [])
+        self.current_cell.add_element(element, tokens[1], tokens[2], [])
     
-    def _handle_r(self, head, tokens):
-        name = head[1:]
-        net_p = tokens[1]
-        net_n = tokens[2]
+    def _handle_r(self, head, tokens, line_number):
+        if len(tokens) < 4:
+            raise ValueError(f"[line {line_number}] Invalid resistor: {' '.join(tokens)}")
 
-        raw_value = None
-        for token in tokens[3:]:
-            if token.lower().startswith("r="):
-                raw_value = token.split("=", 1)[1]
-                break
+        raw_value = self._get_parameter_value(tokens[3:], {"r"})
 
         if raw_value is None:
             raw_value = tokens[-1]
+            if "=" in raw_value or raw_value.lower() == "res":
+                raise ValueError(f"[line {line_number}] Resistor without r=")
 
-        rval = self._compute_value(raw_value)
-
-        element = ResistorElement(name, None, None, rval)
+        element = ResistorElement(head[1:], None, None, self._compute_value(raw_value))
         element.raw_name = head
-        self.current_cell.add_element(element, net_p, net_n, [])
+        self.current_cell.add_element(element, tokens[1], tokens[2], [])
     
     def _instructor(self, head, tokens, filename, new_circuit, line_number):
-        if head.lower().startswith("xi"):
-            self._handle_xi(head, tokens, filename, new_circuit)
-                # ===== JJ =====
-        if head.lower().startswith("xsj"):
-            self._handle_xsjj(head, tokens)
+        head_lower = head.lower()
 
-                # ===== ib =====
-        elif head.lower().startswith("xpcib") or (head.lower().startswith("xpc") and "|ib" in head.lower()):
-            self._handle_xpcib(head, tokens, line_number)
+        if head_lower.startswith("x"):
+            model = tokens[self._get_x_model_index(tokens)].lower()
 
-                # ===== Inductance =====
-        elif head.lower().startswith("l"):
+            if head_lower.startswith("xsj") or model in {"jj", "jj_s"}:
+                self._handle_xsjj(head, tokens, line_number)
+            elif head_lower.startswith("xpc") or model == "pwrcell":
+                self._handle_xpcib(head, tokens, line_number)
+            else:
+                self._handle_xi(head, tokens, filename, new_circuit, line_number)
+            return True
+
+        if head_lower.startswith("l"):
             self._handle_ll(head, tokens, line_number)
+            return True
 
-                # ===== Résistance =====
-        elif head.lower().startswith("r"):
-            self._handle_r(head, tokens)
-        
+        if head_lower.startswith("r"):
+            self._handle_r(head, tokens, line_number)
+            return True
 
-    def parse(self, filename: str):
-        new_circuit = Circuit()
+        return False
 
-        with open(filename, "r") as f:
-            for lineno, raw in enumerate(f, start=1):
-                line = raw.strip()
+    def _iter_logical_lines(self, filename):
+        pending_line = pending_number = None
 
-                # Ignorer lignes vides globalement
+        with open(filename, "r", encoding="utf-8") as file:
+            for line_number, raw_line in enumerate(file, start=1):
+                line = raw_line.strip()
                 if not line:
                     continue
 
-                low = line.lower()
-
-                # ---------------------------
-                # Début de cellule
-                # ---------------------------
-                if low.startswith(".subckt"):
-                    self._handle_subckt(line, lineno)
-
+                if line.startswith("+") and pending_line is not None:
+                    pending_line += " " + line[1:].strip()
                     continue
 
-                # ---------------------------
-                # Fin de cellule
-                # ---------------------------
-                if low.startswith(".ends"):
-                    self._handle_ends(new_circuit, lineno)
-                    continue
+                if pending_line is not None:
+                    yield pending_number, pending_line
 
-                # ---------------------------
-                # PININFO (accepté, ignoré)
-                # ---------------------------
-                if line.startswith("*.PININFO"):
-                    continue
+                pending_line, pending_number = line, line_number
 
-                # ---------------------------
-                # Parsing des éléments
-                # ---------------------------
-                tokens = line.split()
-                head = tokens[0]
+        if pending_line is not None:
+            yield pending_number, pending_line
 
-                
-                # ===========================
-                # INSTANCIATION DE CELLULE (XI…)
-                # ===========================
-                self._instructor(head, tokens, filename, new_circuit, lineno)
-                
+    def parse(self, filename: str):
+        new_circuit = Circuit()
+        self.current_cell, self.TOP, self.is_a_cell = None, None, False
+
+        for line_number, line in self._iter_logical_lines(filename):
+            lower_line = line.lower()
+
+            if lower_line.startswith(".subckt"):
+                self._handle_subckt(line, line_number)
+                continue
+
+            if lower_line.startswith(".ends"):
+                if self.current_cell is None:
+                    raise ValueError(f"[line {line_number}] .ends without .subckt")
+                self._handle_ends(new_circuit, line_number)
+                continue
+
+            if self.current_cell is None or line.startswith("*") or line.startswith("."):
+                continue
+
+            line = re.split(r"\s+\$", line, maxsplit=1)[0].strip()
+            if not line:
+                continue
+
+            tokens = line.split()
+            if not self._instructor(tokens[0], tokens, filename, new_circuit, line_number):
+                raise ValueError(f"[line {line_number}] Unsupported component: {line}")
+
+        if self.current_cell is not None:
+            raise ValueError(f"Subcircuit '{self.current_cell.name}' has no .ends")
+        if self.TOP is None:
+            raise ValueError(f"No .subckt found in {filename}")
+
         new_circuit.define_top(self.TOP)
         return new_circuit
-    
+
     def _format_lines(self, filename, buffer_values):
         with open(filename, "r") as f:
             for raw_line in f:
