@@ -405,7 +405,7 @@ function placeElementsInsideLayoutCell(cell) {
     if (getElementType(element) !== "L") { continue; }
 
     const requirement = requiredOrientation.get(element);
-    const electricalDirection = requirement?.orientation ?? 1;
+    const electricalDirection = requirement?.orientation ?? (Number(element.electricalDirection) < 0 ? -1 : 1);
     const pinOffset = getPinOffsetForElement(element);
 
     element.inputPin = {

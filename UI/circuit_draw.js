@@ -178,16 +178,14 @@ function drawComponent(layer, element, jjval = -1) {
   });
 
   const componentType = getElementType(element);
-  if (componentType === "R" && element.net_out === "GND!") { image.setAttribute("transform", `rotate(90 ${element.x} ${element.y})`);}
-  if (componentType === "JJ" && element.net_out !== "GND!") { image.setAttribute("transform", `rotate(90 ${element.x} ${element.y})`);}
+  let rotation = 0;
 
-  if (componentType === "IB" && Number.isFinite(element.biasRotation)
-  ) {
-    image.setAttribute(
-      "transform",
-      `rotate(${element.biasRotation} ${element.x} ${element.y})`
-    );
-  }
+  if (componentType === "R" && element.net_out === "GND!") rotation = 90;
+  if (componentType === "JJ" && element.net_out !== "GND!") rotation = 90;
+  if (componentType === "IB" && Number.isFinite(element.biasRotation)) rotation = element.biasRotation;
+  if (Number.isFinite(element.forcedRotation)) rotation = element.forcedRotation;
+
+  if (rotation) image.setAttribute("transform", `rotate(${rotation} ${element.x} ${element.y})`);
 
   const title = createSvgElement("title");
   const isResistor = componentType === "R";
@@ -531,6 +529,12 @@ function addNetTooltip(element, net) {
 }
 
 function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
+  const reversed = current.inlineReversed === true || current.layoutReversed === true || Number(current.electricalDirection) < 0;
+
+  current.electricalDirection = next.electricalDirection = reversed ? -1 : 1;
+  current.forcedRotation = reversed ? 270 : 90;
+  next.forcedRotation = reversed ? 180 : 0;
+
   const geometry = getJJPairGeometry(current, next, 25);
   const layoutInstance = getLayoutInstance(current);
 
@@ -625,6 +629,17 @@ function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
     layoutInstance,
     size: "8.5px",
     fill: "#334155",
+  });
+
+
+  console.log("Drawing JR pair", {
+    id: current.id,
+    netIn: current.net_in,
+    netOut: current.net_out,
+    electricalDirection: current.electricalDirection,
+    layoutReversed: current.layoutReversed,
+    inlineReversed: current.inlineReversed,
+    forcedRotation: current.forcedRotation,
   });
 }
 

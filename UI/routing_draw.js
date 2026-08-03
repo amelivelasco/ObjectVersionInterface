@@ -37,40 +37,35 @@ function getJJPairGeometry(jj, resistor, rise = 25, verticalGap = 70) {
   const halfSize = drawConfig.imageSize / 2;
 
   if (!isGroundNet(jj.net_out)) {
-    const centerX = (jj.x + resistor.x) / 2;
-    const mainWireY = Math.min(jj.y, resistor.y);
+    const direction = Number(jj.electricalDirection ?? resistor.electricalDirection ?? 1) < 0 ? -1 : 1;
+    const centerX = (jj.x + resistor.x) / 2, mainWireY = Math.min(jj.y, resistor.y);
 
-    jj.x = centerX;
+    jj.x = resistor.x = centerX;
     jj.y = mainWireY;
-    resistor.x = centerX;
     resistor.y = mainWireY + verticalGap;
 
-    jj.forcedRotation = 90;
-    resistor.forcedRotation = 0;
+    const reversed = jj.inlineReversed === true || jj.layoutReversed === true || Number(jj.electricalDirection) < 0;
+    jj.forcedRotation = reversed ? 270 : 90;
+    resistor.forcedRotation = reversed ? 180 : 0;
     jj.jrRotated = resistor.jrRotated = true;
     jj.jrOrientation = resistor.jrOrientation = "horizontal";
+    jj.electricalDirection = resistor.electricalDirection = direction;
 
-    const jjPinOffset = getPinOffsetForElement(jj);
-    const resistorPinOffset = getPinOffsetForElement(resistor);
+    const jjPinOffset = getPinOffsetForElement(jj), resistorPinOffset = getPinOffsetForElement(resistor);
+    jj.inputPin = { x: jj.x - direction * jjPinOffset, y: jj.y, net: jj.net_in };
+    jj.outputPin = { x: jj.x + direction * jjPinOffset, y: jj.y, net: jj.net_out };
+    resistor.inputPin = { x: resistor.x - direction * resistorPinOffset, y: resistor.y, net: resistor.net_in };
+    resistor.outputPin = { x: resistor.x + direction * resistorPinOffset, y: resistor.y, net: resistor.net_out };
 
-    jj.inputPin = { x: jj.x - jjPinOffset, y: jj.y, net: jj.net_in };
-    jj.outputPin = { x: jj.x + jjPinOffset, y: jj.y, net: jj.net_out };
-    resistor.inputPin = { x: resistor.x - resistorPinOffset, y: resistor.y, net: resistor.net_in };
-    resistor.outputPin = { x: resistor.x + resistorPinOffset, y: resistor.y, net: resistor.net_out };
-
-    const jjTop = { x: jj.x - halfSize, y: jj.y };
-    const resistorTop = { x: resistor.x - halfSize, y: resistor.y };
-    const jjBottom = { x: jj.x + halfSize, y: jj.y };
-    const resistorBottom = { x: resistor.x + halfSize, y: resistor.y };
-    const topX = Math.min(jjTop.x, resistorTop.x) - rise;
-    const bottomX = Math.max(jjBottom.x, resistorBottom.x) + rise;
-    const topAtJJ = { x: topX, y: jj.y };
-    const topAtResistor = { x: topX, y: resistor.y };
-    const bottomAtJJ = { x: bottomX, y: jj.y };
-    const bottomAtResistor = { x: bottomX, y: resistor.y };
+    const jjTop = { x: jj.x - direction * halfSize, y: jj.y };
+    const resistorTop = { x: resistor.x - direction * halfSize, y: resistor.y };
+    const jjBottom = { x: jj.x + direction * halfSize, y: jj.y };
+    const resistorBottom = { x: resistor.x + direction * halfSize, y: resistor.y };
+    const inputX = centerX - direction * (halfSize + rise), outputX = centerX + direction * (halfSize + rise);
+    const topAtJJ = { x: inputX, y: jj.y }, topAtResistor = { x: inputX, y: resistor.y };
+    const bottomAtJJ = { x: outputX, y: jj.y }, bottomAtResistor = { x: outputX, y: resistor.y };
     const middleY = (jj.y + resistor.y) / 2;
-    const topMiddle = { x: topX, y: middleY };
-    const bottomMiddle = { x: bottomX, y: middleY };
+    const topMiddle = { x: inputX, y: middleY }, bottomMiddle = { x: outputX, y: middleY };
 
     return {
       orientation: "horizontal", jjTop, resistorTop, jjBottom, resistorBottom, topAtJJ, topAtResistor,

@@ -14,7 +14,7 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
   const explicitInputNets = new Set(normalizeNets(terminalInfo.net_in));
   const explicitOutputNets = new Set(normalizeNets(terminalInfo.net_out));
 
-  const blocks = createPlacementBlocks(elements).map((block) => {
+  const blocks = createPlacementBlocks(elements).map(block => {
     const primary = getPlacementBlockPrimary(block), rawNetIn = primary?.net_in || null, rawNetOut = primary?.net_out || null;
     const reverseForBoundary = Boolean(
       (rawNetIn && explicitOutputNets.has(rawNetIn) && !explicitOutputNets.has(rawNetOut)) ||
@@ -28,6 +28,74 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
       span: Math.max(1, block.elements.length),
     };
   });
+  
+  function isUngroundedJRBlock(block) {
+    const jj = block.elements.find(element => getElementType(element) === "JJ");
+    const resistor = block.elements.find(element => getElementType(element) === "R");
+    return Boolean(jj && resistor && isJJResistorPair(jj, resistor) && !isGroundNet(jj.net_out));
+  }
+
+  function orientSharedOutputUngroundedJRs(blocks) {
+    const decisions = [];
+
+    for (const block of blocks) {
+      if (!isUngroundedJRBlock(block) || block.reverseForBoundary) continue;
+
+      const others = blocks.filter(other => other !== block && !isBiasElement(other.primary));
+      const normalPredecessors = others.filter(other => other.netOut === block.rawNetIn);
+      const reversedPredecessors = others.filter(other => other.netOut === block.rawNetOut);
+      const normalSuccessors = others.filter(other => other.netIn === block.rawNetOut);
+      const reversedSuccessors = others.filter(other => other.netIn === block.rawNetIn);
+
+      const normalScore = normalPredecessors.length * 4 + normalSuccessors.length;
+      const reversedScore = reversedPredecessors.length * 4 + reversedSuccessors.length;
+
+      if (reversedPredecessors.length && reversedScore > normalScore) {
+        decisions.push({
+          block,
+          predecessor: reversedPredecessors[0],
+          normalScore,
+          reversedScore,
+        });
+      }
+    }
+
+    for (const { block, predecessor, normalScore, reversedScore } of decisions) {
+      block.reverseForBoundary = true;
+      block.inlineReversed = true;
+      block.netIn = block.rawNetOut;
+      block.netOut = block.rawNetIn;
+
+      console.log("Reversing inline JR", {
+        id: block.primary?.id,
+        predecessor: predecessor.primary?.id,
+        sharedNet: block.rawNetOut,
+        newNetIn: block.netIn,
+        newNetOut: block.netOut,
+        normalScore,
+        reversedScore,
+      });
+    }
+  }
+
+  function orientInlineUngroundedJRContinuations(blocks) {
+    let previous = null;
+
+    for (const block of blocks) {
+      if (isBiasElement(block.primary)) continue;
+
+      if (previous && isUngroundedJRBlock(block) && previous.netOut && block.rawNetOut === previous.netOut && block.rawNetIn !== previous.netOut) {
+        block.reverseForBoundary = true;
+        block.netIn = block.rawNetOut;
+        block.netOut = block.rawNetIn;
+        block.inlineReversed = true;
+      }
+
+      previous = block;
+    }
+  }
+
+  orientSharedOutputUngroundedJRs(blocks);
 
   const consumersByNet = new Map(), producersByNet = new Map();
 
@@ -36,6 +104,7 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
     if (!map.has(net)) { map.set(net, []); }
     map.get(net).push(block);
   }
+  
 
   for (const block of blocks) {
     addToMap(producersByNet, block.netOut, block);
@@ -114,6 +183,48 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
 
   function getPlacementRightColumn(placement) {
     return placement.col + placement.span - 1;
+  }
+
+  function tryPlaceInlineUngroundedJRPath(path, principalPath) {
+    const unplacedBlocks = path.filter(block => !placements.has(block.id));
+    if (unplacedBlocks.length !== 1 || !isUngroundedJRBlock(unplacedBlocks[0])) return false;
+
+    const jrBlock = unplacedBlocks[0], jrIndex = path.indexOf(jrBlock);
+    const producer = [...path.slice(0, jrIndex)].reverse().find(block => placements.has(block.id) && block.netOut === jrBlock.netIn);
+    if (!producer) return false;
+
+    const producerPlacement = placements.get(producer.id), row = producerPlacement.row;
+    let startColumn = getPlacementRightColumn(producerPlacement) + 2;
+    const successor = [...path.slice(jrIndex + 1), ...principalPath].find(block => placements.has(block.id) && block.netIn === jrBlock.netOut);
+    let successorPlacement = successor ? placements.get(successor.id) : null;
+
+    if (successorPlacement?.row === row) {
+      const requiredSuccessorColumn = startColumn + jrBlock.span + 1;
+      if (successorPlacement.col < requiredSuccessorColumn) {
+        shiftColumnsFrom(successorPlacement.col, requiredSuccessorColumn - successorPlacement.col);
+        successorPlacement = placements.get(successor.id);
+      }
+    }
+
+    if (!isColumnRangeFree(row, startColumn, jrBlock.span)) {
+      shiftColumnsFrom(startColumn, jrBlock.span + 1);
+      startColumn = getPlacementRightColumn(placements.get(producer.id)) + 2;
+    }
+
+    const placement = {
+      block: jrBlock, row, col: startColumn, span: jrBlock.span, occupiesGrid: true,
+      placementMode: "inline-ungrounded-jr", hostProducerId: producer.id,
+      hostConsumerId: successor?.id || null,
+    };
+
+    if (successorPlacement) {
+      placement.mergeTargetId = successor.id;
+      placement.mergeTargetRow = successorPlacement.row;
+      placement.mergeNet = jrBlock.netOut;
+    }
+
+    placements.set(jrBlock.id, placement);
+    return true;
   }
 
   function tryPlaceInlineGroundedJRPath(path, principalPath) {
@@ -199,7 +310,23 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
     let column = startColumn;
 
     for (const block of sequence) {
-      placements.set(block.id, { block, row, col: column, span: block.span, occupiesGrid: true });
+      const reversed = block.inlineReversed === true || block.reverseForBoundary === true;
+
+      for (const element of block.elements) {
+        element.electricalDirection = reversed ? -1 : 1;
+        element.layoutReversed = reversed;
+        element.inlineReversed = block.inlineReversed === true;
+      }
+
+      placements.set(block.id, {
+        block,
+        row,
+        col: column,
+        span: block.span,
+        occupiesGrid: true,
+        inlineReversed: block.inlineReversed === true,
+      });
+
       column += block.span + 1;
     }
 
@@ -237,9 +364,13 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
       const segmentSpan = getPathSpan(segment);
 
       if (fixedRow === null) {
-        fixedRow = principalPath
-          ? predecessorPlacement?.row ?? inputTerminal?.row ?? getNextPrincipalRow()
-          : getNextPrincipalRow();
+        const continuesThroughUngroundedJR = Boolean(predecessorPlacement && segment.some(isUngroundedJRBlock));
+
+        fixedRow = continuesThroughUngroundedJR
+          ? predecessorPlacement.row
+          : principalPath
+            ? predecessorPlacement?.row ?? inputTerminal?.row ?? getNextPrincipalRow()
+            : getNextPrincipalRow();
       }
 
       const row = fixedRow;
@@ -292,8 +423,8 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
     placePathSegments(principalPath, inputNet, true);
 
     for (const branchPath of paths) {
-      if (branchPath === principalPath) { continue; }
-      if (tryPlaceInlineGroundedJRPath(branchPath, principalPath)) { continue; }
+      if (branchPath === principalPath) continue;
+      if (tryPlaceInlineGroundedJRPath(branchPath, principalPath)) continue;
       placePathSegments(branchPath, inputNet, false);
     }
   }
