@@ -529,14 +529,16 @@ function addNetTooltip(element, net) {
 }
 
 function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
-  const reversed = current.inlineReversed === true || current.layoutReversed === true || Number(current.electricalDirection) < 0;
+  const grounded = isGroundNet(current.net_out);
+  const reversed = !grounded && (current.inlineReversed === true || current.layoutReversed === true || Number(current.electricalDirection) < 0);
 
   current.electricalDirection = next.electricalDirection = reversed ? -1 : 1;
-  current.forcedRotation = reversed ? 270 : 90;
-  next.forcedRotation = reversed ? 180 : 0;
 
   const geometry = getJJPairGeometry(current, next, 25);
   const layoutInstance = getLayoutInstance(current);
+
+  current.forcedRotation = grounded ? 0 : reversed ? 270 : 90;
+  next.forcedRotation = grounded ? 90 : reversed ? 180 : 0;
 
   drawComponent(componentLayer, current);
   drawComponent(componentLayer, next, current.value);
@@ -549,97 +551,53 @@ function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
     const resistorPath = `${(current.path || "").split("|")[0]}|R${(current.pid || "").match(/\d+/)?.[0] || ""}`;
 
     drawComponentValueText(labelLayer, current.path, current.x, current.y, {
-      size: drawConfig.componentValueFontSize,
-      fill: "#7c2d12",
-      className: "jj-pathname",
+      size: drawConfig.componentValueFontSize, fill: "#7c2d12", className: "jj-pathname",
     });
 
     drawComponentValueText(labelLayer, resistorPath, next.x, next.y, {
-      size: drawConfig.componentValueFontSize,
-      fill: "#7c2d12",
-      className: "jj-pathname",
+      size: drawConfig.componentValueFontSize, fill: "#7c2d12", className: "jj-pathname",
     });
 
     drawComponentValueText(labelLayer, value, centerX, centerY, {
-      size: drawConfig.jrValueFontSize,
-      weight: "700",
-      fill: "#7c2d12",
-      background: "#f8fafc",
-      backgroundWidth: 4,
-      className: "jr-jj-value",
+      size: drawConfig.jrValueFontSize, weight: "700", fill: "#7c2d12",
+      background: "#f8fafc", backgroundWidth: 4, className: "jr-jj-value",
     });
   }
 
   drawLine(wireLayer, labelLayer, current, geometry.jjTop, geometry.topAtJJ, {
-    net: current.net_in,
-    layoutInstance,
-    kind: "jr-input",
+    net: current.net_in, layoutInstance, kind: "jr-input",
   });
 
   drawLine(wireLayer, labelLayer, current, geometry.topAtJJ, geometry.topAtResistor, {
-    net: current.net_in,
-    layoutInstance,
-    kind: "jr-input",
+    net: current.net_in, layoutInstance, kind: "jr-input",
   });
 
   drawLine(wireLayer, labelLayer, current, geometry.topAtResistor, geometry.resistorTop, {
-    net: current.net_in,
-    layoutInstance,
-    kind: "jr-input",
+    net: current.net_in, layoutInstance, kind: "jr-input",
   });
 
   drawLabel(labelLayer, current.net_in, geometry.topMiddle.x, geometry.topMiddle.y, {
-    net: current.net_in,
-    layoutInstance,
-    size: "8.5px",
-    fill: "#334155",
+    net: current.net_in, layoutInstance, size: "8.5px", fill: "#334155",
   });
 
   drawLine(wireLayer, labelLayer, current, geometry.jjBottom, geometry.bottomAtJJ, {
-    net: current.net_out,
-    layoutInstance,
-    kind: "jr-output",
+    net: current.net_out, layoutInstance, kind: "jr-output",
   });
 
   drawLine(wireLayer, labelLayer, current, geometry.bottomAtJJ, geometry.bottomAtResistor, {
-    net: current.net_out,
-    layoutInstance,
-    kind: "jr-output",
+    net: current.net_out, layoutInstance, kind: "jr-output",
   });
 
   drawLine(wireLayer, labelLayer, current, geometry.bottomAtResistor, geometry.resistorBottom, {
-    net: current.net_out,
-    layoutInstance,
-    kind: "jr-output",
+    net: current.net_out, layoutInstance, kind: "jr-output",
   });
 
-  if (current.net_out === "GND!") {
-    drawGNDStub(
-      wireLayer,
-      labelLayer,
-      current,
-      componentLayer,
-      geometry.bottomMiddle.x,
-      geometry.bottomMiddle.y
-    );
+  if (grounded) {
+    drawGNDStub(wireLayer, labelLayer, current, componentLayer, geometry.bottomMiddle.x, geometry.bottomMiddle.y);
   }
 
   drawLabel(labelLayer, current.net_out, geometry.bottomMiddle.x, geometry.bottomMiddle.y, {
-    net: current.net_out,
-    layoutInstance,
-    size: "8.5px",
-    fill: "#334155",
-  });
-
-
-  console.log("Drawing JR pair", {
-    id: current.id,
-    netIn: current.net_in,
-    netOut: current.net_out,
-    electricalDirection: current.electricalDirection,
-    layoutReversed: current.layoutReversed,
-    inlineReversed: current.inlineReversed,
-    forcedRotation: current.forcedRotation,
+    net: current.net_out, layoutInstance, size: "8.5px", fill: "#334155",
   });
 }
 
