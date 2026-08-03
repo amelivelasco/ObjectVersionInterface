@@ -724,35 +724,43 @@ function getOutwardSignPoint(componentCenter, terminalPoint, offset = 10) {
 }
 
 function drawPolarityForComponent(labelLayer, component, positiveSide) {
-  if (!labelLayer || !component?.sideA || !component?.sideB) { return; }
+  if (!labelLayer || !component?.sideA || !component?.sideB) return;
 
   if (component.kind === "jr-pair") {
     const sideAIsGround = isGroundNet(component.sideA.net), sideBIsGround = isGroundNet(component.sideB.net);
-    if (sideAIsGround && !sideBIsGround) { positiveSide = component.sideB; }
-    else if (sideBIsGround && !sideAIsGround) { positiveSide = component.sideA; }
+    if (sideAIsGround && !sideBIsGround) positiveSide = component.sideB;
+    else if (sideBIsGround && !sideAIsGround) positiveSide = component.sideA;
   }
 
-  if (!positiveSide) { return; }
+  if (!positiveSide) return;
 
   const negativeSide = positiveSide === component.sideA ? component.sideB : component.sideA;
 
   if (component.kind === "jr-pair") {
     const { jj, resistor, geometry } = component;
     const halfSize = drawConfig.imageSize / 2, offset = 9;
-    const sideAIsPositive = positiveSide === component.sideA;
-    const sideASign = sideAIsPositive ? "+" : "−", sideBSign = sideAIsPositive ? "−" : "+";
+    const sideASign = positiveSide === component.sideA ? "+" : "−";
+    const sideBSign = positiveSide === component.sideA ? "−" : "+";
     const horizontal = geometry?.orientation === "horizontal" || jj.jrRotated || resistor.jrRotated;
 
     if (horizontal) {
-      drawPolaritySign(labelLayer, sideASign, { x: jj.x - halfSize - offset, y: jj.y }, "jj-polarity-left");
-      drawPolaritySign(labelLayer, sideBSign, { x: jj.x + halfSize + offset, y: jj.y }, "jj-polarity-right");
-      drawPolaritySign(labelLayer, sideASign, { x: resistor.x - halfSize - offset, y: resistor.y }, "resistor-polarity-left");
-      drawPolaritySign(labelLayer, sideBSign, { x: resistor.x + halfSize + offset, y: resistor.y }, "resistor-polarity-right");
+      const sideAOnLeft = component.sideA.point.x <= component.sideB.point.x;
+      const leftSign = sideAOnLeft ? sideASign : sideBSign;
+      const rightSign = sideAOnLeft ? sideBSign : sideASign;
+
+      drawPolaritySign(labelLayer, leftSign, { x: jj.x - halfSize - offset, y: jj.y }, "jj-polarity-left");
+      drawPolaritySign(labelLayer, rightSign, { x: jj.x + halfSize + offset, y: jj.y }, "jj-polarity-right");
+      drawPolaritySign(labelLayer, leftSign, { x: resistor.x - halfSize - offset, y: resistor.y }, "resistor-polarity-left");
+      drawPolaritySign(labelLayer, rightSign, { x: resistor.x + halfSize + offset, y: resistor.y }, "resistor-polarity-right");
     } else {
-      drawPolaritySign(labelLayer, sideASign, { x: jj.x, y: jj.y - halfSize - offset }, "jj-polarity-top");
-      drawPolaritySign(labelLayer, sideBSign, { x: jj.x, y: jj.y + halfSize + offset }, "jj-polarity-bottom");
-      drawPolaritySign(labelLayer, sideASign, { x: resistor.x, y: resistor.y - halfSize - offset }, "resistor-polarity-top");
-      drawPolaritySign(labelLayer, sideBSign, { x: resistor.x, y: resistor.y + halfSize + offset }, "resistor-polarity-bottom");
+      const sideAOnTop = component.sideA.point.y <= component.sideB.point.y;
+      const topSign = sideAOnTop ? sideASign : sideBSign;
+      const bottomSign = sideAOnTop ? sideBSign : sideASign;
+
+      drawPolaritySign(labelLayer, topSign, { x: jj.x, y: jj.y - halfSize - offset }, "jj-polarity-top");
+      drawPolaritySign(labelLayer, bottomSign, { x: jj.x, y: jj.y + halfSize + offset }, "jj-polarity-bottom");
+      drawPolaritySign(labelLayer, topSign, { x: resistor.x, y: resistor.y - halfSize - offset }, "resistor-polarity-top");
+      drawPolaritySign(labelLayer, bottomSign, { x: resistor.x, y: resistor.y + halfSize + offset }, "resistor-polarity-bottom");
     }
 
     return;
