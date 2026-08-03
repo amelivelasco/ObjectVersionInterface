@@ -190,11 +190,12 @@ function drawComponent(layer, element, jjval = -1) {
   const title = createSvgElement("title");
   const isResistor = componentType === "R";
   const resistorNumber = (element.pid || "").match(/\d+/)?.[0] || "";
+  const resistorPath = `${(element.path || "").split("|")[0]}|R${(element.pid || "").match(/\d+/)?.[0] || ""}`;
 
   title.textContent = [
     `type=${element.type?.[0] || ""}`,
     `pid=${isResistor ? `R${resistorNumber}` : element.pid || ""}`,
-    `path=${isResistor ? `${(element.path || "").split("/")[0]}/R${resistorNumber}` : element.path || ""}`,
+    `path=${isResistor ? resistorPath: element.path || ""}`,
     `net_in=${element.net_in || ""}`,
     `net_out=${element.net_out || ""}`,
     `value=${formatComponentValue(element, isResistor ? jjval : undefined)}`,
