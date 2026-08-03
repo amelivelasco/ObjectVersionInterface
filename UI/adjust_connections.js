@@ -56,7 +56,7 @@ function findShortestOrthogonalRoute(start, end, obstacleBoxes, routedSegments, 
       if (existing.net && net && existing.net === net) { return false; }
 
       return axisAlignedSegmentsIntersect(candidate, existing) ||
-        segmentsWithinClearance(candidate, existing, 3);
+        segmentsWithinClearance(candidate, existing, 10);
     });
 
     return !hitsAnotherNet;

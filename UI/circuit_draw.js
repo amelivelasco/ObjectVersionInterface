@@ -99,9 +99,9 @@ function drawLabel(labelLayer, text, x, y, options = {}) {
   return label;
 }
 
-function formatComponentValue(element) {
-  const raw = element?.value;
-  if (raw === null || raw === undefined || raw === "") return "";
+function formatComponentValue(element, overrideValue) {
+  const raw = overrideValue !== undefined ? overrideValue : element?.value;
+  if (raw === null || raw === undefined || raw === "" || raw === -1) return "";
 
   const text = String(raw).trim();
   if (!text || ["none", "null"].includes(text.toLowerCase())) return "";
@@ -110,8 +110,9 @@ function formatComponentValue(element) {
   const format = value => Number(Number(value).toFixed(2)).toString();
 
   if (type === "L") {
-    if (/p$/i.test(text)) return `${format(text.slice(0, -1))} pH`;
-    if (/n$/i.test(text)) return `${format(text.slice(0, -1))} nH`;
+    if (/p(?:h)?$/i.test(text)) return `${format(text.replace(/p(?:h)?$/i, ""))} pH`;
+    if (/n(?:h)?$/i.test(text)) return `${format(text.replace(/n(?:h)?$/i, ""))} nH`;
+    if (/µh$/i.test(text)) return `${format(text.replace(/µh$/i, ""))} µH`;
     if (/[a-zA-Zµ]$/.test(text)) return text;
 
     const value = Number(text);
@@ -119,10 +120,11 @@ function formatComponentValue(element) {
     return `${format(Math.abs(value) < 1e-6 ? value * 1e12 : value)} pH`;
   }
 
-  if (type === "JJ" || type === "IB") {
-    if (/u$/i.test(text)) return `${format(text.slice(0, -1))} µA`;
+  if (["R", "JJ", "IB"].includes(type)) {
+    if (/u(?:a)?$/i.test(text)) return `${format(text.replace(/u(?:a)?$/i, ""))} µA`;
     if (/µa$/i.test(text)) return `${format(text.replace(/µa$/i, ""))} µA`;
-    if (/[a-zA-Zµ]$/.test(text)) return text;
+    if (/ma$/i.test(text)) return `${format(text.replace(/ma$/i, ""))} mA`;
+    if (/a$/i.test(text)) return `${format(text.replace(/a$/i, ""))} A`;
 
     const value = Number(text);
     if (!Number.isFinite(value)) return text;
@@ -188,28 +190,17 @@ function drawComponent(layer, element, jjval = -1) {
   }
 
   const title = createSvgElement("title");
+  const isResistor = componentType === "R";
+  const resistorNumber = (element.pid || "").match(/\d+/)?.[0] || "";
 
-  if (element.type[0].toLowerCase() === "r") {
-    title.textContent = [
-      `type=${element.type[0]}`,
-      `pid=${"R" + (element.pid || "").match(/\d+/)?.[0] || ""}`,
-      `path=${(element.path || "").split("/")[0]}/R${(element.pid || "").match(/\d+/)?.[0] || ""}`,
-      `net_in=${element.net_in || ""}`,
-      `net_out=${element.net_out || ""}`,
-      `value=${jjval}`,
-    ].join("\n");
-  }
-
-  else {
-    title.textContent = [
-      `type=${element.type[0]}`,
-      `pid=${element.pid || ""}`,
-      `path=${element.path || ""}`,
-      `net_in=${element.net_in || ""}`,
-      `net_out=${element.net_out || ""}`,
-      `value=${element.value || ""}`,
-    ].join("\n");
-  }
+  title.textContent = [
+    `type=${element.type?.[0] || ""}`,
+    `pid=${isResistor ? `R${resistorNumber}` : element.pid || ""}`,
+    `path=${isResistor ? `${(element.path || "").split("/")[0]}/R${resistorNumber}` : element.path || ""}`,
+    `net_in=${element.net_in || ""}`,
+    `net_out=${element.net_out || ""}`,
+    `value=${formatComponentValue(element, isResistor ? jjval : undefined)}`,
+  ].join("\n");
 
   g.appendChild(title);
 
