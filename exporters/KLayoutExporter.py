@@ -665,6 +665,44 @@ class KLayoutExporter(BaseExporter):
 
         # Keep the label globally horizontal.
         return pya.Trans(closest_resistor_center)
+    
+    def has_parallel_jj(self, elem):
+        elem_nets = {str(getattr(elem, "net_in", "")), str(getattr(elem, "net_out", ""))}
+        if "" in elem_nets or len(elem_nets) != 2: return False
+
+        def walk(cell):
+            for other in cell.instances:
+                if hasattr(other, "instances") and other.instances: yield from walk(other)
+                else: yield other
+
+        return any(other is not elem and getattr(other, "type", None) == "JJ" and elem_nets == {str(getattr(other, "net_in", "")), str(getattr(other, "net_out", ""))} for other in walk(self.circuit.TOP))
+
+
+    def get_main_r2_center_trans(self, elem, layer_number=3, datatype=0):
+        layout_inst, global_trans = getattr(elem, "KLayoutInstance", None), getattr(elem, "global_trans", None)
+        if layout_inst is None or global_trans is None: return None
+
+        r2_layer, candidates = self.layout.layer(layer_number, datatype), []
+
+        def add_bbox(bbox, trans):
+            if bbox.empty(): return
+            points = [trans * pya.Point(bbox.left, bbox.bottom), trans * pya.Point(bbox.right, bbox.bottom), trans * pya.Point(bbox.left, bbox.top), trans * pya.Point(bbox.right, bbox.top)]
+            left, right = min(point.x for point in points), max(point.x for point in points)
+            bottom, top = min(point.y for point in points), max(point.y for point in points)
+            candidates.append(((right - left) * (top - bottom), pya.Point((left + right) // 2, (bottom + top) // 2)))
+
+        def walk(cell, trans):
+            for shape in cell.shapes(r2_layer).each(): add_bbox(shape.bbox(), trans)
+            for child in cell.each_inst(): walk(child.cell, trans * child.trans)
+
+        walk(layout_inst.cell, global_trans)
+        if not candidates:
+            print(f"WARNING: no recursive R2 geometry found for {elem.name}")
+            return None
+
+        area, center = max(candidates, key=lambda candidate: candidate[0])
+        print(f"{elem.name}: R2 center=({center.x}, {center.y}), area={area}")
+        return pya.Trans(center)
         
     def write_cell_names(self):
         """Écrit les noms des composants dans la cellule supérieure sur le layer 52/0."""
@@ -726,16 +764,14 @@ class KLayoutExporter(BaseExporter):
                     inst.global_trans = global_trans
 
                 elif inst_type == "R":
-                    res_length = int(((inst.R * 10) / 2) * 1000 + 1000)
-                    port_res = f"P{inst.name} M2 R2"
-
-                    self.insert_managed_text(
-                        text=port_res,
-                        text_trans=global_trans * pya.Trans(pya.Point(0, res_length)),
-                        label_layer=self.label_layer,
-                    )
-
                     inst.global_trans = global_trans
+                    port_res = f"P{inst.name} M2 R2"
+                    res_length = int(((inst.R * 10) / 2) * 1000 + 1000)
+                    default_trans = global_trans * pya.Trans(pya.Point(0, res_length))
+                    parallel_jj = self.has_parallel_jj(inst)
+                    label_trans = default_trans if parallel_jj else self.get_main_r2_center_trans(inst, 3, 0) or default_trans
+                    self.insert_managed_text(text=port_res, text_trans=label_trans, label_layer=self.label_layer)
+                    print(f"{inst.name}: parallel_jj={parallel_jj}, final_label=({label_trans.disp.x}, {label_trans.disp.y})")
 
                 elif inst_type == "L":
                     inst.global_trans = global_trans

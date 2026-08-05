@@ -16,10 +16,22 @@ def main():
         / "BasicCellsHomemade_MultiplexerAmeli.sp"
     )
     
+    layout_path = (
+        base_dir 
+        / "test_files" 
+        / "MultiplexerAmeli.custom_compiler.gds"
+    )
+
     # netlist_path = (
     #     base_dir
     #     / "Splitter" / "Splitter"
     #     / "Netlist.sp"
+    # )
+
+    # layout_path = (
+    #     base_dir
+    #     / "Splitter" / "Splitter"
+    #     / "Layout.gds"
     # )
     
     # netlist_path = (
@@ -32,23 +44,19 @@ def main():
     #     base_dir / "NDROMDrivers"
     #     / "NDROMDrivers.custom_compiler.gds"
     # )
-    
-    layout_path = (
-        base_dir 
-        / "test_files" 
-        / "MultiplexerAmeli.custom_compiler.gds"
-    )
-    
-    # layout_path = (
+
+    # netlist_path = (
     #     base_dir
-    #     / "Splitter" / "Splitter"
-    #     / "Layout.gds"
+    #     / "VFHalf"
+    #     / "LayoutDone_VFHalf.sp"
     # )
     
     # layout_path = (
     #     base_dir 
-    #     / "BIG_Cellname_New.gds"
+    #     / "VFHalf" 
+    #     / "VFHalf.custom_compiler.gds"
     # )
+    
     
     
 
