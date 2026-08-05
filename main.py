@@ -5,6 +5,27 @@ from UI.main_page import Schematic
 from exporters.KLayoutExporter import KLayoutExporter
 from exporters.InductexExporter import InductexExporter
 from parser.cdl_parser import CDLParser
+import os
+import subprocess
+
+
+def show_file_in_vscode(file_path: Path):
+    file_path = file_path.resolve()
+
+    try:
+        if os.name == "nt":
+            subprocess.Popen(
+                ["cmd", "/c", "code", "--reuse-window", str(file_path)],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+        else:
+            subprocess.Popen(
+                ["code", "--reuse-window", str(file_path)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+    except OSError as error:
+        print(f"Could not open generated file in VS Code: {error}")
 
 
 def main():
@@ -12,53 +33,63 @@ def main():
 
     netlist_path = (
         base_dir
+        / "Circuit_Projects"
         / "MultiplexerAmeli"
         / "BasicCellsHomemade_MultiplexerAmeli.sp"
     )
        
     layout_path = (
         base_dir 
+        / "Circuit_Projects"
         / "MultiplexerAmeli"
         / "MultiplexerAmeli.custom_compiler.gds"
     )
 
     # netlist_path = (
     #     base_dir
+    #     / "Circuit_Projects"
     #     / "Splitter" / "Splitter"
     #     / "Netlist.sp"
     # )
 
     # layout_path = (
     #     base_dir
+    #     / "Circuit_Projects"
     #     / "Splitter" / "Splitter"
     #     / "Layout.gds"
     # )
     
-    netlist_path = (
-        base_dir
-        / "NDROMDrivers"
-        / "Netlist.sp"
-    )
-
-    layout_path = (
-        base_dir / "NDROMDrivers"
-        / "NDROMDrivers.custom_compiler.gds"
-    )
-
     # netlist_path = (
     #     base_dir
-    #     / "VFHalf"
-    #     / "LayoutDone_VFHalf.sp"
+    #     / "Circuit_Projects"
+    #     / "NDROMDrivers"
+    #     / "Netlist.sp"
     # )
-    
+
     # layout_path = (
     #     base_dir 
-    #     / "VFHalf" 
-    #     / "VFHalf.custom_compiler.gds"
+    #     / "Circuit_Projects"
+    #     / "NDROMDrivers"
+    #     / "NDROMDrivers.custom_compiler.gds"
     # )
+
+    netlist_path = (
+        base_dir
+        / "Circuit_Projects"
+        / "VFHalf"
+        / "LayoutDone_VFHalf.sp"
+    )
+    
+    layout_path = (
+        base_dir 
+        / "Circuit_Projects"
+        / "VFHalf" 
+        / "VFHalf.custom_compiler.gds"
+    )
 
     # netlist_path = (
     #     base_dir
+    #     / "Circuit_Projects"
     #     / "NDROMDrivers 1 (1)"
     #     / "NDROMDrivers"
     #     / "LayoutDone_NDROMDrivers.sp"
@@ -66,6 +97,7 @@ def main():
     
     # layout_path = (
     #     base_dir 
+    #     / "Circuit_Projects"
     #     / "NDROMDrivers 1 (1)" 
     #     / "NDROMDrivers"
     #     / "NDROMDrivers.custom_compiler.gds"
@@ -160,6 +192,8 @@ def main():
 
     if not generated_cir_path.exists():
         raise RuntimeError(f"InductEx file was not generated: {generated_cir_path}")
+
+    show_file_in_vscode(generated_cir_path)
 
     cir_content = generated_cir_path.read_text(encoding="utf-8")
 

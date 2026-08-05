@@ -5,7 +5,7 @@ __pycache__/
 *.pyd
 .Python
 
-Datafolder/**/*.cir 
+*.cir 
 Datafolder/**/*.gds
 
 BasicCellsHomemade_MultiplexerAmeli.sp
