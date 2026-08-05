@@ -1,6 +1,7 @@
 from Hierarchy.node import Node
 import os
 from datetime import datetime
+from pathlib import Path
 
 from exporters.BaseExporter import BaseExporter
 
@@ -395,7 +396,7 @@ class InductexExporter(BaseExporter):
             f"{'Pdc':<10} {new_node.GlobalName:<15} 0",
         ]
 
-    def export_complete_cir(self, klayout_exporter=None):
+    def export_complete_cir(self, klayout_exporter=None, output_path=None):
         self.renum_top()
         self.attach_elements_to_nodes()
 
@@ -407,26 +408,35 @@ class InductexExporter(BaseExporter):
             klayout_exporter.output_dir = self.output_dir
             auto_ground_lines = klayout_exporter.mark_single_connection_nodes_in_layout() or []
 
-        output_path = os.path.join(self.output_dir, "BIG_Cell_inductex.cir")
-        os.makedirs(self.output_dir, exist_ok=True)
+        if output_path is None:
+            output_path = Path(self.output_dir) / "BIG_Cell_inductex.cir"
+        else:
+            output_path = Path(output_path)
 
-        with open(output_path, "w", encoding="utf-8", newline="\n") as file:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with output_path.open("w", encoding="utf-8", newline="\n") as file:
             file.write("* === TRANSLATED CIRCUIT CONNECTIONS ===\n")
-            for line in translated_lines: file.write(line.rstrip() + "\n")
+
+            for line in translated_lines:
+                file.write(line.rstrip() + "\n")
 
             if dc_lines:
                 file.write("\n* === DC CONNECTIONS ===\n")
-                for line in dc_lines: file.write(line.rstrip() + "\n")
+                for line in dc_lines:
+                    file.write(line.rstrip() + "\n")
 
             if auto_ground_lines:
                 file.write("\n* === AUTO-GROUNDED TOP PORTS ===\n")
-                for line in auto_ground_lines: file.write(line.rstrip() + "\n")
+                for line in auto_ground_lines:
+                    file.write(line.rstrip() + "\n")
 
-        print(f"Complete InductEx file written: {output_path}")
+        print(f"Complete InductEx file written: {output_path.resolve()}")
         print(f"Translated lines: {len(translated_lines)}")
         print(f"DC lines: {len(dc_lines)}")
         print(f"Auto-ground lines: {len(auto_ground_lines)}")
-        return output_path
+
+        return str(output_path.resolve())
 
     def _walk_node(self, cell):
         for elem in cell.instances:

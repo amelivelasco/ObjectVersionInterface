@@ -88,9 +88,16 @@ def main():
  
     # Always use this exact output location.
     datafolder = base_dir / "Datafolder"
-    output_dir = datafolder / "BIG_Cell"
+    # Create a folder with the same base name as the active .sp file.
+    output_dir = netlist_path.parent / netlist_path.stem
     output_dir.mkdir(parents=True, exist_ok=True)
-    latest_cir_path = output_dir / "BIG_Cell_inductex.cir"
+
+    # Create a distinct .cir file on every execution.
+    run_timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
+    cir_output_path = output_dir / f"BIG_Cell_inductex_{run_timestamp}.cir"
+
+    print("InductEx circuit folder:", output_dir.resolve())
+    print("New InductEx file:", cir_output_path.resolve())
 
     # Remove every stale copy so there is only one current .cir file.
     if datafolder.exists():
@@ -132,12 +139,22 @@ def main():
     klayout_exp.write_cell_names()
 
     # 6. Generate the complete translated .cir file exactly once.
-    generated_cir_path = Path(inductex_exp.export_complete_cir(klayout_exp)).resolve()
+    generated_cir_path = Path(
+        inductex_exp.export_complete_cir(
+            klayout_exporter=klayout_exp,
+            output_path=cir_output_path,
+        )
+    ).resolve()
 
     # Force the generated result into the one official output path.
-    if generated_cir_path != latest_cir_path.resolve():
-        latest_cir_path.write_bytes(generated_cir_path.read_bytes())
-        generated_cir_path = latest_cir_path.resolve()
+    if generated_cir_path != cir_output_path.resolve():
+        raise RuntimeError(
+            f"The .cir file was generated in the wrong location.\n"
+            f"Expected: {cir_output_path.resolve()}\n"
+            f"Actual: {generated_cir_path}"
+        )
+
+    print("New InductEx run saved at:", generated_cir_path)
 
     if not generated_cir_path.exists():
         raise RuntimeError(f"InductEx file was not generated: {generated_cir_path}")
