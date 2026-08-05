@@ -1,6 +1,6 @@
 window.circuitData = {
   "name": "BasicCellsHomemade_MultiplexerAmeli",
-  "generated_at": "2026-08-05T10:29:07.373928+00:00",
+  "generated_at": "2026-08-05T12:19:53.505267+00:00",
   "nodes": [
     {
       "id": "I0|net4",

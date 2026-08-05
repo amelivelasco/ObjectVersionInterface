@@ -11,6 +11,17 @@ class InductexExporter(BaseExporter):
         self.counter_node = 0
         self.list_nodes_top = circuit.list_nodes_top
         self.output_dir = ""
+
+    @staticmethod
+    def format_cir_value(value):
+        if value is None: return ""
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return str(value).strip()
+
+        text = format(number, ".15g")
+        return "0" if text in {"-0", "-0.0"} else text
         
         
     def list_top_nodes(self,cell):
@@ -91,42 +102,28 @@ class InductexExporter(BaseExporter):
                 f"{elem.name:<10} "
                 f"{elem.net_in.GlobalName:<15} "
                 f"{elem.net_out.GlobalName:<15} "
-                f"{elem.L}"
+                f"{self.format_cir_value(elem.L)}"
             )
 
 
         def emit_jj(elem):
-            """
-            Format demandé :
-
-            Jname net_in additional_net Jvalue
-            Prb(Jname) net_in second_additional_net
-            Lj(Jname) additional_net net_out
-            Rs(Jname) second_additional_net net_out
-            """
-
             jname = elem.name
             prb_name = "Prb" + jname[1:]
-            lj_name  = "Lj"  + jname[1:]
-            rs_name  = "Rs"  + jname[1:]
+            lj_name = "Lj" + jname[1:]
+            rs_name = "Rs" + jname[1:]
             lp_net = elem.net_out
-            W_NAME = 10   # make a constant for this
-            W_NET = 15
-
+            W_NAME, W_NET = 10, 15
+            jj_value = self.format_cir_value(elem.Ic)
 
             if str(elem.net_out.GlobalName) == "0":
-
                 lp_net = new_internal_node()
                 lp_name = "Lp" + jname[1:]
-                lp_value = "0.4"   # valeur parasite (à ajuster si besoin)
+                lp_value = self.format_cir_value(0.4)
 
-                # Connexions logiques (affichage)
                 lp_net.connected_elements.append(jname)
                 lp_net.connected_elements.append(elem.net_out.GlobalName)
-
                 elem.listAdditionalNode.append(lp_net)
 
-                # Ligne InductEx : inductance parasite vers ground
                 lines.append(
                     f"{lp_name:<{W_NAME}} "
                     f"{lp_net.GlobalName:<{W_NET}} "
@@ -134,48 +131,41 @@ class InductexExporter(BaseExporter):
                     f"{lp_value}"
                 )
 
-
-
             additional_net = new_internal_node()
             second_additional_net = new_internal_node()
-            
+
             additional_net.connected_elements.append(jname)
             additional_net.connected_elements.append(lj_name)
-
             second_additional_net.connected_elements.append(prb_name)
             second_additional_net.connected_elements.append(rs_name)
 
             elem.listAdditionalNode.append(additional_net)
             elem.listAdditionalNode.append(second_additional_net)
 
-
-            # ===================================================
-            # AJOUT DE L'INDUCTANCE PARASITE SI net_out == GROUND
-            # ===================================================
-
             lines.append(
                 f"{jname:<{W_NAME}} "
                 f"{elem.net_in.GlobalName:<{W_NET}} "
                 f"{additional_net.GlobalName:<{W_NET}} "
-                f"{elem.Ic}"
+                f"{jj_value}"
             )
 
             lines.append(
-                f"{'Prb' + jname[1:]:<{W_NAME}} "
+                f"{prb_name:<{W_NAME}} "
                 f"{elem.net_in.GlobalName:<{W_NET}} "
                 f"{second_additional_net.GlobalName:<{W_NET}}"
             )
 
             lines.append(
-                f"{'Lj' + jname[1:]:<{W_NAME}} "
+                f"{lj_name:<{W_NAME}} "
                 f"{additional_net.GlobalName:<{W_NET}} "
                 f"{lp_net.GlobalName:<{W_NET}}"
             )
 
             lines.append(
-                f"{'Rs' + jname[1:]:<{W_NAME}} "
+                f"{rs_name:<{W_NAME}} "
                 f"{second_additional_net.GlobalName:<{W_NET}} "
-                f"{lp_net.GlobalName:<{W_NET}}"
+                f"{lp_net.GlobalName:<{W_NET}} "
+                f"{jj_value}"
             )
 
 
@@ -201,8 +191,7 @@ class InductexExporter(BaseExporter):
             W_NAME = 10
             W_NET = 15
 
-
-            rib_value = 2600 / elem.Ib
+            rib_value = f"{2600 / elem.Ib:.4f}".rstrip("0").rstrip(".")
 
             lines.append(
                 f"{ib_port_name:<{W_NAME}} "
@@ -254,7 +243,7 @@ class InductexExporter(BaseExporter):
                 f"{rname:<{W_NAME}} "
                 f"{additional_net.GlobalName:<{W_NET}} "
                 f"{elem.net_out.GlobalName:<{W_NET}} "
-                f"{elem.R}"
+                f"{self.format_cir_value(elem.R)}"
             )
             
         emitters = {
@@ -262,44 +251,48 @@ class InductexExporter(BaseExporter):
             "JJ": emit_jj,
             "IB": emit_ib,
             "R": emit_r,
-                }
+        }
+
+        instance_groups = {}
+
+        def get_first_level_instance(elem):
+            raw_name = str(getattr(elem, "original_name", getattr(elem, "raw_name", elem.name)))
+
+            for prefix in ("Xpc", "Xsj", "L", "R"):
+                if raw_name.lower().startswith(prefix.lower()):
+                    raw_name = raw_name[len(prefix):]
+                    break
+
+            path_parts = raw_name.split("|")
+            return path_parts[0] if len(path_parts) > 1 else str(getattr(self.circuit.TOP, "name", "TOP"))
 
         def recursive_walk(cell):
-            """
-            Parcours récursif de ta structure logique self.TOP.
-            """
-
             for elem in cell.instances:
-                elem_type = getattr(
-                    elem,
-                    "type",
-                    None,
-                )
-
-                emitter = emitters.get(
-                    elem_type
-                )
+                emitter = emitters.get(getattr(elem, "type", None))
 
                 if emitter is not None:
-                    original_name = getattr(
-                        elem,
-                        "original_name",
-                        "<original name unavailable>",
-                    )
-
-                    print(
-                        f"NAME TRANSLATION: "
-                        f"{original_name} -> {elem.name}"
-                    )
-
+                    start_index = len(lines)
                     emitter(elem)
+                    emitted_lines = lines[start_index:]
+                    del lines[start_index:]
+
+                    instance_name = get_first_level_instance(elem)
+                    instance_groups.setdefault(instance_name, []).extend(emitted_lines)
+
+                    original_name = getattr(elem, "original_name", getattr(elem, "raw_name", elem.name))
+                    print(f"NAME TRANSLATION [{instance_name}]: {original_name} -> {elem.name}")
                     continue
 
                 if hasattr(elem, "instances"):
                     recursive_walk(elem)
 
-        # Parcours depuis TOP
         recursive_walk(self.circuit.TOP)
+
+        for instance_name, instance_lines in instance_groups.items():
+            lines.append(f"* --- INSTANCE {instance_name} ---")
+            lines.extend(instance_lines)
+            lines.append("")
+
         return lines
 
         
@@ -378,6 +371,63 @@ class InductexExporter(BaseExporter):
                 for node in self.list_nodes_top:
                     print(" ", node.name)
 
+    def build_dc_connection_lines(self):
+        def find_ib(cell):
+            for elem in cell.instances:
+                if getattr(elem, "type", None) == "IB": return elem.net_in
+                if hasattr(elem, "instances"):
+                    result = find_ib(elem)
+                    if result is not None: return result
+            return None
+
+        node_ib = find_ib(self.circuit.TOP)
+        if node_ib is None:
+            print("Warning: no IB node found; skipping Ldc/Pdc.")
+            return []
+
+        new_node = Node(str(self.counter_node))
+        new_node.GlobalName = self.counter_node
+        self.counter_node += 1
+        self.list_nodes_top.append(new_node)
+
+        return [
+            f"{'Ldc':<10} {node_ib.GlobalName:<15} {new_node.GlobalName:<15}",
+            f"{'Pdc':<10} {new_node.GlobalName:<15} 0",
+        ]
+
+    def export_complete_cir(self, klayout_exporter=None):
+        self.renum_top()
+        self.attach_elements_to_nodes()
+
+        translated_lines = self.read_inductex_file()
+        dc_lines = self.build_dc_connection_lines()
+        auto_ground_lines = []
+
+        if klayout_exporter is not None:
+            klayout_exporter.output_dir = self.output_dir
+            auto_ground_lines = klayout_exporter.mark_single_connection_nodes_in_layout() or []
+
+        output_path = os.path.join(self.output_dir, "BIG_Cell_inductex.cir")
+        os.makedirs(self.output_dir, exist_ok=True)
+
+        with open(output_path, "w", encoding="utf-8", newline="\n") as file:
+            file.write("* === TRANSLATED CIRCUIT CONNECTIONS ===\n")
+            for line in translated_lines: file.write(line.rstrip() + "\n")
+
+            if dc_lines:
+                file.write("\n* === DC CONNECTIONS ===\n")
+                for line in dc_lines: file.write(line.rstrip() + "\n")
+
+            if auto_ground_lines:
+                file.write("\n* === AUTO-GROUNDED TOP PORTS ===\n")
+                for line in auto_ground_lines: file.write(line.rstrip() + "\n")
+
+        print(f"Complete InductEx file written: {output_path}")
+        print(f"Translated lines: {len(translated_lines)}")
+        print(f"DC lines: {len(dc_lines)}")
+        print(f"Auto-ground lines: {len(auto_ground_lines)}")
+        return output_path
+
     def _walk_node(self, cell):
         for elem in cell.instances:
             # Connexion entrée
@@ -390,37 +440,6 @@ class InductexExporter(BaseExporter):
                 self._walk_node(elem)     
 
     def attach_elements_to_nodes(self):
-        """
-        Ajoute à chaque Node un attribut `connected_elements`
-        listant les éléments qui y sont connectés.
-        """
-        
+        for node in self.list_nodes_top:
+            if hasattr(node, "connected_elements"): node.connected_elements.clear()
         self._walk_node(self.circuit.TOP)
-        #self.display_node_connectivity_summary()
-        
-        def walk(cell):
-                for elem in cell.instances:
-
-                    # Cas IB trouvé
-                    if hasattr(elem, "type") and elem.type == "IB":
-                        return elem.net_in
-
-                    # Descente hiérarchique
-                    if hasattr(elem, "instances"):
-                        result = walk(elem)
-                        if result is not None:
-                            return result
-
-                return None
-
-        node_ib = walk(self.circuit.TOP)
-
-        if node_ib is None:
-            print("Warning: no IB node found in circuit, skipping IB attachment.")
-            return
-
-        new_node = Node(str(len(self.list_nodes_top)+1))
-
-        new_line = f"{'Ldc':<15} {node_ib.GlobalName:<10} {new_node.name:<10}\n{'Pdc':<15} {new_node.name:<10} 0\n"
-        with open(os.path.join(self.output_dir, "BIG_Cell_inductex.cir"), "a") as f:
-                f.write(new_line)

@@ -475,6 +475,7 @@ class KLayoutExporter(BaseExporter):
         return pya.Trans(position)
 
     def mark_single_connection_nodes_in_layout(self):
+        auto_ground_groups = {}
         label_layer, property_id = self.layout.layer(52, 0), 9001
         
         excluded_port_names = {"VDD", "GND!", "0",}
@@ -547,14 +548,30 @@ class KLayoutExporter(BaseExporter):
 
             port_name, node_name = f"P{elem.name}", str(node.GlobalName)
 
-            with open(os.path.join(self.output_dir, "BIG_Cell_inductex.cir"), "a") as file:
-                file.write("\n* --- Auto-added ground connection ---\n")
-                file.write(f"{port_name:<10} {node_name:<10} 0\n")
+            raw_name = str(getattr(elem, "original_name", getattr(elem, "raw_name", elem.name)))
+            clean_name = raw_name
+
+            for prefix in ("Xpc", "Xsj", "L", "R"):
+                if clean_name.lower().startswith(prefix.lower()):
+                    clean_name = clean_name[len(prefix):]
+                    break
+
+            parts = clean_name.split("|")
+            instance_path = "/".join(parts[:-1]) if len(parts) > 1 else str(getattr(self.circuit.TOP, "name", "TOP"))
+            auto_ground_groups.setdefault(instance_path, []).append(f"{port_name:<10} {node_name:<15} 0")
 
             print(f"Node {node.GlobalName} -> {elem.name} ==> écrit '{pname}'")
 
         # Save to the exact same GDS that was originally loaded.
+        auto_ground_lines = []
+
+        for instance_path, group_lines in auto_ground_groups.items():
+            auto_ground_lines.append(f"* --- INSTANCE {instance_path} ---")
+            auto_ground_lines.extend(dict.fromkeys(group_lines))
+            auto_ground_lines.append("")
+
         self.layout.write(str(self.layout_path))
+        return auto_ground_lines
         
     
     def insert_managed_text(
