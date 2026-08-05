@@ -12,13 +12,13 @@ def main():
 
     netlist_path = (
         base_dir
-        / "test_files"
+        / "MultiplexerAmeli"
         / "BasicCellsHomemade_MultiplexerAmeli.sp"
     )
-    
+       
     layout_path = (
         base_dir 
-        / "test_files" 
+        / "MultiplexerAmeli"
         / "MultiplexerAmeli.custom_compiler.gds"
     )
 
@@ -45,17 +45,17 @@ def main():
     #     / "NDROMDrivers.custom_compiler.gds"
     # )
 
-    netlist_path = (
-        base_dir
-        / "VFHalf"
-        / "LayoutDone_VFHalf.sp"
-    )
+    # netlist_path = (
+    #     base_dir
+    #     / "VFHalf"
+    #     / "LayoutDone_VFHalf.sp"
+    # )
     
-    layout_path = (
-        base_dir 
-        / "VFHalf" 
-        / "VFHalf.custom_compiler.gds"
-    )
+    # layout_path = (
+    #     base_dir 
+    #     / "VFHalf" 
+    #     / "VFHalf.custom_compiler.gds"
+    # )
 
     # netlist_path = (
     #     base_dir
