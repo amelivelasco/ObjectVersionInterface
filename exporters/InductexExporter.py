@@ -409,7 +409,9 @@ class InductexExporter(BaseExporter):
             auto_ground_lines = klayout_exporter.mark_single_connection_nodes_in_layout() or []
 
         if output_path is None:
-            output_path = Path(self.output_dir) / "BIG_Cell_inductex.cir"
+            base_output_dir = Path(self.output_dir)
+            inductex_dir = base_output_dir.with_name(f"{base_output_dir.name}_Inductex")
+            output_path = inductex_dir / "BIG_Cell_inductex.cir"
         else:
             output_path = Path(output_path)
 

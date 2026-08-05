@@ -45,17 +45,17 @@ def main():
     #     / "NDROMDrivers.custom_compiler.gds"
     # )
 
-    # netlist_path = (
-    #     base_dir
-    #     / "VFHalf"
-    #     / "LayoutDone_VFHalf.sp"
-    # )
+    netlist_path = (
+        base_dir
+        / "VFHalf"
+        / "LayoutDone_VFHalf.sp"
+    )
     
-    # layout_path = (
-    #     base_dir 
-    #     / "VFHalf" 
-    #     / "VFHalf.custom_compiler.gds"
-    # )
+    layout_path = (
+        base_dir 
+        / "VFHalf" 
+        / "VFHalf.custom_compiler.gds"
+    )
 
     # netlist_path = (
     #     base_dir
@@ -89,12 +89,14 @@ def main():
     # Always use this exact output location.
     datafolder = base_dir / "Datafolder"
     # Create a folder with the same base name as the active .sp file.
-    output_dir = netlist_path.parent / netlist_path.stem
+    # Create a dedicated InductEx folder beside the active .sp file.
+    output_dir = netlist_path.parent / f"{netlist_path.stem}_Inductex"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create a distinct .cir file on every execution.
+    # Create a separate .cir file for every execution.
     run_timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
     cir_output_path = output_dir / f"BIG_Cell_inductex_{run_timestamp}.cir"
+
 
     print("InductEx circuit folder:", output_dir.resolve())
     print("New InductEx file:", cir_output_path.resolve())
