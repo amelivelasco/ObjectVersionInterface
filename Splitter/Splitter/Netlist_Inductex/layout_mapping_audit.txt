@@ -1,0 +1,17 @@
+
+=== LAYOUT MAPPING AUDIT ===
+OK   | raw=XsjJ2              path=J2              pid=J2     layout_cell=jj_s_pcell_34fb device_cell=jj_s_pcell_34fb
+OK   | raw=XsjJ3              path=J3              pid=J3     layout_cell=jj_s_pcell_34fb device_cell=jj_s_pcell_34fb
+OK   | raw=XsjJ1              path=J1              pid=J1     layout_cell=jj_s_pcell_6976 device_cell=jj_s_pcell_6976
+OK   | raw=LL9                path=L9              pid=L9     layout_cell=ind2_pcell_1657 device_cell=ind2_pcell_1657
+OK   | raw=LL8                path=L8              pid=L8     layout_cell=ind2_pcell_1657 device_cell=ind2_pcell_1657
+OK   | raw=LL7                path=L7              pid=L7     layout_cell=ind2_pcell_2c0c device_cell=ind2_pcell_2c0c
+OK   | raw=LL6                path=L6              pid=L6     layout_cell=ind2_pcell_2c0c device_cell=ind2_pcell_2c0c
+OK   | raw=LL4                path=L4              pid=L4     layout_cell=ind2_pcell_4f32 device_cell=ind2_pcell_4f32
+OK   | raw=LL3                path=L3              pid=L3     layout_cell=ind2_pcell_e6bf device_cell=ind2_pcell_e6bf
+OK   | raw=XpcIB1             path=IB1             pid=IB1    layout_cell=pwrcell_pcell_802c device_cell=pwrcell_pcell_802c
+
+=== SUMMARY ===
+Total logical elements: 10
+Mapped: 10
+Unmapped: 0

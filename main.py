@@ -34,16 +34,16 @@ def main():
     #     / "Layout.gds"
     # )
     
-    # netlist_path = (
-    #     base_dir
-    #     / "NDROMDrivers"
-    #     / "Netlist.sp"
-    # )
+    netlist_path = (
+        base_dir
+        / "NDROMDrivers"
+        / "Netlist.sp"
+    )
 
-    # layout_path = (
-    #     base_dir / "NDROMDrivers"
-    #     / "NDROMDrivers.custom_compiler.gds"
-    # )
+    layout_path = (
+        base_dir / "NDROMDrivers"
+        / "NDROMDrivers.custom_compiler.gds"
+    )
 
     # netlist_path = (
     #     base_dir
