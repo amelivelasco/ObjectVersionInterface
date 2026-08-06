@@ -316,6 +316,7 @@ function drawCircuit(data) {
     placedCells,
     svg
   );
+  drawInterCellConnections(svg, externalWireLayer, placed, 14);
   drawBiasBasedPolaritySigns(labelLayer, placed );
   setupInterCellTerminalHighlights(svg);
   setupWireSelection(svg);
