@@ -396,11 +396,6 @@ function placeElementsInsideLayoutCell(cell) {
     element.electricalDirection = electricalDirection;
     element.layoutReversed = sameOutputNet;
 
-    console.log(
-      `${element.id}: previous=${previousComponent?.id || "none"}, ` +
-      `previous.net_out=${previousComponent?.net_out || "none"}, ` +
-      `net_out=${element.net_out}, reversed=${sameOutputNet}`
-    );
   }
   return placed;
 }

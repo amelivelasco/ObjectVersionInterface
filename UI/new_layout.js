@@ -66,15 +66,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
       block.netIn = block.rawNetOut;
       block.netOut = block.rawNetIn;
 
-      console.log("Reversing inline JR", {
-        id: block.primary?.id,
-        predecessor: predecessor.primary?.id,
-        sharedNet: block.rawNetOut,
-        newNetIn: block.netIn,
-        newNetOut: block.netOut,
-        normalScore,
-        reversedScore,
-      });
     }
   }
 
@@ -406,14 +397,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
 
           // Force output left and input right.
           firstBlock.inlineReversed = true;
-
-          console.log("Recovered shared-output continuation", {
-            block: firstBlock.primary?.id,
-            sharedOutput: firstBlock.rawNetOut,
-            predecessor: predecessor.primary?.id,
-            row: predecessorPlacement.row,
-            reversed: true,
-          });
         } else {
           /*
           * Normal fallback:
@@ -440,12 +423,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
             predecessor = placedProducers[0];
             predecessorPlacement = placements.get(predecessor.id);
 
-            console.log("Recovered normal input producer", {
-              block: firstBlock.primary?.id,
-              inputNet: firstBlock.netIn,
-              producer: predecessor.primary?.id,
-              row: predecessorPlacement.row,
-            });
           }
         }
       }
@@ -519,11 +496,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
         block => !placements.has(block.id)
       );
 
-      /*
-      * This path branches from a block that is already part of another chain.
-      * Do not create a new row for it here. Leave its unplaced blocks available
-      * so another terminal-net chain can claim them later.
-      */
       if (firstUnplacedIndex > 0) {
         console.log("Skipping branch from an existing chain", {
           inputNet,
@@ -677,4 +649,122 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
     columns: rightTerminalColumn + 1,
     rows: maximumRow + 1,
   };
+}
+
+
+function rotateCellInstance180(layoutInstance, placed, placedCells, svg) {
+  const cell = placedCells.find(cell => cell.layout_instance === layoutInstance || cell.id === layoutInstance);
+  if (!cell) {
+    console.warn(`Cell instance not found: ${layoutInstance}`);
+    return false;
+  }
+
+  const cellElements = placed.filter(element => getLayoutInstance(element) === layoutInstance);
+  if (!cellElements.length) {
+    console.warn(`No placed elements found for: ${layoutInstance}`);
+    return false;
+  }
+
+  const centerX = cell.x + cell.width / 2;
+
+  function mirrorGeometry(value, visited = new Set()) {
+    if (!value || typeof value !== "object" || visited.has(value)) return;
+    visited.add(value);
+
+    if (Number.isFinite(value.x)) value.x = centerX * 2 - value.x;
+
+    for (const [key, child] of Object.entries(value)) {
+      if (key === "x" || key === "image" || key === "raw") continue;
+      if (child && typeof child === "object") mirrorGeometry(child, visited);
+    }
+  }
+
+  function keepTextReadable(wrapper) {
+    const texts = [...wrapper.querySelectorAll("text")];
+
+    for (const text of texts) {
+      if (text.parentElement?.dataset?.readableMirroredText === "true") continue;
+
+      try {
+        const box = text.getBBox();
+        const textCenterX = box.x + box.width / 2;
+        const counterMirror = createSvgElement("g", {
+          transform: `matrix(-1 0 0 1 ${textCenterX * 2} 0)`,
+          "data-readable-mirrored-text": "true",
+        });
+
+        text.parentNode.insertBefore(counterMirror, text);
+        counterMirror.appendChild(text);
+      } catch {
+        // Ignore text elements without measurable SVG geometry.
+      }
+    }
+  }
+
+  const columns = cellElements.map(element => element.col).filter(Number.isFinite);
+  const orders = cellElements.map(element => element.layoutOrder).filter(Number.isFinite);
+  const minimumColumn = columns.length ? Math.min(...columns) : 0;
+  const maximumColumn = columns.length ? Math.max(...columns) : 0;
+  const minimumOrder = orders.length ? Math.min(...orders) : 0;
+  const maximumOrder = orders.length ? Math.max(...orders) : 0;
+
+  for (const element of cellElements) {
+    mirrorGeometry(element);
+
+    if (Number.isFinite(element.col)) element.col = minimumColumn + maximumColumn - element.col;
+    if (Number.isFinite(element.layoutOrder)) element.layoutOrder = minimumOrder + maximumOrder - element.layoutOrder;
+
+    const direction = Number(element.direction ?? 1);
+    const electricalDirection = Number(element.electricalDirection ?? direction);
+
+    element.direction = direction < 0 ? 1 : -1;
+    element.electricalDirection = electricalDirection < 0 ? 1 : -1;
+    element.layoutReversed = !element.layoutReversed;
+    element.cellRotated180 = !element.cellRotated180;
+
+    if (Number.isFinite(element.forcedRotation)) element.forcedRotation = (180 - element.forcedRotation + 360) % 360;
+    else element.forcedRotation = 180;
+
+    if (Number.isFinite(element.biasRotation)) element.biasRotation = (180 - element.biasRotation + 360) % 360;
+  }
+
+  for (const layer of [...svg.children].filter(child => child.tagName?.toLowerCase() === "g")) {
+    const selected = [...layer.children].filter(node => {
+      if (node.classList?.contains("layout-cell")) return false;
+      if (node.dataset?.cellRotation === layoutInstance) return false;
+
+      try {
+        const box = node.getBBox();
+        const nodeCenterX = box.x + box.width / 2;
+        const nodeCenterY = box.y + box.height / 2;
+
+        return nodeCenterX >= cell.x && nodeCenterX <= cell.x + cell.width &&
+          nodeCenterY >= cell.y && nodeCenterY <= cell.y + cell.height;
+      } catch {
+        return false;
+      }
+    });
+
+    if (!selected.length) continue;
+
+    const wrapper = createSvgElement("g", {
+      transform: `matrix(-1 0 0 1 ${centerX * 2} 0)`,
+      "data-cell-rotation": layoutInstance,
+    });
+
+    layer.insertBefore(wrapper, selected[0]);
+    for (const node of selected) wrapper.appendChild(node);
+
+    keepTextReadable(wrapper);
+  }
+
+  cell.rotated180 = !cell.rotated180;
+
+  console.log(`[CELL MIRRORED RIGHT-TO-LEFT] ${layoutInstance}`, {
+    centerX,
+    components: cellElements.length,
+    readableTitles: true,
+  });
+
+  return true;
 }

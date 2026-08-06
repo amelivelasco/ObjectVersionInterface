@@ -310,6 +310,12 @@ function drawCircuit(data) {
   drawBiasLocalConnections(internalWireLayer, labelLayer, placed);
   connectBiasStubsToInductors(internalWireLayer, labelLayer, placed);
   drawSubcircuits(placed, componentLayer, internalWireLayer, labelLayer)
+  rotateCellInstance180(
+    "I6::confluenceBufferUpgrade",
+    placed,
+    placedCells,
+    svg
+  );
   drawBiasBasedPolaritySigns(labelLayer, placed );
   setupInterCellTerminalHighlights(svg);
   setupWireSelection(svg);

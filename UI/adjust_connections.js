@@ -151,11 +151,7 @@ function findShortestOrthogonalRoute(start, end, obstacleBoxes, routedSegments, 
   }
 
   if (!goalKey) {
-    console.warn(
-        `No legal route found for ${net}`,
-        { start, end, }
-    );
-
+    console.debug(`Preferred route not found for ${net}; caller may use a fallback`, { start, end });
     return null;
   }
 
