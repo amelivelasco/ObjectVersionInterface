@@ -369,6 +369,45 @@ class KLayoutExporter(BaseExporter):
 
             for shape in to_delete:
                 shape.delete()
+
+    def get_ib_center_trans(self, inst, r2_layer_number=3, r2_datatype=0):
+        """Return the real global center of an IB resistor, with the old formula as fallback."""
+        center_trans = self.get_main_r2_center_trans(inst, r2_layer_number, r2_datatype)
+
+        if center_trans is not None:
+            print(
+                f"{inst.name}: IB label centered from R2 geometry at "
+                f"({center_trans.disp.x}, {center_trans.disp.y})"
+            )
+            return center_trans
+
+        global_trans = getattr(inst, "global_trans", None)
+        ib = float(getattr(inst, "Ib", 0) or 0)
+
+        if global_trans is None or ib <= 0:
+            print(
+                f"WARNING: cannot determine IB center for "
+                f"{getattr(inst, 'name', inst)}"
+            )
+            return None
+
+        ib_res_length = int(
+            (((2.6 * 10**6) / (ib * 10**6)) * 5 / 2)
+            * 1000000
+            + 2000
+        )
+
+        fallback = global_trans * pya.Trans(
+            pya.Point(0, ib_res_length)
+        )
+
+        print(
+            f"{inst.name}: no R2 geometry found; "
+            f"using legacy IB offset at "
+            f"({fallback.disp.x}, {fallback.disp.y})"
+        )
+
+        return fallback
                 
     def get_element_global_bounds(self, elem):
         layout_inst = getattr(elem, "KLayoutInstance", None)
@@ -769,16 +808,21 @@ class KLayoutExporter(BaseExporter):
                     inst.global_trans = global_trans
 
                 elif inst_type == "IB":
-                    ib_res_length = int(((((2.6 * 10**6) / (inst.Ib * 10**6)) * 5) / 2) * 1000000 + 2000)
+                    inst.global_trans = global_trans
                     port_ib = f"{inst.name} M3 M2"
 
-                    self.insert_managed_text(
-                        text=port_ib,
-                        text_trans=global_trans * pya.Trans(pya.Point(0, ib_res_length)),
-                        label_layer=self.label_layer,
+                    label_trans = self.get_ib_center_trans(
+                        inst,
+                        r2_layer_number=3,
+                        r2_datatype=0,
                     )
 
-                    inst.global_trans = global_trans
+                    if label_trans is not None:
+                        self.insert_managed_text(
+                            text=port_ib,
+                            text_trans=label_trans,
+                            label_layer=self.label_layer,
+                        )
 
                 elif inst_type == "R":
                     inst.global_trans = global_trans
