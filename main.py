@@ -45,6 +45,20 @@ def main():
         / "MultiplexerAmeli.custom_compiler.gds"
     )
 
+    netlist_path = (
+        base_dir
+        / "Circuit_Projects"  
+        / "NDROMWires" 
+        / "LayoutDone_NDROMDrivers.sp"
+    )
+       
+    layout_path = (
+        base_dir 
+        / "Circuit_Projects"
+        / "NDROMWires"
+        / "NDROMDrivers.custom_compiler.gds"
+    )
+
     # netlist_path = (
     #     base_dir
     #     / "Circuit_Projects"
@@ -73,19 +87,19 @@ def main():
     #     / "NDROMDrivers.custom_compiler.gds"
     # )
 
-    netlist_path = (
-        base_dir
-        / "Circuit_Projects"
-        / "VFHalf"
-        / "LayoutDone_VFHalf.sp"
-    )
+    # netlist_path = (
+    #     base_dir
+    #     / "Circuit_Projects"
+    #     / "VFHalf"
+    #     / "LayoutDone_VFHalf.sp"
+    # )
     
-    layout_path = (
-        base_dir 
-        / "Circuit_Projects"
-        / "VFHalf" 
-        / "VFHalf.custom_compiler.gds"
-    )
+    # layout_path = (
+    #     base_dir 
+    #     / "Circuit_Projects"
+    #     / "VFHalf" 
+    #     / "VFHalf.custom_compiler.gds"
+    # )
 
     # netlist_path = (
     #     base_dir
