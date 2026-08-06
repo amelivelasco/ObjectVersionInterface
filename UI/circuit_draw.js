@@ -310,12 +310,13 @@ function drawCircuit(data) {
   drawBiasLocalConnections(internalWireLayer, labelLayer, placed);
   connectBiasStubsToInductors(internalWireLayer, labelLayer, placed);
   drawSubcircuits(placed, componentLayer, internalWireLayer, labelLayer)
-  rotateCellInstance180(
-    "I0::NDROM2",
-    placed,
-    placedCells,
-    svg
-  );
+  // rotateCellInstance180(
+  //   "I0::NDROM2",
+  //   placed,
+  //   placedCells,
+  //   svg
+  // );
+  autoOrientCellsTowardSharedTerminals(placed, placedCells, svg);
   drawInterCellConnections(svg, externalWireLayer, placed, 14);
   drawBiasBasedPolaritySigns(labelLayer, placed );
   setupInterCellTerminalHighlights(svg);

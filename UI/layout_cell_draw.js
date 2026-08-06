@@ -485,3 +485,141 @@ function drawLayoutCellBoundaries(layer, placedCells) {
     layer.appendChild(group);
   }
 }
+
+function autoOrientCellsTowardSharedTerminals(placed, placedCells, svg) {
+  const cellMap = new Map(placedCells.map(cell => [cell.layout_instance || cell.id, cell]));
+  const terminalsByCell = new Map();
+
+  function addTerminal(element, net, point) {
+    net = String(net || "").trim();
+    if (!net || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y) || isGroundNet(net) || net === "VDD") return;
+
+    const cellId = getLayoutInstance(element);
+    if (!cellMap.has(cellId)) return;
+    if (!terminalsByCell.has(cellId)) terminalsByCell.set(cellId, new Map());
+
+    const terminalsByNet = terminalsByCell.get(cellId);
+    if (!terminalsByNet.has(net)) terminalsByNet.set(net, []);
+
+    terminalsByNet.get(net).push({ x: point.x, y: point.y });
+  }
+
+  for (const element of placed) {
+    if (element.inputNeedsLead && element.inputLeadPoint) addTerminal(element, element.net_in, element.inputLeadPoint);
+    if (element.outputNeedsLead && element.outputLeadPoint) addTerminal(element, element.net_out, element.outputLeadPoint);
+  }
+
+  function transformedPoint(cellId, point, mirrored) {
+    if (!mirrored) return point;
+    const cell = cellMap.get(cellId);
+    const centerX = cell.x + cell.width / 2;
+    return { x: centerX * 2 - point.x, y: point.y };
+  }
+
+  function scorePair(firstCellId, secondCellId, firstMirrored, secondMirrored) {
+    const firstNets = terminalsByCell.get(firstCellId);
+    const secondNets = terminalsByCell.get(secondCellId);
+    if (!firstNets || !secondNets) return { score: Infinity, shared: 0 };
+
+    let score = 0, shared = 0;
+
+    for (const [net, firstPoints] of firstNets) {
+      const secondPoints = secondNets.get(net);
+      if (!secondPoints?.length) continue;
+
+      let bestDistance = Infinity;
+
+      for (const firstPoint of firstPoints) {
+        const transformedFirst = transformedPoint(firstCellId, firstPoint, firstMirrored);
+
+        for (const secondPoint of secondPoints) {
+          const transformedSecond = transformedPoint(secondCellId, secondPoint, secondMirrored);
+          const distance = Math.abs(transformedFirst.x - transformedSecond.x) + Math.abs(transformedFirst.y - transformedSecond.y);
+          bestDistance = Math.min(bestDistance, distance);
+        }
+      }
+
+      if (Number.isFinite(bestDistance)) {
+        score += bestDistance;
+        shared++;
+      }
+    }
+
+    return { score, shared };
+  }
+
+  const cellIds = [...terminalsByCell.keys()];
+  const edges = [];
+
+  for (let firstIndex = 0; firstIndex < cellIds.length; firstIndex++) {
+    for (let secondIndex = firstIndex + 1; secondIndex < cellIds.length; secondIndex++) {
+      const firstCellId = cellIds[firstIndex];
+      const secondCellId = cellIds[secondIndex];
+      const result = scorePair(firstCellId, secondCellId, false, false);
+
+      if (!result.shared) continue;
+
+      const firstCell = cellMap.get(firstCellId);
+      const secondCell = cellMap.get(secondCellId);
+      const centerDistance = Math.abs((firstCell.x + firstCell.width / 2) - (secondCell.x + secondCell.width / 2)) +
+        Math.abs((firstCell.y + firstCell.height / 2) - (secondCell.y + secondCell.height / 2));
+
+      edges.push({ firstCellId, secondCellId, shared: result.shared, centerDistance });
+    }
+  }
+
+  edges.sort((first, second) => second.shared - first.shared || first.centerDistance - second.centerDistance);
+
+  const orientations = new Map();
+
+  function bestCombination(firstCellId, secondCellId, allowedFirst, allowedSecond) {
+    let best = null;
+
+    for (const firstMirrored of allowedFirst) {
+      for (const secondMirrored of allowedSecond) {
+        const result = scorePair(firstCellId, secondCellId, firstMirrored, secondMirrored);
+        if (!best || result.score < best.score) best = { firstMirrored, secondMirrored, ...result };
+      }
+    }
+
+    return best;
+  }
+
+  for (const edge of edges) {
+    const firstKnown = orientations.has(edge.firstCellId);
+    const secondKnown = orientations.has(edge.secondCellId);
+
+    if (!firstKnown && !secondKnown) {
+      const best = bestCombination(edge.firstCellId, edge.secondCellId, [false, true], [false, true]);
+      orientations.set(edge.firstCellId, best.firstMirrored);
+      orientations.set(edge.secondCellId, best.secondMirrored);
+    } else if (firstKnown && !secondKnown) {
+      const firstOrientation = orientations.get(edge.firstCellId);
+      const best = bestCombination(edge.firstCellId, edge.secondCellId, [firstOrientation], [false, true]);
+      orientations.set(edge.secondCellId, best.secondMirrored);
+    } else if (!firstKnown && secondKnown) {
+      const secondOrientation = orientations.get(edge.secondCellId);
+      const best = bestCombination(edge.firstCellId, edge.secondCellId, [false, true], [secondOrientation]);
+      orientations.set(edge.firstCellId, best.firstMirrored);
+    }
+  }
+
+  const results = [];
+
+  for (const [cellId, shouldMirror] of orientations) {
+    const cell = cellMap.get(cellId);
+    const currentlyMirrored = Boolean(cell?.rotated180);
+    const changed = shouldMirror !== currentlyMirrored;
+
+    if (changed) rotateCellInstance180(cellId, placed, placedCells, svg);
+
+    results.push({
+      cell: cellId,
+      orientation: shouldMirror ? "MIRRORED" : "NORMAL",
+      changed,
+    });
+  }
+
+  console.table(results);
+  return results;
+}
