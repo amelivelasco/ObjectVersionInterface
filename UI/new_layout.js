@@ -356,10 +356,99 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
       while (index < path.length && !placements.has(path[index].id)) { index++; }
 
       const segmentEnd = index, segment = path.slice(segmentStart, segmentEnd);
-      const predecessor = segmentStart > 0 ? path[segmentStart - 1] : null;
+      let predecessor = segmentStart > 0 ? path[segmentStart - 1] : null;
       const successor = segmentEnd < path.length ? path[segmentEnd] : null;
-      const predecessorPlacement = predecessor ? placements.get(predecessor.id) : null;
+      let predecessorPlacement = predecessor ? placements.get(predecessor.id) : null;
       let successorPlacement = successor ? placements.get(successor.id) : null;
+
+      /*
+      * A skipped branch may later be processed as a new remaining path.
+      * Recover its already placed producer so it stays on the producer's row.
+      */
+      if (!predecessorPlacement && segment.length > 0) {
+        const firstBlock = segment[0];
+
+        /*
+        * First preference:
+        * the new block shares net_out with an already placed block.
+        *
+        * Example:
+        * previous component net_out = I6|net35
+        * I6|L3 net_out             = I6|net35
+        *
+        * Place I6|L3 on that component's row and reverse its pins.
+        */
+        const sharedOutputPredecessors = blocks
+          .filter(candidate =>
+            candidate.id !== firstBlock.id &&
+            placements.has(candidate.id) &&
+            !isBiasElement(candidate.primary) &&
+            firstBlock.rawNetOut &&
+            (
+              candidate.rawNetOut === firstBlock.rawNetOut ||
+              candidate.netOut === firstBlock.rawNetOut
+            )
+          )
+          .sort((first, second) =>
+            Math.abs(
+              (first.originalIndex ?? 0) -
+              (firstBlock.originalIndex ?? 0)
+            ) -
+            Math.abs(
+              (second.originalIndex ?? 0) -
+              (firstBlock.originalIndex ?? 0)
+            )
+          );
+
+        if (sharedOutputPredecessors.length > 0) {
+          predecessor = sharedOutputPredecessors[0];
+          predecessorPlacement = placements.get(predecessor.id);
+
+          // Force output left and input right.
+          firstBlock.inlineReversed = true;
+
+          console.log("Recovered shared-output continuation", {
+            block: firstBlock.primary?.id,
+            sharedOutput: firstBlock.rawNetOut,
+            predecessor: predecessor.primary?.id,
+            row: predecessorPlacement.row,
+            reversed: true,
+          });
+        } else {
+          /*
+          * Normal fallback:
+          * find an already placed producer of the input net.
+          */
+          const placedProducers = (producersByNet.get(firstBlock.netIn) || [])
+            .filter(candidate =>
+              candidate.id !== firstBlock.id &&
+              placements.has(candidate.id) &&
+              !isBiasElement(candidate.primary)
+            )
+            .sort((first, second) =>
+              Math.abs(
+                (first.originalIndex ?? 0) -
+                (firstBlock.originalIndex ?? 0)
+              ) -
+              Math.abs(
+                (second.originalIndex ?? 0) -
+                (firstBlock.originalIndex ?? 0)
+              )
+            );
+
+          if (placedProducers.length > 0) {
+            predecessor = placedProducers[0];
+            predecessorPlacement = placements.get(predecessor.id);
+
+            console.log("Recovered normal input producer", {
+              block: firstBlock.primary?.id,
+              inputNet: firstBlock.netIn,
+              producer: predecessor.primary?.id,
+              row: predecessorPlacement.row,
+            });
+          }
+        }
+      }
       const inputTerminal = inputTerminalNet ? inputTerminalMap.get(inputTerminalNet) : null;
       const segmentSpan = getPathSpan(segment);
 
@@ -423,8 +512,29 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
     placePathSegments(principalPath, inputNet, true);
 
     for (const branchPath of paths) {
-      if (branchPath === principalPath) continue;
-      if (tryPlaceInlineGroundedJRPath(branchPath, principalPath)) continue;
+      if (branchPath === principalPath) { continue; }
+      if (tryPlaceInlineGroundedJRPath(branchPath, principalPath)) { continue; }
+
+      const firstUnplacedIndex = branchPath.findIndex(
+        block => !placements.has(block.id)
+      );
+
+      /*
+      * This path branches from a block that is already part of another chain.
+      * Do not create a new row for it here. Leave its unplaced blocks available
+      * so another terminal-net chain can claim them later.
+      */
+      if (firstUnplacedIndex > 0) {
+        console.log("Skipping branch from an existing chain", {
+          inputNet,
+          predecessor: branchPath[firstUnplacedIndex - 1]?.primary?.id,
+          firstUnplaced: branchPath[firstUnplacedIndex]?.primary?.id,
+          path: branchPath.map(block => block.primary?.id),
+        });
+
+        continue;
+      }
+
       placePathSegments(branchPath, inputNet, false);
     }
   }

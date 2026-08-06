@@ -346,66 +346,39 @@ function placeElementsInsideLayoutCell(cell) {
     }
   }
 
-  const requiredOrientation = new Map();
+  for (let index = 0; index < placed.length; index++) {
+    const element = placed[index];
 
-  function requireOrientation(element, orientation, sharedNet) {
-    const existing = requiredOrientation.get(element);
-
-    if (existing && existing.orientation !== orientation) {
-      console.warn(`Conflicting inductor orientation for ${element.id}`, {
-        firstNet: existing.sharedNet,
-        secondNet: sharedNet,
-      });
-
-      return;
+    if (getElementType(element) !== "L") {
+      continue;
     }
 
-    requiredOrientation.set(element, { orientation, sharedNet });
-  }
+    // Find the closest component positioned before this inductor
+    // on the same row.
+    const previousComponent = placed
+      .slice(0, index)
+      .filter(
+        candidate =>
+          candidate.row === element.row &&
+          candidate.x < element.x
+      )
+      .sort(
+        (first, second) =>
+          second.x - first.x
+      )[0] || null;
 
-  for (let firstIndex = 0; firstIndex < placed.length; firstIndex++) {
-    const first = placed[firstIndex];
-    if (getElementType(first) !== "L") { continue; }
+    const sameOutputNet = Boolean(
+      previousComponent &&
+      element.net_out &&
+      previousComponent.net_out === element.net_out
+    );
 
-    for (let secondIndex = firstIndex + 1; secondIndex < placed.length; secondIndex++) {
-      const second = placed[secondIndex];
-      if (getElementType(second) !== "L") { continue; }
-
-      const sameRow = first.row === second.row;
-      const neighboringColumns = Math.abs(first.col - second.col) === 1;
-
-      if (!sameRow || !neighboringColumns) { continue; }
-
-      const left = first.x < second.x ? first : second;
-      const right = first.x < second.x ? second : first;
-
-      let sharedNet = null;
-
-      if (left.net_out && left.net_out === right.net_in) {
-        sharedNet = left.net_out;
-      } else if (left.net_in && left.net_in === right.net_out) {
-        sharedNet = left.net_in;
-      } else {
-        sharedNet = [left.net_in, left.net_out].find(
-          (net) => net && (net === right.net_in || net === right.net_out)
-        ) || null;
-      }
-
-      if (!sharedNet) { continue; }
-
-      const leftSharedTerminal = left.net_in === sharedNet ? "input" : "output";
-      const rightSharedTerminal = right.net_in === sharedNet ? "input" : "output";
-
-      requireOrientation(left, leftSharedTerminal === "input" ? -1 : 1, sharedNet);
-      requireOrientation(right, rightSharedTerminal === "input" ? 1 : -1, sharedNet);
-    }
-  }
-
-  for (const element of placed) {
-    if (getElementType(element) !== "L") { continue; }
-
-    const requirement = requiredOrientation.get(element);
-    const electricalDirection = requirement?.orientation ?? (Number(element.electricalDirection) < 0 ? -1 : 1);
+    // Normal:
+    // input left, output right.
+    //
+    // Same net_out as previous component:
+    // output left, input right.
+    const electricalDirection = sameOutputNet ? -1 : 1;
     const pinOffset = getPinOffsetForElement(element);
 
     element.inputPin = {
@@ -421,8 +394,14 @@ function placeElementsInsideLayoutCell(cell) {
     };
 
     element.electricalDirection = electricalDirection;
-  }
+    element.layoutReversed = sameOutputNet;
 
+    console.log(
+      `${element.id}: previous=${previousComponent?.id || "none"}, ` +
+      `previous.net_out=${previousComponent?.net_out || "none"}, ` +
+      `net_out=${element.net_out}, reversed=${sameOutputNet}`
+    );
+  }
   return placed;
 }
 

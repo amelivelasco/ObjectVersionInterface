@@ -71,10 +71,7 @@ function placeBiasElementsAboveNetOut(placed) {
       continue;
     }
 
-    /*
-     * Always allow bias elements to be repositioned.
-     * Do not preserve a horizontal inline placement.
-     */
+
     bias.biasPlacementLocked = false;
     bias.biasSnappedToNet = false;
     bias.biasNetSegment = null;
@@ -122,19 +119,6 @@ function placeBiasElementsAboveNetOut(placed) {
       targetDirection * drawConfig.biasBranchOffset;
 
     const netY = targetPin.y;
-
-    /*
-     * Leave `gap` pixels between the arrow tip and the wire.
-     *
-     * Bias center:
-     *     netY - halfSize - gap
-     *
-     * Arrow tip:
-     *     netY - gap
-     *
-     * Wire connection:
-     *     netY
-     */
     const biasCenterY = netY - halfSize - gap;
 
     const biasCenterX = findFreeBiasX(
@@ -147,16 +131,16 @@ function placeBiasElementsAboveNetOut(placed) {
     bias.x = biasCenterX;
     bias.y = biasCenterY;
 
-    // Force the bias arrow to point downward.
+
     bias.biasRotation = 0;
 
-    // Bottom tip of the downward-pointing arrow.
+
     bias.biasFrontPin = {
       x: biasCenterX,
       y: biasCenterY + halfSize,
     };
 
-    // Point located directly on the connecting wire.
+
     bias.biasNetJoin = {
       x: biasCenterX,
       y: netY,
@@ -317,10 +301,6 @@ function snapBiasElementsToNearestNet(wireLayer, placed) {
       continue;
     }
 
-    /*
-     * Reconsider every bias, including biases that previously had
-     * an inline or locked placement.
-     */
     bias.biasPlacementLocked = false;
 
     const originalX = bias.x;
@@ -354,10 +334,7 @@ function snapBiasElementsToNearestNet(wireLayer, placed) {
       const segments = extractWireSegmentsFromElement(child);
 
       for (const segment of segments) {
-        /*
-         * Bias elements must come down onto a horizontal wire.
-         * Ignore vertical segments.
-         */
+
         const horizontal =
           Math.abs(segment.a.y - segment.b.y) < 0.5;
 
@@ -408,10 +385,6 @@ function snapBiasElementsToNearestNet(wireLayer, placed) {
 
           testedPositions.add(positionKey);
 
-          /*
-           * Position the bias above the net while preserving a
-           * vertical gap for the connecting line.
-           */
           const candidateY =
             netY -
             halfSize -
@@ -479,11 +452,6 @@ function snapBiasElementsToNearestNet(wireLayer, placed) {
       }
     }
 
-    /*
-     * The preliminary placement from
-     * placeBiasElementsAboveNetOut() remains valid when no matching
-     * horizontal SVG wire was found.
-     */
     if (!best) {
       bias.biasRotation = 0;
       bias.biasSnappedToNet = false;
@@ -517,105 +485,3 @@ function snapBiasElementsToNearestNet(wireLayer, placed) {
   }
 }
 
-
-function getPlacementBlockPrimary(block) {
-  return block.elements.find((element) => getElementType(element) !== "R") || block.elements[0];
-}
-
-function getChainSpan(chain) {
-  return chain.reduce((total, block) => total + block.span, 0);
-}
-
-function buildLongestDirectedChains(elements) {
-  const blocks = createPlacementBlocks(elements).map((block) => {
-    const primary = getPlacementBlockPrimary(block);
-
-    return {
-      ...block,
-      primary,
-      netIn: primary?.net_in || null,
-      netOut: primary?.net_out || null,
-      span: block.elements.length,
-    };
-  });
-
-  const blockById = new Map(blocks.map((block) => [block.id, block]));
-  const successors = new Map(blocks.map((block) => [block.id, []]));
-  const predecessors = new Map(blocks.map((block) => [block.id, []]));
-
-  for (const producer of blocks) {
-    if (!producer.netOut || isPowerNet(producer.netOut)) { continue; }
-
-    for (const consumer of blocks) {
-      if (producer === consumer || producer.netOut !== consumer.netIn) { continue; }
-
-      successors.get(producer.id).push(consumer);
-      predecessors.get(consumer.id).push(producer);
-    }
-  }
-
-  const remaining = new Set(blocks.map((block) => block.id));
-  const chains = [];
-
-  function longestPathFrom(block, visiting = new Set(), memo = new Map()) {
-    if (!remaining.has(block.id) || visiting.has(block.id)) { return []; }
-    if (memo.has(block.id)) { return memo.get(block.id); }
-
-    const nextVisiting = new Set(visiting);
-    nextVisiting.add(block.id);
-
-    let bestContinuation = [];
-
-    for (const successor of successors.get(block.id) || []) {
-      if (!remaining.has(successor.id)) { continue; }
-
-      const candidate = longestPathFrom(successor, nextVisiting, memo);
-
-      if (getChainSpan(candidate) > getChainSpan(bestContinuation)) {
-        bestContinuation = candidate;
-      }
-    }
-
-    const result = [block, ...bestContinuation];
-    memo.set(block.id, result);
-    return result;
-  }
-
-  while (remaining.size > 0) {
-    const remainingBlocks = [...remaining].map((id) => blockById.get(id));
-
-    const roots = remainingBlocks.filter((block) =>
-      (predecessors.get(block.id) || []).every((predecessor) => !remaining.has(predecessor.id))
-    );
-
-    const startingBlocks = roots.length > 0 ? roots : remainingBlocks;
-    const memo = new Map();
-    let longestChain = [];
-
-    for (const block of startingBlocks) {
-      const candidate = longestPathFrom(block, new Set(), memo);
-
-      if (
-        getChainSpan(candidate) > getChainSpan(longestChain) ||
-        (
-          getChainSpan(candidate) === getChainSpan(longestChain) &&
-          candidate[0]?.originalIndex < longestChain[0]?.originalIndex
-        )
-      ) {
-        longestChain = candidate;
-      }
-    }
-
-    if (longestChain.length === 0) {
-      longestChain = [remainingBlocks[0]];
-    }
-
-    chains.push(longestChain);
-
-    for (const block of longestChain) {
-      remaining.delete(block.id);
-    }
-  }
-
-  return chains;
-}
