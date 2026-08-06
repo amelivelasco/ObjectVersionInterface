@@ -311,7 +311,7 @@ function drawCircuit(data) {
   connectBiasStubsToInductors(internalWireLayer, labelLayer, placed);
   drawSubcircuits(placed, componentLayer, internalWireLayer, labelLayer)
   rotateCellInstance180(
-    "I6::confluenceBufferUpgrade",
+    "I0::NDROM2",
     placed,
     placedCells,
     svg

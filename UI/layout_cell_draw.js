@@ -9,22 +9,21 @@ function createElementMap(elements) {
 }
 
 function resolveLayoutCellElements(layoutCell, elementMap) {
-  const resolvedElements = [];
-  const missingElements = [];
+  const resolved = [];
+  const missing = [];
 
-  for (const elementId of layoutCell.elements || []) {
-    const element = elementMap.get(elementId);
+  for (const id of layoutCell.elements || []) {
+    const element = elementMap.get(id);
 
-    if (element) { resolvedElements.push(element); } 
-    else { missingElements.push(elementId); }
+    if (element) resolved.push(element);
+    else missing.push(id);
   }
 
-  if (missingElements.length > 0) {
-    console.warn(
-      `Elements missing from layout cell "${layoutCell.layout_cell}":`, missingElements
-    );
+  if (missing.length) {
+    console.warn(`Elements missing from "${layoutCell.layout_instance || layoutCell.layout_cell}":`, missing);
   }
-  return resolvedElements;
+
+  return resolved;
 }
 
 function measureLayoutCell(elements) {

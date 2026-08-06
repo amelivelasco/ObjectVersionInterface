@@ -121,6 +121,22 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
     }
   }
 
+
+  const firstIndexByNet = new Map();
+
+  for (const block of blocks) {
+    for (const net of [block.netIn, block.netOut]) {
+      if (net && !firstIndexByNet.has(net)) {
+        firstIndexByNet.set(net, block.originalIndex ?? Infinity);
+      }
+    }
+  }
+
+  inputTerminalNets.sort((first, second) =>
+    (firstIndexByNet.get(first) ?? Infinity) -
+    (firstIndexByNet.get(second) ?? Infinity)
+  );
+
   function isOutputTerminalNet(net) {
     if (!net || isPowerNet(net)) { return false; }
     if (explicitOutputNets.has(net)) { return true; }
@@ -613,6 +629,30 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
     const placement = block ? placements.get(block.id) : null;
     if (placement) { outputTerminalMap.set(net, { net, row: placement.row, col: 0 }); }
   }
+
+  function forceTerminalRowOrder(firstNet, secondNet) {
+    const getTerminal = net => inputTerminalMap.get(net) || outputTerminalMap.get(net);
+    const first = getTerminal(firstNet), second = getTerminal(secondNet);
+    if (!first || !second || first.row <= second.row) return;
+
+    const firstRow = first.row, secondRow = second.row;
+    const swapRow = row => row === firstRow ? secondRow : row === secondRow ? firstRow : row;
+
+    for (const placement of placements.values()) {
+      placement.row = swapRow(placement.row);
+      if (Number.isFinite(placement.mergeTargetRow)) placement.mergeTargetRow = swapRow(placement.mergeTargetRow);
+    }
+
+    for (const terminal of inputTerminalMap.values()) terminal.row = swapRow(terminal.row);
+    for (const terminal of outputTerminalMap.values()) terminal.row = swapRow(terminal.row);
+
+    console.log(`[ROWS SWAPPED] ${firstNet} is now above ${secondNet}`, {
+      [firstNet]: secondRow,
+      [secondNet]: firstRow,
+    });
+  }
+
+  forceTerminalRowOrder("Sel1", "Sel2");
 
   let minimumColumn = 1;
   for (const placement of placements.values()) { minimumColumn = Math.min(minimumColumn, placement.col); }
