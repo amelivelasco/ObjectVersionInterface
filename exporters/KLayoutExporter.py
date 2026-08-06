@@ -88,8 +88,6 @@ class KLayoutExporter(BaseExporter):
     def report_mapping_audit(self, output_path=None):
         report_lines = []
 
-        # Maps each raw component name to the first cell
-        # directly below the top-level circuit.
         first_level_cells = {}
 
         def add_line(text=""):
@@ -165,7 +163,7 @@ class KLayoutExporter(BaseExporter):
 
                 pid = layout_inst.property(102)
 
-                # Final small PCell, retained only for debugging.
+           
                 device_cell_name = layout_inst.cell.name
 
                 first_level_cells[raw_name] = (
@@ -319,7 +317,7 @@ class KLayoutExporter(BaseExporter):
                     f"layout_cell={layout_inst.cell.name}"
                 )
 
-                # Descente hiérarchique si l'objet logique contient des sous-instances
+                
                 if hasattr(circuit_inst, "instances") and circuit_inst.instances:
                     go_through(
                         layout_inst.cell,      # IMPORTANT : on passe la CELL
@@ -478,40 +476,94 @@ class KLayoutExporter(BaseExporter):
                 return True
 
         return False
-                
-    def get_instance_visual_bottom_center_trans(self, elem, vertical_offset=0):
-        bounds = self.get_element_global_bounds(elem)
-        if bounds is None:
+
+    def get_recursive_cell_bbox(self, cell):
+        bbox = cell.bbox()
+        if not bbox.empty():
+            return bbox
+
+        points = []
+
+        for child in cell.each_inst():
+            child_bbox = self.get_recursive_cell_bbox(child.cell)
+            if child_bbox is None:
+                continue
+
+            for point in (
+                pya.Point(child_bbox.left, child_bbox.bottom),
+                pya.Point(child_bbox.right, child_bbox.bottom),
+                pya.Point(child_bbox.left, child_bbox.top),
+                pya.Point(child_bbox.right, child_bbox.top),
+            ):
+                points.append(child.trans * point)
+
+        if not points:
             return None
 
-        left, bottom, right, top = bounds
-        center_x = (left + right) // 2
-
-        bottom_touches = self.instance_edge_touches_another(
-            elem,
-            edge="bottom",
-            tolerance=500,
+        return pya.Box(
+            min(point.x for point in points),
+            min(point.y for point in points),
+            max(point.x for point in points),
+            max(point.y for point in points),
         )
+                
+    def get_instance_visual_bottom_center_trans(self, elem, vertical_offset=0):
+        layout_inst = getattr(elem, "KLayoutInstance", None)
+        global_trans = getattr(elem, "global_trans", None)
 
-        top_touches = self.instance_edge_touches_another(
-            elem,
-            edge="top",
-            tolerance=500,
-        )
+        if layout_inst is None or global_trans is None:
+            return None
 
-        if bottom_touches and not top_touches:
-            selected_edge = "top"
-            position = pya.Point(center_x, top - vertical_offset)
+        bbox = self.get_recursive_cell_bbox(layout_inst.cell)
+        if bbox is None or bbox.empty():
+            print(f"WARNING: no recursive bounds found for {elem.name}")
+            return None
+
+        sideways = bbox.width() > bbox.height()
+
+        if sideways:
+
+            use_left = abs(bbox.left) <= abs(bbox.right)
+            local_x = (
+                bbox.left + vertical_offset
+                if use_left
+                else bbox.right - vertical_offset
+            )
+
+            local_start = pya.Point(local_x, bbox.bottom)
+            local_end = pya.Point(local_x, bbox.top)
         else:
-            selected_edge = "bottom"
-            position = pya.Point(center_x, bottom + vertical_offset)
+
+            local_y = bbox.bottom + vertical_offset
+            local_start = pya.Point(bbox.left, local_y)
+            local_end = pya.Point(bbox.right, local_y)
+
+        edge_start = global_trans * local_start
+        edge_end = global_trans * local_end
+
+        anchor = pya.Point(
+            (edge_start.x + edge_end.x) // 2,
+            (edge_start.y + edge_end.y) // 2,
+        )
+
+        is_vertical = abs(edge_end.y - edge_start.y) > abs(
+            edge_end.x - edge_start.x
+        )
+
+        port_trans = pya.Trans(
+            1 if is_vertical else 0,
+            False,
+            anchor.x,
+            anchor.y,
+        )
 
         print(
-            f"{elem.name}: bottom_touches={bottom_touches}, "
-            f"top_touches={top_touches}, selected={selected_edge}"
+            f"{elem.name}: bbox={bbox.width()}x{bbox.height()}, "
+            f"sideways={sideways}, "
+            f"port={'vertical' if is_vertical else 'horizontal'}"
         )
 
-        return pya.Trans(position)
+        return port_trans, edge_start, edge_end
 
     def mark_single_connection_nodes_in_layout(self):
         auto_ground_groups = {}
@@ -543,40 +595,31 @@ class KLayoutExporter(BaseExporter):
 
             pname = f"P{elem.name} M2 M0"
             port_tag = f"AUTO_PORT:{pname}"
-            port_trans = (
-                self.get_instance_visual_bottom_center_trans(
-                    elem,
-                    vertical_offset=260,
-                )
+            port_geometry = self.get_instance_visual_bottom_center_trans(
+                elem,
+                vertical_offset=260,
             )
 
-            if port_trans is None:
+            if port_geometry is None:
                 print(
                     f"Skipping {node_name}: "
-                    f"could not find the bottom of "
+                    f"could not find the geometry of "
                     f"{elem.name}'s layout cell"
                 )
                 continue
+
+            port_trans, edge_start, edge_end = port_geometry
             anchor = port_trans.disp
 
-            # Completely delete the old text and old path before drawing.
             self.delete_old_port(pname, label_layer, anchor)
 
             port_text = pya.Text(pname, port_trans)
             port_text.halign = pya.Text.HAlignCenter
             port_text.valign = pya.Text.VAlignCenter
 
-            bounds = self.get_element_global_bounds(elem)
-            if bounds is None:
-                continue
-
-            left, bottom, right, top = bounds
-            width = 500
-            path_y = port_trans.disp.y
-
             path_t = pya.Path(
-                [pya.Point(left, path_y), pya.Point(right, path_y)],
-                width,
+                [edge_start, edge_end],
+                500,
             )
 
             path_shape = self.layout_top.shapes(self.term_layer).insert(path_t)
@@ -601,7 +644,6 @@ class KLayoutExporter(BaseExporter):
 
             print(f"Node {node.GlobalName} -> {elem.name} ==> écrit '{pname}'")
 
-        # Save to the exact same GDS that was originally loaded.
         auto_ground_lines = []
 
         for instance_path, group_lines in auto_ground_groups.items():
@@ -672,7 +714,6 @@ class KLayoutExporter(BaseExporter):
             label_layer=self.label_layer,
         )
 
-        # Replace the previous full-cell cover instead of accumulating copies.
         self.layout_top.shapes(cover_layer).clear()
         self.layout_top.shapes(cover_layer).insert(pya.Box(bbox))
 
@@ -694,7 +735,6 @@ class KLayoutExporter(BaseExporter):
             if bbox.empty():
                 continue
 
-            # Keep horizontal resistor-like rectangles.
             if bbox.width() > bbox.height():
                 resistor_boxes.append(bbox)
 
@@ -702,7 +742,6 @@ class KLayoutExporter(BaseExporter):
             print(f"WARNING: no R2 resistor found for {inst.name}")
             return None
 
-        # The JJ anchor/origin in global layout coordinates.
         jj_position = global_trans.disp
 
         def distance_squared(resistor_bbox):
@@ -719,7 +758,6 @@ class KLayoutExporter(BaseExporter):
             f"({closest_resistor_center.x}, {closest_resistor_center.y})"
         )
 
-        # Keep the label globally horizontal.
         return pya.Trans(closest_resistor_center)
     
     def has_parallel_jj(self, elem):
