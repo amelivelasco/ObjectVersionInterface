@@ -565,6 +565,115 @@ class KLayoutExporter(BaseExporter):
 
         return port_trans, edge_start, edge_end
 
+    def get_port_farthest_from_connected_cell(self, elem, port_node, inset=260):
+        bounds = self.get_element_global_bounds(elem)
+        if bounds is None:
+            return None
+
+        left, bottom, right, top = bounds
+        center_x, center_y = (left + right) // 2, (bottom + top) // 2
+        cell_is_sideways = (right - left) >= (top - bottom)
+
+        def node_name(value):
+            return str(getattr(value, "GlobalName", getattr(value, "name", value)))
+
+        port_name = node_name(port_node)
+        net_in = getattr(elem, "net_in", None)
+        net_out = getattr(elem, "net_out", None)
+
+        opposite_node = net_out if port_name == node_name(net_in) else net_in
+        opposite_name = node_name(opposite_node)
+
+        connected_elements = []
+
+        def walk(cell):
+            for other in cell.instances:
+                if hasattr(other, "instances") and other.instances:
+                    yield from walk(other)
+                else:
+                    yield other
+
+        # Find elements sharing the opposite electrical node.
+        for other in walk(self.circuit.TOP):
+            if other is elem:
+                continue
+
+            other_net_in = node_name(getattr(other, "net_in", ""))
+            other_net_out = node_name(getattr(other, "net_out", ""))
+
+            if opposite_name in {other_net_in, other_net_out}:
+                connected_elements.append(other)
+
+        neighbor_centers = []
+
+        for other in connected_elements:
+            other_bounds = self.get_element_global_bounds(other)
+            if other_bounds is None:
+                continue
+
+            other_left, other_bottom, other_right, other_top = other_bounds
+            neighbor_centers.append((
+                (other_left + other_right) // 2,
+                (other_bottom + other_top) // 2,
+            ))
+
+        if neighbor_centers:
+            neighbor_x, neighbor_y = min(
+                neighbor_centers,
+                key=lambda point: (
+                    (point[0] - center_x) ** 2
+                    + (point[1] - center_y) ** 2
+                ),
+            )
+        else:
+            neighbor_x, neighbor_y = center_x, center_y
+
+        if cell_is_sideways:
+            # Wide cell: port must be vertical.
+            # Neighbor on left -> port on right, and vice versa.
+            side = "right" if neighbor_x <= center_x else "left"
+        else:
+            # Tall cell: port must be horizontal.
+            # Neighbor below -> port on top, and vice versa.
+            side = "top" if neighbor_y <= center_y else "bottom"
+
+        if side == "left":
+            x = left + inset
+            edge_start = pya.Point(x, bottom)
+            edge_end = pya.Point(x, top)
+            anchor = pya.Point(x, center_y)
+            text_trans = pya.Trans(1, False, anchor.x, anchor.y)
+
+        elif side == "right":
+            x = right - inset
+            edge_start = pya.Point(x, bottom)
+            edge_end = pya.Point(x, top)
+            anchor = pya.Point(x, center_y)
+            text_trans = pya.Trans(1, False, anchor.x, anchor.y)
+
+        elif side == "top":
+            y = top - inset
+            edge_start = pya.Point(left, y)
+            edge_end = pya.Point(right, y)
+            anchor = pya.Point(center_x, y)
+            text_trans = pya.Trans(0, False, anchor.x, anchor.y)
+
+        else:
+            y = bottom + inset
+            edge_start = pya.Point(left, y)
+            edge_end = pya.Point(right, y)
+            anchor = pya.Point(center_x, y)
+            text_trans = pya.Trans(0, False, anchor.x, anchor.y)
+
+        print(
+            f"{elem.name}: size={right-left}x{top-bottom}, "
+            f"sideways={cell_is_sideways}, "
+            f"neighbor=({neighbor_x}, {neighbor_y}), "
+            f"selected_side={side}"
+        )
+
+        return text_trans, edge_start, edge_end
+
     def mark_single_connection_nodes_in_layout(self):
         auto_ground_groups = {}
         label_layer, property_id = self.layout.layer(52, 0), 9001
@@ -595,15 +704,16 @@ class KLayoutExporter(BaseExporter):
 
             pname = f"P{elem.name} M2 M0"
             port_tag = f"AUTO_PORT:{pname}"
-            port_geometry = self.get_instance_visual_bottom_center_trans(
+            port_geometry = self.get_port_farthest_from_connected_cell(
                 elem,
-                vertical_offset=260,
+                node,
+                inset=260,
             )
 
             if port_geometry is None:
                 print(
                     f"Skipping {node_name}: "
-                    f"could not find the geometry of "
+                    f"could not calculate the bounds of "
                     f"{elem.name}'s layout cell"
                 )
                 continue
