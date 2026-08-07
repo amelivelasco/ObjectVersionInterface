@@ -279,6 +279,61 @@ class KLayoutExporter(BaseExporter):
 
             for circuit_inst in circuit_cell.instances:
 
+                raw_name = str(getattr(circuit_inst, "raw_name", circuit_inst.name)).upper()
+                logical_name = str(circuit_inst.name).upper()
+
+                synthetic_candidates = [raw_name, logical_name]
+                if raw_name.startswith("L") and not raw_name.startswith("LL"): synthetic_candidates.append(f"L{raw_name}")
+                if logical_name.startswith("L") and not logical_name.startswith("LL"): synthetic_candidates.append(f"L{logical_name}")
+
+                synthetic_name = next(
+                    (name for name in synthetic_candidates if name in getattr(self, "combined_layout_map", {})),
+                    None
+                )
+
+                if synthetic_name:
+                    physical_names = self.combined_layout_map[synthetic_name]
+                    physical_instances, physical_transforms = [], []
+
+                    print(f"COMBINED INSTANCE: {synthetic_name} -> {physical_names}")
+
+                    for physical_name in physical_names:
+                        lookup_candidates = [physical_name]
+                        if physical_name.startswith("LL"): lookup_candidates.append(physical_name[1:])
+
+                        found_inst, found_trans = None, None
+
+                        for lookup_name in lookup_candidates:
+                            path_parts = self._raw_name_to_layout_path(lookup_name)
+                            found_inst, found_trans = self.find_layout_instance_by_path(self.layout_top, path_parts)
+                            if found_inst is not None: break
+
+                        if found_inst is None:
+                            raise RuntimeError(
+                                f"Synthetic '{synthetic_name}' maps to physical '{physical_name}', "
+                                f"but that instance was not found in the GDS."
+                            )
+
+                        physical_instances.append(found_inst)
+                        physical_transforms.append(found_trans)
+
+                    # Store BOTH real layout instances.
+                    circuit_inst.KLayoutInstances = physical_instances
+                    circuit_inst.KLayoutTransforms = physical_transforms
+                    circuit_inst.combined_layout_names = physical_names
+
+                    # Keep old singular attributes for code that still expects one instance.
+                    circuit_inst.KLayoutInstance = physical_instances[0]
+                    circuit_inst.KLayoutCell = physical_instances[0].cell
+                    circuit_inst.global_trans = physical_transforms[0]
+
+                    print(
+                        f"MAPPED SYNTHETIC {synthetic_name}: "
+                        f"{[inst.property(102) for inst in physical_instances]}"
+                    )
+
+                    continue
+
                 lookup_names = [getattr(circuit_inst, "raw_name", circuit_inst.name)]
                 if lookup_names[0] != circuit_inst.name:
                     lookup_names.append(circuit_inst.name)

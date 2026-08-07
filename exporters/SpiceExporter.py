@@ -168,122 +168,118 @@ class SpiceExporter(BaseExporter):
         import re
         from pathlib import Path
 
-        sol_path = Path(sol_path)
-        source_sp = Path(source_sp)
-        output_sp = Path(output_sp)
-
-        if not sol_path.exists():
-            raise FileNotFoundError(f"SOL file not found: {sol_path}")
-
-        if not source_sp.exists():
-            raise FileNotFoundError(f"Source SP file not found: {source_sp}")
+        sol_path, source_sp, output_sp = Path(sol_path), Path(source_sp), Path(output_sp)
+        if not sol_path.exists(): raise FileNotFoundError(f"SOL file not found: {sol_path}")
+        if not source_sp.exists(): raise FileNotFoundError(f"Source SP file not found: {source_sp}")
 
         values = SpiceExporter.parse_sol_file(sol_path)
         name_map = {str(k).upper(): str(v).upper() for k, v in name_map.items()}
 
-        # Read the ORIGINAL SP exactly as written.
+        rib_names = sorted((n for n in values["R"] if re.fullmatch(r"RIB\d+", n)), key=lambda n: int(n[3:]))
+        lib_names = sorted((n for n in values["L"] if re.fullmatch(r"LIB\d+", n)), key=lambda n: int(n[3:]))
+
+        ib_sol_map = {}
+        for i, rib_name in enumerate(rib_names, 1):
+            suffix = rib_name[3:]
+            ib_sol_map[f"IB{i}"] = {"rib": rib_name, "lib": f"LIB{suffix}"}
+
+        print("\n=== IB -> SOL BIAS MAP ===")
+        for ib_name, bias in ib_sol_map.items():
+            print(f"{ib_name} -> {bias['rib']} / {bias['lib']}")
+        print("==========================\n")
+
         lines = source_sp.read_text(encoding="utf-8").splitlines(keepends=True)
+
+        def get_sol_name(component):
+            component = component.upper()
+            candidates = [component]
+            if component.startswith("LL"): candidates.append(component[1:])
+            if component.startswith("XSJ"): candidates.append(component[3:])
+            if component.startswith("XPC"): candidates.append(component[3:])
+            return next((name_map[c] for c in candidates if c in name_map), None)
+
+        inductors = {}
+        for i, line in enumerate(lines):
+            parts = line.strip().split()
+            if len(parts) < 4 or not parts[0].upper().startswith("L"): continue
+            sol_name = get_sol_name(parts[0])
+            if sol_name and re.fullmatch(r"L\d+", sol_name):
+                inductors[sol_name] = {"index": i, "component": parts[0], "net1": parts[1], "net2": parts[2]}
+
+        combined_replacements, removed_indexes, combined_layout_map = {}, set(), {}
+
+        for combined_name, value in values["combined_L"].items():
+            match = re.fullmatch(r"L(\d+)\+\+(\d+)", combined_name.upper())
+            if not match: continue
+
+            first_name, second_name = f"L{match.group(1)}", f"L{match.group(2)}"
+            first, second = inductors.get(first_name), inductors.get(second_name)
+
+            if first is None or second is None:
+                print(f"WARNING: Cannot create {combined_name}: {first_name} or {second_name} missing")
+                continue
+
+            new_name = f"LL{match.group(1)}{match.group(2)}"
+
+            # Synthetic SP component uses the outside terminals chosen for the combined component.
+            net1, net2 = first["net1"], second["net2"]
+            insert_at = min(first["index"], second["index"])
+
+            combined_replacements[insert_at] = f"{new_name} {net1} {net2} ind2 l={value:g}p\n"
+            removed_indexes.update((first["index"], second["index"]))
+
+            # CRITICAL: remember which real GDS components this synthetic L represents.
+            combined_layout_map[new_name.upper()] = [
+                first["component"].upper(),
+                second["component"].upper(),
+            ]
+
+            print(f"COMBINED {combined_name} -> {new_name} ({first['component']} + {second['component']})")
+
         new_lines = []
 
-        for line in lines:
-            stripped = line.strip()
+        for i, line in enumerate(lines):
+            if i in combined_replacements:
+                new_lines.append(combined_replacements[i])
+                continue
+            if i in removed_indexes: continue
 
-            # Preserve headers/comments/directives/blank lines EXACTLY.
+            stripped = line.strip()
             if not stripped or stripped.startswith(("*", ".")):
                 new_lines.append(line)
                 continue
 
             component = stripped.split()[0]
-            component_upper = component.upper()
-
-            candidates = [component_upper]
-
-            # LL75 -> L75 alias
-            if component_upper.startswith("LL"):
-                candidates.append(component_upper[1:])
-
-            # XsjJ9 -> J9 alias
-            if component_upper.startswith("XSJ"):
-                candidates.append(component_upper[3:])
-
-            # XpcIB5 -> IB5 alias
-            if component_upper.startswith("XPC"):
-                candidates.append(component_upper[3:])
-
-            sol_name = None
-
-            for candidate in candidates:
-                if candidate in name_map:
-                    sol_name = name_map[candidate]
-                    break
+            sol_name = get_sol_name(component)
 
             if sol_name is None:
                 new_lines.append(line)
                 continue
 
-            old_line = line.rstrip("\r\n")
-
-            # --------------------------------------------------
-            # INDUCTOR
-            # --------------------------------------------------
             if sol_name in values["L"]:
-                line = re.sub(
-                    r"\bl\s*=\s*[-+0-9.eE]+p?",
-                    f"l={values['L'][sol_name]:g}p",
-                    line,
-                    flags=re.IGNORECASE,
-                )
-
-            # --------------------------------------------------
-            # RESISTOR
-            # --------------------------------------------------
+                line = re.sub(r"\bl\s*=\s*[-+0-9.eE]+p?", f"l={values['L'][sol_name]:g}p", line, flags=re.IGNORECASE)
             elif sol_name in values["R"]:
-                line = re.sub(
-                    r"\br\s*=\s*[-+0-9.eE]+",
-                    f"r={values['R'][sol_name]:g}",
-                    line,
-                    flags=re.IGNORECASE,
-                )
-
-            # --------------------------------------------------
-            # JOSEPHSON JUNCTION
-            # --------------------------------------------------
+                line = re.sub(r"\br\s*=\s*[-+0-9.eE]+", f"r={values['R'][sol_name]:g}", line, flags=re.IGNORECASE)
             elif sol_name in values["J"]:
-                line = re.sub(
-                    r"\bics\s*=\s*[-+0-9.eE]+u?",
-                    f"ics={values['J'][sol_name]:g}u",
-                    line,
-                    flags=re.IGNORECASE,
-                )
-
-            # --------------------------------------------------
-            # BIAS CELL
-            # --------------------------------------------------
+                line = re.sub(r"\bics\s*=\s*[-+0-9.eE]+u?", f"ics={values['J'][sol_name]:g}u", line, flags=re.IGNORECASE)
             elif sol_name.startswith("IB"):
-                suffix = sol_name[2:]
-                rib_name = f"RIB{suffix}"
-                rib = values["R"].get(rib_name)
+                bias = ib_sol_map.get(sol_name)
 
-                if rib not in (None, 0):
-                    ib = 2600.0 / rib
+                if bias:
+                    rib = values["R"].get(bias["rib"])
 
-                    line = re.sub(
-                        r"\bib\s*=\s*[-+0-9.eE]+u?",
-                        f"ib={ib:g}u",
-                        line,
-                        flags=re.IGNORECASE,
-                    )
-
-            if line.rstrip("\r\n") != old_line:
-                print(f"{component_upper} -> {sol_name}")
-                print(f"  OLD: {old_line}")
-                print(f"  NEW: {line.rstrip()}")
+                    if rib not in (None, 0):
+                        ib_value = 2600.0 / rib
+                        line = re.sub(r"\bib\s*=\s*[-+0-9.eE]+u?", f"ib={ib_value:g}u", line, flags=re.IGNORECASE)
+                        print(f"BIAS {sol_name} -> {bias['rib']}={rib:g} -> ib={ib_value:g}u")
 
             new_lines.append(line)
 
         output_sp.parent.mkdir(parents=True, exist_ok=True)
         output_sp.write_text("".join(new_lines), encoding="utf-8")
 
-        print("SPICE file written with original formatting:", output_sp.resolve())
+        print("\n=== COMBINED LAYOUT MAP ===")
+        for synthetic, physical in combined_layout_map.items(): print(f"{synthetic} -> {physical}")
+        print("===========================\n")
 
-        return str(output_sp.resolve())
+        return str(output_sp.resolve()), combined_layout_map

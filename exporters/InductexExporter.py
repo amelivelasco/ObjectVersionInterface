@@ -13,6 +13,10 @@ class InductexExporter(BaseExporter):
         self.list_nodes_top = circuit.list_nodes_top
         self.output_dir = ""
         self.use_extracted_values = None
+        self.sol_values = {"L": {}, "R": {}, "J": {}, "combined_L": {}}
+
+    def sol_value(self, section, name, fallback):
+        return self.sol_values.get(section, {}).get(str(name).upper(), fallback)
 
     def get_value(self, elem, extracted_attr, original_value):
         if self.use_extracted_values:
@@ -105,25 +109,18 @@ class InductexExporter(BaseExporter):
 
         def emit_jj(elem):
             jname = elem.name
-            prb_name = "Prb" + jname[1:]
-            lj_name = "Lj" + jname[1:]
-            rs_name = "Rs" + jname[1:]
+            suffix = jname[1:]
+            prb_name, lj_name, rs_name = f"Prb{suffix}", f"Lj{suffix}", f"Rs{suffix}"
             lp_net = elem.net_out
             W_NAME, W_NET = 10, 15
-            jj_value = self.format_cir_value(
-                self.get_value(elem, "RealJ", elem.Ic)
-            )
 
-            rs_value = self.format_cir_value(
-                self.get_value(elem, "RParral", elem.Ic)
-            )
+            jj_value = self.format_cir_value(elem.Ic)
+            rs_value = self.format_cir_value(self.sol_value("R", f"RS{suffix}", getattr(elem, "RParral", elem.Ic)))
 
             if str(elem.net_out.GlobalName) == "0":
                 lp_net = new_internal_node()
-                lp_name = "Lp" + jname[1:]
-                lp_value = self.format_cir_value(
-                    self.get_value(elem, "Lp", 0.4)
-                )
+                lp_name = f"Lp{suffix}"
+                lp_value = self.format_cir_value(0.4)
 
                 lp_net.connected_elements.append(jname)
                 lp_net.connected_elements.append(elem.net_out.GlobalName)
@@ -139,19 +136,17 @@ class InductexExporter(BaseExporter):
             additional_net = new_internal_node()
             second_additional_net = new_internal_node()
 
-            additional_net.connected_elements.append(jname)
-            additional_net.connected_elements.append(lj_name)
-            second_additional_net.connected_elements.append(prb_name)
-            second_additional_net.connected_elements.append(rs_name)
+            additional_net.connected_elements.extend([jname, lj_name])
+            second_additional_net.connected_elements.extend([prb_name, rs_name])
 
             elem.listAdditionalNode.append(additional_net)
             elem.listAdditionalNode.append(second_additional_net)
 
             lines.append(
-                f"{rs_name:<{W_NAME}} "
-                f"{second_additional_net.GlobalName:<{W_NET}} "
-                f"{lp_net.GlobalName:<{W_NET}} "
-                f"{rs_value}"
+                f"{jname:<{W_NAME}} "
+                f"{elem.net_in.GlobalName:<{W_NET}} "
+                f"{additional_net.GlobalName:<{W_NET}} "
+                f"{jj_value}"
             )
 
             lines.append(
@@ -170,7 +165,7 @@ class InductexExporter(BaseExporter):
                 f"{rs_name:<{W_NAME}} "
                 f"{second_additional_net.GlobalName:<{W_NET}} "
                 f"{lp_net.GlobalName:<{W_NET}} "
-                f"{jj_value}"
+                f"{rs_value}"
             )
 
         def reset_generated_state(self, original_node_count):

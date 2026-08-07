@@ -225,6 +225,8 @@ def main():
         print("====================================\n")
 
         return name_map
+    
+    combined_layout_map = {}
 
 
     if sol_path.exists():
@@ -234,7 +236,7 @@ def main():
         # Always use ORIGINAL SP as the formatting/topology template.
         name_map = build_sol_name_map(original_netlist_path)
 
-        SpiceExporter.create_sp_from_sol(
+        generated_sp, combined_layout_map = SpiceExporter.create_sp_from_sol(
             sol_path=sol_path,
             source_sp=original_netlist_path,
             output_sp=extracted_sp_path,
@@ -264,7 +266,14 @@ def main():
 
     # 2. Create exporters using the same fixed output directory.
     klayout_exp = KLayoutExporter(circuit, layout_path)
+
+    klayout_exp.combined_layout_map = combined_layout_map
+
     inductex_exp = InductexExporter(circuit)
+
+    if sol_path.exists():
+        inductex_exp.sol_values = SpiceExporter.parse_sol_file(sol_path)
+
     klayout_exp.output_dir = str(output_dir)
     inductex_exp.output_dir = str(output_dir)
     inductex_exp.list_top_nodes(circuit.TOP)
