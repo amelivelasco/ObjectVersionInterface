@@ -787,3 +787,55 @@ function drawBiasBasedPolaritySigns(labelLayer, placed) {
     drawPolarityForComponent(labelLayer, component, component.sideA);
   }
 }
+
+function enableRightClickNavigation(svg) {
+  if (!svg) return;
+
+  function getContentBBox() {
+    const content = svg.querySelector(".circuit-world, .viewport, .zoom-layer, g") || svg;
+    try { return content.getBBox(); } catch { return null; }
+  }
+
+  function getViewBox() {
+    const vb = svg.viewBox.baseVal;
+    if (vb?.width && vb?.height) return { x: vb.x, y: vb.y, width: vb.width, height: vb.height };
+
+    const r = svg.getBoundingClientRect();
+    return { x: 0, y: 0, width: r.width, height: r.height };
+  }
+
+  function screenToSvg(clientX, clientY) {
+    const p = svg.createSVGPoint();
+    p.x = clientX;
+    p.y = clientY;
+    return p.matrixTransform(svg.getScreenCTM().inverse());
+  }
+
+  function centerAt(clientX, clientY) {
+    const p = screenToSvg(clientX, clientY);
+    const vb = getViewBox();
+    svg.setAttribute("viewBox", `${p.x - vb.width / 2} ${p.y - vb.height / 2} ${vb.width} ${vb.height}`);
+  }
+
+  function fitCircuit() {
+    const box = getContentBBox();
+    if (!box || !box.width || !box.height) return;
+
+    const padding = Math.max(box.width, box.height) * 0.06;
+    svg.setAttribute(
+      "viewBox",
+      `${box.x - padding} ${box.y - padding} ${box.width + padding * 2} ${box.height + padding * 2}`
+    );
+  }
+
+  svg.addEventListener("contextmenu", e => {
+    e.preventDefault();
+
+    if (e.ctrlKey) {
+      fitCircuit();        // Ctrl + right click
+      return;
+    }
+
+    centerAt(e.clientX, e.clientY); // Right click
+  });
+}
