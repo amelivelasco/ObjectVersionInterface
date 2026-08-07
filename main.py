@@ -165,68 +165,98 @@ def main():
     print("InductEx circuit folder:", output_dir.resolve())
     print("New InductEx file:", cir_output_path.resolve())
 
-
     original_netlist_path = netlist_path
+    sol_path = original_netlist_path.parent / "sol.txt"
+    extracted_sp_path = original_netlist_path.parent / "Netlist_from_sol.sp"
 
-    sol_path = (
-        original_netlist_path
-        / "sol.txt"
-    )
+    if not original_netlist_path.exists():
+        raise FileNotFoundError(f"Original SPICE netlist not found: {original_netlist_path.resolve()}")
 
-    extracted_sp_path = (
-        original_netlist_path
-        / "Netlist_from_sol.sp"
-    )
+
+    def build_sol_name_map(sp_path):
+        map_parser = CDLParser()
+        map_circuit = map_parser.parse(sp_path)
+
+        map_circuit.assign_cell_ids()
+        map_circuit.define_local_names()
+
+        original_names = {}
+
+        def save_names(cell):
+            for elem in cell.instances:
+                if hasattr(elem, "instances"):
+                    save_names(elem)
+                else:
+                    original_names[id(elem)] = str(getattr(elem, "raw_name", elem.name)).upper()
+
+        save_names(map_circuit.TOP)
+
+        # Same renaming used for the InductEx CIR:
+        # L1, L2, J1, J2, IB1...
+        map_circuit.rename_all_elements_by_type()
+
+        name_map = {}
+
+        def collect_names(cell):
+            for elem in cell.instances:
+                if hasattr(elem, "instances"):
+                    collect_names(elem)
+                    continue
+
+                raw_name = original_names[id(elem)]
+                sol_name = str(elem.name).upper()
+
+                name_map[raw_name] = sol_name
+
+                if raw_name.startswith("L") and not raw_name.startswith("LL"):
+                    name_map[f"L{raw_name}"] = sol_name
+
+                if elem.type == "JJ":
+                    name_map[f"XSJ{raw_name}"] = sol_name
+
+                if elem.type == "IB":
+                    name_map[f"XPC{raw_name}"] = sol_name
+
+        collect_names(map_circuit.TOP)
+
+        print("\n=== ORIGINAL SP -> SOL NAME MAP ===")
+        for original, sol_name in name_map.items():
+            print(f"{original} -> {sol_name}")
+        print("====================================\n")
+
+        return name_map
+
 
     if sol_path.exists():
-        print(
-            "InductEx solution found:",
-            sol_path.resolve(),
+        print("InductEx solution found:", sol_path.resolve())
+
+        # IMPORTANT:
+        # Always use ORIGINAL SP as the formatting/topology template.
+        name_map = build_sol_name_map(original_netlist_path)
+
+        SpiceExporter.create_sp_from_sol(
+            sol_path=sol_path,
+            source_sp=original_netlist_path,
+            output_sp=extracted_sp_path,
+            name_map=name_map,
         )
 
-        if original_netlist_path.exists():
-            SpiceExporter.create_sp_from_sol(
-                sol_path=sol_path,
-                source_sp=original_netlist_path,
-                output_sp=extracted_sp_path,
-            )
-
-        elif not extracted_sp_path.exists():
-            raise FileNotFoundError(
-                "sol.txt exists, but neither the original SP nor an "
-                "existing extracted SP is available.\n"
-                f"SOL: {sol_path.resolve()}\n"
-                f"Original SP: {original_netlist_path.resolve()}\n"
-                f"Extracted SP: {extracted_sp_path.resolve()}"
-            )
-
-    # If an extracted SP exists, always use it as the circuit input.
-    if extracted_sp_path.exists():
         netlist_path = extracted_sp_path
 
-        print(
-            "Using extracted SP as circuit input:",
-            netlist_path.resolve(),
-        )
-
-        show_file_in_vscode(
-            netlist_path
-        )
-
-    elif original_netlist_path.exists():
-        netlist_path = original_netlist_path
-
-        print(
-            "No extracted SP available. Using original SP:",
-            netlist_path.resolve(),
-        )
+        print("Netlist updated while preserving original SP format:", netlist_path.resolve())
+        show_file_in_vscode(netlist_path)
 
     else:
-        raise FileNotFoundError(
-            "No usable SPICE netlist was found.\n"
-            f"Original: {original_netlist_path.resolve()}\n"
-            f"Extracted: {extracted_sp_path.resolve()}"
-        )
+        netlist_path = original_netlist_path
+        print("No sol.txt found. Using original SP:", netlist_path.resolve())
+
+
+    parser = CDLParser()
+    circuit = parser.parse(netlist_path)
+
+    # Parse the SP with its ORIGINAL component names and ORIGINAL nets preserved.
+    parser = CDLParser()
+    circuit = parser.parse(netlist_path)
 
     # 1. Parse circuit.
     parser = CDLParser()

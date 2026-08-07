@@ -5,31 +5,45 @@ class SpiceExporter(BaseExporter):
     def __init__(self, circuit):
         super().__init__(circuit)
         self.circuit = circuit
+
+    def sol_value(self, section, name, fallback):
+        return self.sol_values.get(section, {}).get(str(name).upper(), fallback)
     
-    def build_net_list(self):  # this method writes the netlist in a .sp file instead of a .cir file, which means its purpose is a SPICE netlist and not an InductEx netlist.
+    def build_net_list(self, output_path=None, sol_path=None):
+        from pathlib import Path
 
-        lines = []
+        self.sol_values = self.parse_sol_file(sol_path) if sol_path and Path(sol_path).exists() else {
+            "L": {}, "R": {}, "J": {}, "combined_L": {}
+        }
 
-        # ===== Header =====
-        lines.append("*.LDD")
-        lines.append(".GLOBAL GND!")
-        lines.append("*" * 80)
-        lines.append("* Library          : BasicCellsHomemade")
-        lines.append(f"* Cell             : {self.TOP.name}")
-        lines.append("* View             : schematic")
-        lines.append("* View Search List : auCdl schematic")
-        lines.append("* View Stop List   : auCdl")
-        lines.append("*" * 80)
-        lines.append(self.emit_subckt_line())
-        lines.append("*.PININFO DC:O SFQ_in:I VDD:I")
+        lines = [
+            "*.LDD",
+            ".GLOBAL GND!",
+            "*" * 80,
+            "* Library          : BasicCellsHomemade",
+            f"* Cell             : {self.circuit.TOP.name}",
+            "* View             : schematic",
+            "* View Search List : auCdl schematic",
+            "* View Stop List   : auCdl",
+            "*" * 80,
+            self.emit_subckt_line(),
+            "*.PININFO DC:O SFQ_in:I VDD:I",
+        ]
 
         self.walk_top_instances(lines)
-        filename = os.path.join(self.circuit.output_dir, "Splitter/Splitter/Netlist.sp")
+
+        if self.sol_values["combined_L"]:
+            lines.extend(["", "*" * 80, "* Combined inductors reported by InductEx"])
+            lines.extend(f"* {name} = {value:g}p" for name, value in self.sol_values["combined_L"].items())
+            lines.append("*" * 80)
+
         lines.append(f".ends {self.circuit.TOP.name}")
 
-        with open(filename, "a") as f:
-                for l in lines:
-                    f.write(l + "\n")
+        output_path = Path(output_path) if output_path else Path(self.circuit.output_dir) / "Netlist_from_sol.sp"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+        return str(output_path.resolve())
 
 
     def find_single_connected_nets(self):
@@ -38,7 +52,7 @@ class SpiceExporter(BaseExporter):
         """
         ports = []
 
-        for node in self.list_nodes_top:
+        for node in self.circuit.list_nodes_top:
             if len(node.connected_elements) == 1:
                 # Ignore GND
                 if str(node.GlobalName) == "0":
@@ -55,22 +69,21 @@ class SpiceExporter(BaseExporter):
 
         # Ajouter explicitement GND et VDD si nécessaire
         port_list = " ".join(ports)
-        return f".subckt {self.TOP.name} {port_list}"
+        return f".subckt {self.circuit.TOP.name} {port_list}"
 
 
-    def walk_top_instances(self,line_to_add):
-
+    def walk_top_instances(self, lines):
         def visit(cell):
             for inst in cell.instances:
-                if not hasattr(inst, "instances"):
+                if hasattr(inst, "instances"):
                     visit(inst)
-                    continue
-                
-                self.add_instance_lines(inst, line_to_add)
+                else:
+                    self.add_instance_lines(inst, lines)
+
         visit(self.circuit.TOP)
     
     def net_name(self, net):
-        name = f"net{net.GlobalName}"
+        name = f"net{net.global_name}"
         return "GND!" if name == "net0" else name
     
     def add_instance_lines(self, inst, lines):
@@ -78,7 +91,7 @@ class SpiceExporter(BaseExporter):
         net_out = self.net_name(inst.net_out)
 
         if inst.type == "IB":
-            self.add_ib_lines(inst, net_out, lines)
+            self.add_ib_lines(inst, net_in, net_out, lines)
         elif inst.type == "L":
             self.add_l_lines(inst, net_in, net_out, lines)
         elif inst.type == "R":
@@ -86,122 +99,30 @@ class SpiceExporter(BaseExporter):
         elif inst.type == "JJ":
             self.add_jj_lines(inst, net_in, net_out, lines)
             
-    def add_ib_lines(self, inst, net_out, lines):
-        node = f"net{inst.list_additional_node[0].GlobalName}"
-        lines.append(
-        f"R{inst.name} VDD {node} r={inst.RealIB}"
-        )
-        lines.append(
-            f"L{inst.name} {node} {net_out} l={inst.RealLIB}p"
-        )
-    
+    def add_ib_lines(self, inst, net_in, net_out, lines):
+        suffix = inst.name[2:] if inst.name.upper().startswith("IB") else inst.name
+
+        # sol.txt gives RIB, not IB directly.
+        # Original relation used by your circuit: RIB = 2600 / IB
+        rib = self.sol_value("R", f"RIB{suffix}", None)
+        ib = 2600.0 / rib if rib not in (None, 0) else inst.Ib
+
+        lines.append(f"Xpc{inst.name} {net_in} VDD {net_out} pwrcell ib={ib:g}u")
+
+
     def add_l_lines(self, inst, net_in, net_out, lines):
-        lines.append(
-            f"L{inst.name} {net_in} {net_out} ind2 l={inst.RealL}p"
-        )
+        value = self.sol_value("L", inst.name, inst.L)
+        lines.append(f"L{inst.name} {net_in} {net_out} ind2 l={value:g}p")
 
 
     def add_r_lines(self, inst, net_in, net_out, lines):
-        lines.append(
-            f"R{inst.name} {net_in} {net_out} res r={inst.RealR}"
-        )
+        value = self.sol_value("R", inst.name, inst.R)
+        lines.append(f"R{inst.name} {net_in} {net_out} res r={value:g}")
+
 
     def add_jj_lines(self, inst, net_in, net_out, lines):
-        node0 = f"net{inst.list_additional_node[0].GlobalName}"
-        node1 = f"net{inst.list_additional_node[1].GlobalName}"
-        suffix = inst.name[1:]
-
-        if net_out == "GND!":
-            lines.append(
-                f"Xj{inst.name} {net_in} {node1} jj "
-                f"ics={inst.RealJ}u lser={inst.IndPar}p"
-            )
-            lines.append(
-                f"Rs{suffix} {net_in} {node0} res r={inst.RParral}"
-            )
-            lines.append(
-                f"L{inst.name} {node0} {node1} ind2 l={inst.JJIndParral}p"
-            )
-            lines.append(
-                f"Lp{suffix} {node0} {net_out} ind2 l={inst.Lp}p"
-            )
-            return
-
-        lines.append(
-            f"Xj{inst.name} {net_in} {net_out} jj "
-            f"ics={inst.RealJ}u lser={inst.IndPar}p"
-        )
-        lines.append(
-            f"Rs{suffix} {net_in} {node0} res r={inst.RParral}"
-        )
-        lines.append(
-            f"L{inst.name} {node0} {net_out} ind2 l={inst.JJIndParral}p"
-        )
-
-    def parse_sol_file(self, sol_path):
-        """
-        Reads extracted component values from an InductEx .sol/.txt file.
-
-        Returns:
-            {
-                "L": {"L1": 1.99109, "LJ1": 0.126821, ...},
-                "R": {"RS1": 3.57226, "RIB5": 15.3272, ...},
-                "J": {"J1": 175.56, "J2": 248.34, ...},
-                "combined_L": {"L2++13": 4.82862, ...}
-            }
-        """
-        import re
-
-        values = {
-            "L": {},
-            "R": {},
-            "J": {},
-            "combined_L": {}
-        }
-
-        section = None
-        number = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][-+]?\d+)?"
-
-        with open(sol_path, "r", encoding="utf-8", errors="ignore") as f:
-            for raw_line in f:
-                line = raw_line.strip()
-
-                if line == "Inductance [pH]":
-                    section = "L"
-                    continue
-
-                if line == "Resistance [Ohm]":
-                    section = "R"
-                    continue
-
-                if line.startswith("Junction") and "Critical current [uA]" in line:
-                    section = "J"
-                    continue
-
-                if line.startswith("Job finished"):
-                    break
-
-                if section is None:
-                    continue
-
-                match = re.match(
-                    rf"^(\S+)\s+(?:--|{number})\s+({number})",
-                    line
-                )
-
-                if not match:
-                    continue
-
-                name = match.group(1).upper()
-                extracted = float(match.group(2))
-
-                if section == "L" and "++" in name:
-                    values["combined_L"][name] = extracted
-                else:
-                    values[section][name] = extracted
-
-        return values
-
+        value = self.sol_value("J", inst.name, inst.Ic)
+        lines.append(f"Xsj{inst.name} {net_in} {net_out} jj_s ics={value:g}u")
 
     @staticmethod
     def parse_sol_file(sol_path):
@@ -243,69 +164,126 @@ class SpiceExporter(BaseExporter):
 
 
     @staticmethod
-    def create_sp_from_sol(sol_path, source_sp, output_sp):
-        """Uses source_sp topology and replaces values with those extracted from sol.txt."""
+    def create_sp_from_sol(sol_path, source_sp, output_sp, name_map):
         import re
         from pathlib import Path
 
-        sol_path, source_sp, output_sp = Path(sol_path), Path(source_sp), Path(output_sp)
+        sol_path = Path(sol_path)
+        source_sp = Path(source_sp)
+        output_sp = Path(output_sp)
 
         if not sol_path.exists():
             raise FileNotFoundError(f"SOL file not found: {sol_path}")
+
         if not source_sp.exists():
-            raise FileNotFoundError(f"Cannot create extracted SP because source SP does not exist: {source_sp}")
+            raise FileNotFoundError(f"Source SP file not found: {source_sp}")
 
         values = SpiceExporter.parse_sol_file(sol_path)
-        original_lines = source_sp.read_text(encoding="utf-8").splitlines(keepends=True)
+        name_map = {str(k).upper(): str(v).upper() for k, v in name_map.items()}
+
+        # Read the ORIGINAL SP exactly as written.
+        lines = source_sp.read_text(encoding="utf-8").splitlines(keepends=True)
         new_lines = []
 
-        for line in original_lines:
+        for line in lines:
             stripped = line.strip()
 
+            # Preserve headers/comments/directives/blank lines EXACTLY.
             if not stripped or stripped.startswith(("*", ".")):
                 new_lines.append(line)
                 continue
 
-            parts = stripped.split()
-            if not parts:
+            component = stripped.split()[0]
+            component_upper = component.upper()
+
+            candidates = [component_upper]
+
+            # LL75 -> L75 alias
+            if component_upper.startswith("LL"):
+                candidates.append(component_upper[1:])
+
+            # XsjJ9 -> J9 alias
+            if component_upper.startswith("XSJ"):
+                candidates.append(component_upper[3:])
+
+            # XpcIB5 -> IB5 alias
+            if component_upper.startswith("XPC"):
+                candidates.append(component_upper[3:])
+
+            sol_name = None
+
+            for candidate in candidates:
+                if candidate in name_map:
+                    sol_name = name_map[candidate]
+                    break
+
+            if sol_name is None:
                 new_lines.append(line)
                 continue
 
-            component = parts[0]
-            component_upper = component.upper()
+            old_line = line.rstrip("\r\n")
 
-            if component_upper.startswith("XJ"):
-                junction_name = component[2:].upper()
+            # --------------------------------------------------
+            # INDUCTOR
+            # --------------------------------------------------
+            if sol_name in values["L"]:
+                line = re.sub(
+                    r"\bl\s*=\s*[-+0-9.eE]+p?",
+                    f"l={values['L'][sol_name]:g}p",
+                    line,
+                    flags=re.IGNORECASE,
+                )
 
-                if junction_name in values["J"]:
-                    line = re.sub(r"\bics\s*=\s*[-+0-9.eE]+u?", f"ics={values['J'][junction_name]:g}u", line, flags=re.IGNORECASE)
+            # --------------------------------------------------
+            # RESISTOR
+            # --------------------------------------------------
+            elif sol_name in values["R"]:
+                line = re.sub(
+                    r"\br\s*=\s*[-+0-9.eE]+",
+                    f"r={values['R'][sol_name]:g}",
+                    line,
+                    flags=re.IGNORECASE,
+                )
 
-                if junction_name.startswith("J"):
-                    series_name = f"LRS{junction_name[1:]}_SERIES"
-                    if series_name in values["L"]:
-                        line = re.sub(r"\blser\s*=\s*[-+0-9.eE]+p?", f"lser={values['L'][series_name]:g}p", line, flags=re.IGNORECASE)
+            # --------------------------------------------------
+            # JOSEPHSON JUNCTION
+            # --------------------------------------------------
+            elif sol_name in values["J"]:
+                line = re.sub(
+                    r"\bics\s*=\s*[-+0-9.eE]+u?",
+                    f"ics={values['J'][sol_name]:g}u",
+                    line,
+                    flags=re.IGNORECASE,
+                )
 
-            elif component_upper in values["R"]:
-                line = re.sub(r"\br\s*=\s*[-+0-9.eE]+", f"r={values['R'][component_upper]:g}", line, flags=re.IGNORECASE)
+            # --------------------------------------------------
+            # BIAS CELL
+            # --------------------------------------------------
+            elif sol_name.startswith("IB"):
+                suffix = sol_name[2:]
+                rib_name = f"RIB{suffix}"
+                rib = values["R"].get(rib_name)
 
-            elif component_upper in values["L"]:
-                line = re.sub(r"\bl\s*=\s*[-+0-9.eE]+p?", f"l={values['L'][component_upper]:g}p", line, flags=re.IGNORECASE)
+                if rib not in (None, 0):
+                    ib = 2600.0 / rib
+
+                    line = re.sub(
+                        r"\bib\s*=\s*[-+0-9.eE]+u?",
+                        f"ib={ib:g}u",
+                        line,
+                        flags=re.IGNORECASE,
+                    )
+
+            if line.rstrip("\r\n") != old_line:
+                print(f"{component_upper} -> {sol_name}")
+                print(f"  OLD: {old_line}")
+                print(f"  NEW: {line.rstrip()}")
 
             new_lines.append(line)
-
-        if values["combined_L"]:
-            combined_lines = ["\n", "*" * 80 + "\n", "* Combined inductors reported by InductEx\n"]
-            combined_lines.extend(f"* {name} = {value:g}p\n" for name, value in values["combined_L"].items())
-            combined_lines.append("*" * 80 + "\n")
-
-            for index, line in enumerate(new_lines):
-                if line.strip().lower().startswith(".ends"):
-                    new_lines[index:index] = combined_lines
-                    break
 
         output_sp.parent.mkdir(parents=True, exist_ok=True)
         output_sp.write_text("".join(new_lines), encoding="utf-8")
 
-        print("SPICE netlist created from InductEx solution:", output_sp.resolve())
+        print("SPICE file written with original formatting:", output_sp.resolve())
+
         return str(output_sp.resolve())
-            
