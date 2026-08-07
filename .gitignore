@@ -9,7 +9,7 @@ __pycache__/
 *.gds
 *.sp
 
-Circuit_Projects/NDROmCells/outputWoekingAlmost/
+Circuit_Projects/NDROmCells/outputWorkingAlmost/
 
 UI/circuit_data.js
 

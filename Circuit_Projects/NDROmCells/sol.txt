@@ -1,0 +1,270 @@
+﻿InductEx v7.1.88 (8 Beta) (24 March 2026). Copyright 2003-2026 Coenrad Fourie
+Licenced to:
+  AQUA-EPFL, until 25 Feb 2027. [Professional]
+
+Execution start time stamp: 2026/08/06 5:30:31 PM
+
+Project file: /home/domenech/Inductex/NDROM/BigCellname.ixi
+
+Licence file: /softs/sunmagnetics/licenses/sm_license.txt
+
+Model and simulation settings:
+  - Solution method:       MQS
+  - Mesh:                  Tetras
+  - Fidelity:              High
+  - Polygon hole bridging: X/Y centre-sliced
+
+Netlist input: /home/domenech/Inductex/NDROM/BIG_Cell_inductex.cir
+  +============+======+========+====================+
+  | #Inductors | #M/k | #Ports | #Fundamental loops |
+  +------------+------+--------+--------------------+
+  | 40         | 0    | 33     | 27                 |
+  +============+======+========+====================+
+
+Layout input files processed:
+  Chip 0
+    Layout file : /home/domenech/Inductex/NDROM/BigCellname.ixi
+    Process File: /home/domenech/Inductex/seeqc_v8.ldf
+    Layer sequence: (34 MN1) (32 IN1) [30 M0] (31 I0) (1 M1) (4 J1) (5 A1) (59 I1BL) (9 R2) (3 I1B) (6 M2) (8 I2) (10 M3) (11 R3) {45 TERM} {52 TEXT} {60 BLANKALL} {61 BLANKX} {62 BLANKY} 
+    +=======+==================+=======+=======+=========+========+=========+===========+
+    | Name  | Top-level struct | #Poly | #Term | TecUnit | DBUnit | SegSize | SegGrowth |
+    +-------+------------------+-------+-------+---------+--------+---------+-----------+
+    | Chip0 | big_cellname     | 177   | 33    | 1E-06   | 5E-10  | 1       | 5         |
+    +=======+==================+=======+=======+=========+========+=========+===========+
+
+Ports:
+  +====+=======+=========+===========+
+  | Nr | Name  | Type    | Amplitude |
+  +----+-------+---------+-----------+
+  | 0  | j1    | Voltage | 1         |
+  | 1  | prb1  | Voltage | 1         |
+  | 2  | j2    | Voltage | 1         |
+  | 3  | prb2  | Voltage | 1         |
+  | 4  | j3    | Voltage | 1         |
+  | 5  | prb3  | Voltage | 1         |
+  | 6  | j4    | Voltage | 1         |
+  | 7  | prb4  | Voltage | 1         |
+  | 8  | j5    | Voltage | 1         |
+  | 9  | prb5  | Voltage | 1         |
+  | 10 | j6    | Voltage | 1         |
+  | 11 | prb6  | Voltage | 1         |
+  | 12 | j7    | Voltage | 1         |
+  | 13 | prb7  | Voltage | 1         |
+  | 14 | j8    | Voltage | 1         |
+  | 15 | prb8  | Voltage | 1         |
+  | 16 | j9    | Voltage | 1         |
+  | 17 | prb9  | Voltage | 1         |
+  | 18 | j10   | Voltage | 1         |
+  | 19 | prb10 | Voltage | 1         |
+  | 20 | j11   | Voltage | 1         |
+  | 21 | prb11 | Voltage | 1         |
+  | 22 | ib5   | Voltage | 1         |
+  | 23 | ib6   | Voltage | 1         |
+  | 24 | ib7   | Voltage | 1         |
+  | 25 | ib8   | Voltage | 1         |
+  | 26 | ib9   | Voltage | 1         |
+  | 27 | ib10  | Voltage | 1         |
+  | 28 | pdc   | Voltage | 1         |
+  | 29 | pl9   | Voltage | 1         |
+  | 30 | pl4   | Voltage | 1         |
+  | 31 | pl1   | Voltage | 1         |
+  | 32 | pl12  | Voltage | 1         |
+  +====+=======+=========+===========+
+
+Terminals:
+  +========+======+=======+===================+=================+
+  | Name   | Chip | Layer | Geometry          | BasePoly        |
+  +--------+------+-------+-------------------+-----------------+
+  | j1+    | 0    | m2    | Polygon           | 273,275         |
+  | j1-    | 0    | m1    | Polygon           | 273,275         |
+  | prb1+  | 0    | m2    | Polygon           | 269             |
+  | prb1-  | 0    | r2    | Polygon           | 269             |
+  | j2+    | 0    | m2    | Polygon           | 143,144,145,546 |
+  | j2-    | 0    | m1    | Polygon           | 143,144,145,546 |
+  | prb2+  | 0    | m2    | Polygon           | 139             |
+  | prb2-  | 0    | r2    | Polygon           | 139             |
+  | j3+    | 0    | m2    | Polygon           | 153,154,155,552 |
+  | j3-    | 0    | m1    | Polygon           | 153,154,155,552 |
+  | prb3+  | 0    | m2    | Polygon           | 150,549         |
+  | prb3-  | 0    | r2    | Polygon           | 150,549         |
+  | j4+    | 0    | m2    | Polygon           | 221,222,224,225 |
+  | j4-    | 0    | m1    | Polygon           | 221,222,224,225 |
+  | prb4+  | 0    | m2    | Polygon           | 217             |
+  | prb4-  | 0    | r2    | Polygon           | 217             |
+  | j5+    | 0    | m2    | Polygon           | 431,432,434,435 |
+  | j5-    | 0    | m1    | Polygon           | 431,432,434,435 |
+  | prb5+  | 0    | m2    | Polygon           | 427             |
+  | prb5-  | 0    | r2    | Polygon           | 427             |
+  | j6+    | 0    | m2    | Polygon           | 464,466         |
+  | j6-    | 0    | m1    | Polygon           | 464,466         |
+  | prb6+  | 0    | m2    | Polygon           | 460             |
+  | prb6-  | 0    | r2    | Polygon           | 460             |
+  | j7+    | 0    | m2    | Polygon           | 56,58,424       |
+  | j7-    | 0    | m1    | Polygon           | 56,58,424       |
+  | prb7+  | 0    | m2    | Polygon           | 52              |
+  | prb7-  | 0    | r2    | Polygon           | 52              |
+  | j8+    | 0    | m2    | Polygon           | 64,65,67,68     |
+  | j8-    | 0    | m1    | Polygon           | 64,65,67,68     |
+  | prb8+  | 0    | m2    | Polygon           | 60              |
+  | prb8-  | 0    | r2    | Polygon           | 60              |
+  | j9+    | 0    | m2    | Polygon           | 453,454,457,458 |
+  | j9-    | 0    | m1    | Polygon           | 453,454,457,458 |
+  | prb9+  | 0    | m2    | Polygon           | 449             |
+  | prb9-  | 0    | r2    | Polygon           | 449             |
+  | j10+   | 0    | m2    | Polygon           | 509,510,512,513 |
+  | j10-   | 0    | m1    | Polygon           | 509,510,512,513 |
+  | prb10+ | 0    | m2    | Polygon           | 505             |
+  | prb10- | 0    | r2    | Polygon           | 505             |
+  | j11+   | 0    | m2    | Polygon           | 611,613         |
+  | j11-   | 0    | m1    | Polygon           | 611,613         |
+  | prb11+ | 0    | m2    | Polygon           | 607             |
+  | prb11- | 0    | r2    | Polygon           | 607             |
+  | ib5+   | 0    | m2    | Polygon           | 531             |
+  | ib5-   | 0    | r2    | Polygon           | 531             |
+  | ib6+   | 0    | m2    | Polygon           | 519             |
+  | ib6-   | 0    | r2    | Polygon           | 519             |
+  | ib7+   | 0    | m2    | Polygon           | 36              |
+  | ib7-   | 0    | r2    | Polygon           | 36              |
+  | ib8+   | 0    | m2    | Polygon           | 29              |
+  | ib8-   | 0    | r2    | Polygon           | 29              |
+  | ib9+   | 0    | m2    | Polygon           | 283             |
+  | ib9-   | 0    | r2    | Polygon           | 283             |
+  | ib10+  | 0    | m2    | Polygon           | 616             |
+  | ib10-  | 0    | r2    | Polygon           | 616             |
+  | pdc+   | 0    | m2    | Polygon           | 1,2,4,5         |
+  | pdc-   | 0    | m0    | Polygon           | 1,2,4,5         |
+  | pl9+   | 0    | m2    | Line/Edge Surface | 947             |
+  | pl9-   | 0    | m0    | Line/Edge Surface | 947,965,966     |
+  | pl4+   | 0    | m2    | Line/Edge Surface | 358             |
+  | pl4-   | 0    | m0    | Line/Edge Surface | 358,390,391     |
+  | pl1+   | 0    | m2    | Line/Edge Surface | 313,568         |
+  | pl1-   | 0    | m0    | Line/Edge Surface | 313,392,568,574 |
+  | pl12+  | 0    | m2    | Line/Edge Surface | 855             |
+  | pl12-  | 0    | m0    | Line/Edge Surface | 855,889,890     |
+  +========+======+=======+===================+=================+
+
+Model info: [0] Chip0
+  +=========+=====+=====+====+====+====+======+====+=====+====+====+====+
+  | Layer   | MN1 | IN1 | M0 | I0 | M1 | I1BL | R2 | I1B | M2 | I2 | M3 |
+  +---------+-----+-----+----+----+----+------+----+-----+----+----+----+
+  | Objects | 0   | 0   | 3  | 21 | 49 | 45   | 17 | 132 | 75 | 0  | 0  |
+  +=========+=====+=====+====+====+====+======+====+=====+====+====+====+
+
+Mesh info:
+  +============+=========+
+  | #Triangles | #Tetras |
+  +------------+---------+
+  | 5518       | 475194  |
+  +============+=========+
+
+Time allocation (s):
+  +=================+==========+=======+==========+======+
+  | Input file read | Polygons | Mesh  | 3D model | TTH  |
+  +-----------------+----------+-------+----------+------+
+  | 0.06            | 1.441    | 6.271 | 2.089    | 1911 |
+  +=================+==========+=======+==========+======+
+
+
+GMRES convergence:
+ - Iterations:      Low = 103; High = 146; Average = 124; (limit = 400)
+ - Residual error:  Low = 6.67E-7; High = 6.65E-5; Average = 2.11E-5; (limit = 1.00E-4)
+
+SVD solution information (A*x = b):
+ - Unknowns = 65; rank = 65. 
+ - Condition number:                   692.5
+ - Max error (Max(|A*x - b|)):         0.998558
+ - Relative error (||A*x - b||/||b||): 21.8731%
+
+Inductance [pH]
+Name           Design        Extracted     AbsDiff       PercDiff
+LJ1            --            0.126821      +0.12682      --%
+LP2            0.4           0.546277      +0.14628      +36.569%
+LJ2            --            0.107205      +0.1072       --%
+LJ3            --            0.126987      +0.12699      --%
+LP4            0.4           0.697462      +0.29746      +74.365%
+LJ4            --            0.0999039     +0.099904     --%
+LJ5            --            0.268466      +0.26847      --%
+LJ6            --            0.168391      +0.16839      --%
+LP7            0.4           0.590084      +0.19008      +47.521%
+LJ7            --            0.114618      +0.11462      --%
+LP8            0.4           0.282806      -0.11719      -29.299%
+LJ8            --            0.173773      +0.17377      --%
+LP9            0.4           0.574043      +0.17404      +43.511%
+LJ9            --            0.106481      +0.10648      --%
+LP10           0.4           0.583954      +0.18395      +45.988%
+LJ10           --            0.146881      +0.14688      --%
+LP11           0.4           0.434332      +0.034332     +8.5831%
+LJ11           --            0.108723      +0.10872      --%
+L1             3.7           1.99109       -1.7089       -46.187%
+L2++13         6.2           4.82862       -1.3714       -22.119%
+L3             5.6           3.08097       -2.519        -44.983%
+L4             3.4           1.09049       -2.3095       -67.927%
+L5++15         5.4           3.88879       -1.5112       -27.985%
+L6             7.2           4.46027       -2.7397       -38.052%
+L7             2.7           2.84774       +0.14774      +5.472%
+L8             4.2           2.31889       -1.8811       -44.788%
+L9             2.7           1.6565        -1.0435       -38.648%
+L10++14        6.5           5.0356        -1.4644       -22.529%
+L11            6.7           3.97746       -2.7225       -40.635%
+L12            2.4           1.43178       -0.96822      -40.343%
+LIB5           --            15.8055       +15.806       --%
+LIB6           --            1.19015       +1.1901       --%
+LIB7           --            6.33263       +6.3326       --%
+LIB8           --            5.25792       +5.2579       --%
+LIB9           --            20.1337       +20.134       --%
+LIB10          --            9.82785       +9.8278       --%
+LDC            --            3.74081       +3.7408       --%
+LRS1_SERIES    --            0.466762      +0.46676      --%
+LRS2_SERIES    --            0.392802      +0.3928       --%
+LRS3_SERIES    --            0.468204      +0.4682       --%
+LRS4_SERIES    --            0.39973       +0.39973      --%
+LRS5_SERIES    --            0.62873       +0.62873      --%
+LRS6_SERIES    --            0.43035       +0.43035      --%
+LRS7_SERIES    --            0.446309      +0.44631      --%
+LRS8_SERIES    --            0.317166      +0.31717      --%
+LRS9_SERIES    --            0.415858      +0.41586      --%
+LRS10_SERIES   --            0.511888      +0.51189      --%
+LRS11_SERIES   --            0.391109      +0.39111      --%
+
+Resistance [Ohm]
+Name           Design        Extracted     AbsDiff       PercDiff
+RS1            180           3.57226       -176.43       -98.015%
+RS2            250           2.50108       -247.5        -99%
+RS3            180           3.57149       -176.43       -98.016%
+RS4            250           2.50079       -247.5        -99% 
+RS5            90            7.45003       -82.55        -91.722%
+RS6            177           3.63735       -173.36       -97.945%
+RS7            201           3.17239       -197.83       -98.422%
+RS8            258           2.41053       -255.59       -99.066%
+RS9            230           2.73937       -227.26       -98.809%
+RS10           150           4.34265       -145.66       -97.105%
+RS11           250           2.50184       -247.5        -98.999%
+RIB5           14.9          15.3272       +0.4701       +3.1641%
+RIB6           18.7          18.5178       -0.1872       -1.0008%
+RIB7           14.9          8.92067       -5.9364       -39.957%
+RIB8           16.5          9.23059       -7.2251       -43.906%
+RIB9           14.9          15.1806       +0.3235       +2.1774%
+RIB10          14.9          15.3306       +0.4735       +3.187%
+
+Junction        Critical current [uA]
+Name           Design        Extracted     AbsDiff       PercDiff
+J1             180           175.56        -4.438        -2.4656%
+J2             250           248.34        -1.6597       -0.66389%
+J3             180           175.56        -4.438        -2.4656%
+J4             250           248.34        -1.6597       -0.66389%
+J5             90            87.777        -2.223        -2.4699%
+J6             177           172.65        -4.3481       -2.4565%
+J7             201           196.07        -4.9308       -2.4531%
+J8             258           256.23        -1.7747       -0.68788%
+J9             230           228.5         -1.4982       -0.65137%
+J10            150           146.29        -3.7147       -2.4765%
+J11            250           248.34        -1.6597       -0.66389%
+
+Job finished in 1921.600 seconds. (0.5 hours.)
+
+There are warnings. See "warning_log.txt".
+WARNINGS:
+Global parameter "LASTDIELAYERORDER" on line 18 of /home/domenech/Inductex/seeqc_v8.ldf not recognised.
+Multiple dielectrics require SUPER license. All dielectric constants set to "EpsilonR", or 7.5.
+WARNING: "LayerAdd" parameter in process file is deprecated, and will be removed in a future release of InductEx. Use the Boolean "LayerOperations" instead, and "OR" or "+" every layer to be added.
+WARNING: "LayerSub" parameter in process file is deprecated, and will be removed in a future release of InductEx. Use the Boolean "LayerOperations" instead, and "NOT" or "-" every layer to be subtracted.
