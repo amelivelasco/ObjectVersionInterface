@@ -1,0 +1,39 @@
+
+=== LAYOUT MAPPING AUDIT ===
+OK   | raw=LL75               path=L75             pid=L75    layout_cell=ind2_pcell_3b20 device_cell=ind2_pcell_3b20
+OK   | raw=LL76               path=L76             pid=L76    layout_cell=ind2_pcell_0986 device_cell=ind2_pcell_0986
+OK   | raw=LL74               path=L74             pid=L74    layout_cell=ind2_pcell_e4a9 device_cell=ind2_pcell_e4a9
+OK   | raw=LL12               path=L12             pid=L12    layout_cell=ind2_pcell_4fa6 device_cell=ind2_pcell_4fa6
+OK   | raw=LL11               path=L11             pid=L11    layout_cell=ind2_pcell_062b device_cell=ind2_pcell_062b
+OK   | raw=LL10               path=L10             pid=L10    layout_cell=ind2_pcell_1258 device_cell=ind2_pcell_1258
+OK   | raw=LL9                path=L9              pid=L9     layout_cell=ind2_pcell_cd6a device_cell=ind2_pcell_cd6a
+OK   | raw=LL8                path=L8              pid=L8     layout_cell=ind2_pcell_3783 device_cell=ind2_pcell_3783
+OK   | raw=LL7                path=L7              pid=L7     layout_cell=ind2_pcell_cd6a device_cell=ind2_pcell_cd6a
+OK   | raw=LL6                path=L6              pid=L6     layout_cell=ind2_pcell_3736 device_cell=ind2_pcell_3736
+OK   | raw=LL5                path=L5              pid=L5     layout_cell=ind2_pcell_ab88 device_cell=ind2_pcell_ab88
+OK   | raw=LL4                path=L4              pid=L4     layout_cell=ind2_pcell_84ba device_cell=ind2_pcell_84ba
+OK   | raw=LL3                path=L3              pid=L3     layout_cell=ind2_pcell_750f device_cell=ind2_pcell_750f
+OK   | raw=LL2                path=L2              pid=L2     layout_cell=ind2_pcell_e4a9 device_cell=ind2_pcell_e4a9
+OK   | raw=LL1                path=L1              pid=L1     layout_cell=ind2_pcell_df35 device_cell=ind2_pcell_df35
+OK   | raw=XpcIB5             path=IB5             pid=IB5    layout_cell=pwrcell_pcell_0bb1 device_cell=pwrcell_pcell_0bb1
+OK   | raw=XpcIB6             path=IB6             pid=IB6    layout_cell=pwrcell_pcell_0bb1 device_cell=pwrcell_pcell_0bb1
+OK   | raw=XpcIB4             path=IB4             pid=IB4    layout_cell=pwrcell_pcell_a26d device_cell=pwrcell_pcell_a26d
+OK   | raw=XpcIB3             path=IB3             pid=IB3    layout_cell=pwrcell_pcell_0bb1 device_cell=pwrcell_pcell_0bb1
+OK   | raw=XpcIB2             path=IB2             pid=IB2    layout_cell=pwrcell_pcell_d53e device_cell=pwrcell_pcell_d53e
+OK   | raw=XpcIB1             path=IB1             pid=IB1    layout_cell=pwrcell_pcell_0bb1 device_cell=pwrcell_pcell_0bb1
+OK   | raw=XsjJ9              path=J9              pid=J9     layout_cell=jj_s_pcell_34fb device_cell=jj_s_pcell_34fb
+OK   | raw=XsjJ11             path=J11             pid=J11    layout_cell=jj_s_pcell_f0fd device_cell=jj_s_pcell_f0fd
+OK   | raw=XsjJ8              path=J8              pid=J8     layout_cell=jj_s_pcell_bb5e device_cell=jj_s_pcell_bb5e
+OK   | raw=XsjJ6              path=J6              pid=J6     layout_cell=jj_s_pcell_64e8 device_cell=jj_s_pcell_64e8
+OK   | raw=XsjJ3              path=J3              pid=J3     layout_cell=jj_s_pcell_0a7e device_cell=jj_s_pcell_0a7e
+OK   | raw=XsjJ10             path=J10             pid=J10    layout_cell=jj_s_pcell_7e54 device_cell=jj_s_pcell_7e54
+OK   | raw=XsjJ7              path=J7              pid=J7     layout_cell=jj_s_pcell_74b5 device_cell=jj_s_pcell_74b5
+OK   | raw=XsjJ4              path=J4              pid=J4     layout_cell=jj_s_pcell_34fb device_cell=jj_s_pcell_34fb
+OK   | raw=XsjJ2              path=J2              pid=J2     layout_cell=jj_s_pcell_e6a0 device_cell=jj_s_pcell_e6a0
+OK   | raw=XsjJ1              path=J1              pid=J1     layout_cell=jj_s_pcell_34fb device_cell=jj_s_pcell_34fb
+OK   | raw=XsjJ5              path=J5              pid=J5     layout_cell=jj_s_pcell_e6a0 device_cell=jj_s_pcell_e6a0
+
+=== SUMMARY ===
+Total logical elements: 32
+Mapped: 32
+Unmapped: 0

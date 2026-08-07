@@ -12,6 +12,14 @@ class InductexExporter(BaseExporter):
         self.counter_node = 0
         self.list_nodes_top = circuit.list_nodes_top
         self.output_dir = ""
+        self.use_extracted_values = None
+
+    def get_value(self, elem, extracted_attr, original_value):
+        if self.use_extracted_values:
+            value = getattr(elem, extracted_attr, None)
+            if value is not None and str(value).strip() != "":
+                return value
+        return original_value
 
     @staticmethod
     def format_cir_value(value):
@@ -33,20 +41,6 @@ class InductexExporter(BaseExporter):
             else:
                 self.list_top_nodes(e) 
     
-    # could be in circuit class
-    def folder_to_write(self, base_dir=None):
-
-        timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M")
-        folder_name = f"BIG_Cell_{timestamp}"
-
-        if base_dir is None:
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-        full_path = os.path.join(base_dir, "Datafolder", folder_name)
-        os.makedirs(full_path, exist_ok=True)
-
-        self.output_dir = full_path
-        
     
     def renum_top(self):
         
@@ -99,11 +93,13 @@ class InductexExporter(BaseExporter):
             """
             self.list_additional_node = None
 
+            l_value = self.get_value(elem, "RealL", elem.L)
+
             lines.append(
                 f"{elem.name:<10} "
                 f"{elem.net_in.GlobalName:<15} "
                 f"{elem.net_out.GlobalName:<15} "
-                f"{self.format_cir_value(elem.L)}"
+                f"{self.format_cir_value(l_value)}"
             )
 
 
@@ -114,12 +110,20 @@ class InductexExporter(BaseExporter):
             rs_name = "Rs" + jname[1:]
             lp_net = elem.net_out
             W_NAME, W_NET = 10, 15
-            jj_value = self.format_cir_value(elem.Ic)
+            jj_value = self.format_cir_value(
+                self.get_value(elem, "RealJ", elem.Ic)
+            )
+
+            rs_value = self.format_cir_value(
+                self.get_value(elem, "RParral", elem.Ic)
+            )
 
             if str(elem.net_out.GlobalName) == "0":
                 lp_net = new_internal_node()
                 lp_name = "Lp" + jname[1:]
-                lp_value = self.format_cir_value(0.4)
+                lp_value = self.format_cir_value(
+                    self.get_value(elem, "Lp", 0.4)
+                )
 
                 lp_net.connected_elements.append(jname)
                 lp_net.connected_elements.append(elem.net_out.GlobalName)
@@ -144,10 +148,10 @@ class InductexExporter(BaseExporter):
             elem.listAdditionalNode.append(second_additional_net)
 
             lines.append(
-                f"{jname:<{W_NAME}} "
-                f"{elem.net_in.GlobalName:<{W_NET}} "
-                f"{additional_net.GlobalName:<{W_NET}} "
-                f"{jj_value}"
+                f"{rs_name:<{W_NAME}} "
+                f"{second_additional_net.GlobalName:<{W_NET}} "
+                f"{lp_net.GlobalName:<{W_NET}} "
+                f"{rs_value}"
             )
 
             lines.append(
@@ -168,6 +172,22 @@ class InductexExporter(BaseExporter):
                 f"{lp_net.GlobalName:<{W_NET}} "
                 f"{jj_value}"
             )
+
+        def reset_generated_state(self, original_node_count):
+            del self.list_nodes_top[original_node_count:]
+            self.counter_node = 0
+
+            def reset_cell(cell):
+                for elem in cell.instances:
+                    if hasattr(elem, "net_in"):
+                        for attr in ("listAdditionalNode", "list_additional_node"):
+                            nodes = getattr(elem, attr, None)
+                            if isinstance(nodes, list):
+                                nodes.clear()
+                    elif hasattr(elem, "instances"):
+                        reset_cell(elem)
+
+            reset_cell(self.circuit.TOP)
 
 
         def emit_ib(elem):
@@ -192,7 +212,12 @@ class InductexExporter(BaseExporter):
             W_NAME = 10
             W_NET = 15
 
-            rib_value = f"{2600 / elem.Ib:.4f}".rstrip("0").rstrip(".")
+            original_rib = 2600 / elem.Ib
+            rib_value = self.format_cir_value(
+                self.get_value(elem, "RealIB", original_rib)
+            )
+
+            lib_value = self.get_value(elem, "RealLIB", None)
 
             lines.append(
                 f"{ib_port_name:<{W_NAME}} "
@@ -200,11 +225,16 @@ class InductexExporter(BaseExporter):
                 f"{str(additional_net.GlobalName):<{W_NET}}"
             )
 
-            lines.append(
+            lib_line = (
                 f"{lib_name:<{W_NAME}} "
                 f"{str(additional_net.GlobalName):<{W_NET}} "
                 f"{str(second_additional_net.GlobalName):<{W_NET}}"
             )
+
+            if self.use_extracted_values and lib_value is not None:
+                lib_line += f" {self.format_cir_value(lib_value)}"
+
+            lines.append(lib_line)
 
             lines.append(
                 f"{rib_name:<{W_NAME}} "
@@ -240,11 +270,13 @@ class InductexExporter(BaseExporter):
                 f"{additional_net.GlobalName:<{W_NET}}"
             )
 
+            r_value = self.get_value(elem, "RealR", elem.R)
+
             lines.append(
                 f"{rname:<{W_NAME}} "
                 f"{additional_net.GlobalName:<{W_NET}} "
                 f"{elem.net_out.GlobalName:<{W_NET}} "
-                f"{self.format_cir_value(elem.R)}"
+                f"{self.format_cir_value(r_value)}"
             )
             
         emitters = {
@@ -337,40 +369,6 @@ class InductexExporter(BaseExporter):
 
         return elem_connections
 
-        # =================================================
-        # === ICI : ÉCRITURE FINALE DU FICHIER ============
-        # =================================================
-    def write_inductex_file(self, relations):
-        if relations is None:
-            relations = {
-                "l": [],
-                "p": [],
-                "r": [],
-                "others": []
-            }
-
-        output_path = os.path.join(self.output_dir, "BIG_Cell_inductex.cir")
-
-        mydict = {
-            "INDUCTANCES": relations["l"],
-            "PORTS": relations["p"],
-            "RESISTANCES": relations["r"],
-            "OTHERS": relations["others"]
-        }
-        
-        with open(output_path, "w") as f:
-            
-            for section, section_lines in mydict.items():
-                if not section_lines:
-                    continue
-                f.write(f"* === {section} ===\n")
-                for line in section_lines:
-                        f.write(line + "\n")
-
-                print(f"Fichier InductEx écrit : {output_path}")
-                print("Nœuds internes créés :")
-                for node in self.list_nodes_top:
-                    print(" ", node.name)
 
     def build_dc_connection_lines(self):
         def find_ib(cell):

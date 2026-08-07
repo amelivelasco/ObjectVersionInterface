@@ -6,7 +6,12 @@ __pycache__/
 .Python
 
 *.cir 
-Datafolder/**/*.gds
+*.gds
+*.sp
+
+Circuit_Projects/NDROmCells/outputWoekingAlmost/
+
+UI/circuit_data.js
 
 BasicCellsHomemade_MultiplexerAmeli.sp
 .venv

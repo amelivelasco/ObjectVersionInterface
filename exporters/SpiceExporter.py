@@ -137,4 +137,234 @@ class SpiceExporter(BaseExporter):
         lines.append(
             f"L{inst.name} {node0} {net_out} ind2 l={inst.JJIndParral}p"
         )
+
+def parse_sol_file(self, sol_path):
+    """
+    Reads extracted component values from an InductEx .sol/.txt file.
+
+    Returns:
+        {
+            "L": {"L1": 1.99109, "LJ1": 0.126821, ...},
+            "R": {"RS1": 3.57226, "RIB5": 15.3272, ...},
+            "J": {"J1": 175.56, "J2": 248.34, ...},
+            "combined_L": {"L2++13": 4.82862, ...}
+        }
+    """
+    import re
+
+    values = {
+        "L": {},
+        "R": {},
+        "J": {},
+        "combined_L": {}
+    }
+
+    section = None
+    number = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][-+]?\d+)?"
+
+    with open(sol_path, "r", encoding="utf-8", errors="ignore") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+
+            if line == "Inductance [pH]":
+                section = "L"
+                continue
+
+            if line == "Resistance [Ohm]":
+                section = "R"
+                continue
+
+            if line.startswith("Junction") and "Critical current [uA]" in line:
+                section = "J"
+                continue
+
+            if line.startswith("Job finished"):
+                break
+
+            if section is None:
+                continue
+
+            match = re.match(
+                rf"^(\S+)\s+(?:--|{number})\s+({number})",
+                line
+            )
+
+            if not match:
+                continue
+
+            name = match.group(1).upper()
+            extracted = float(match.group(2))
+
+            if section == "L" and "++" in name:
+                values["combined_L"][name] = extracted
+            else:
+                values[section][name] = extracted
+
+    return values
+
+
+def create_sp_from_sol(self, sol_path, source_sp=None, output_sp=None):
+    """
+    Creates a NEW SPICE file using the existing Netlist.sp topology
+    and replacing design values with values extracted from sol.txt.
+
+    Existing build_net_list() functionality is not modified.
+    """
+    import os
+    import re
+
+    if source_sp is None:
+        source_sp = os.path.join(
+            self.circuit.output_dir,
+            "Splitter/Splitter/Netlist.sp"
+        )
+
+    if output_sp is None:
+        output_sp = os.path.join(
+            self.circuit.output_dir,
+            "Splitter/Splitter/Netlist_from_sol.sp"
+        )
+
+    values = self.parse_sol_file(sol_path)
+
+    with open(source_sp, "r", encoding="utf-8") as f:
+        original_lines = f.readlines()
+
+    new_lines = []
+
+    for line in original_lines:
+        stripped = line.strip()
+
+        if not stripped or stripped.startswith("*") or stripped.startswith("."):
+            new_lines.append(line)
+            continue
+
+        parts = stripped.split()
+
+        if not parts:
+            new_lines.append(line)
+            continue
+
+        component = parts[0]
+        component_upper = component.upper()
+
+        # ========================================================
+        # JOSEPHSON JUNCTION
+        #
+        # Example existing SP:
+        # XjJ1 net1 net2 jj ics=180u lser=0.4p
+        #
+        # Solution:
+        # J1            -> 175.56 uA
+        # LRS1_SERIES   -> 0.466762 pH
+        # ========================================================
+
+        if component_upper.startswith("XJ"):
+            junction_name = component[2:].upper()
+
+            if junction_name in values["J"]:
+                current = values["J"][junction_name]
+
+                line = re.sub(
+                    r"\bics\s*=\s*[-+0-9.eE]+u?",
+                    f"ics={current:g}u",
+                    line,
+                    flags=re.IGNORECASE
+                )
+
+            if junction_name.startswith("J"):
+                suffix = junction_name[1:]
+                series_name = f"LRS{suffix}_SERIES"
+
+                if series_name in values["L"]:
+                    inductance = values["L"][series_name]
+
+                    line = re.sub(
+                        r"\blser\s*=\s*[-+0-9.eE]+p?",
+                        f"lser={inductance:g}p",
+                        line,
+                        flags=re.IGNORECASE
+                    )
+
+            new_lines.append(line)
+            continue
+
+        # ========================================================
+        # RESISTORS
+        #
+        # RS1   -> extracted shunt resistance
+        # RIB5  -> extracted bias resistance
+        # ========================================================
+
+        if component_upper in values["R"]:
+            resistance = values["R"][component_upper]
+
+            line = re.sub(
+                r"\br\s*=\s*[-+0-9.eE]+",
+                f"r={resistance:g}",
+                line,
+                flags=re.IGNORECASE
+            )
+
+            new_lines.append(line)
+            continue
+
+        # ========================================================
+        # INDUCTORS
+        #
+        # L1
+        # LJ1
+        # LP2
+        # LIB5
+        # etc.
+        # ========================================================
+
+        if component_upper in values["L"]:
+            inductance = values["L"][component_upper]
+
+            line = re.sub(
+                r"\bl\s*=\s*[-+0-9.eE]+p?",
+                f"l={inductance:g}p",
+                line,
+                flags=re.IGNORECASE
+            )
+
+            new_lines.append(line)
+            continue
+
+        new_lines.append(line)
+
+    # Add information about combined InductEx inductors.
+    if values["combined_L"]:
+        combined_lines = [
+            "\n",
+            "*" * 80 + "\n",
+            "* Combined inductors reported by InductEx\n",
+            "* These cannot be mapped individually without additional topology information.\n"
+        ]
+
+        for name, value in values["combined_L"].items():
+            combined_lines.append(
+                f"* {name} = {value:g}p\n"
+            )
+
+        combined_lines.append("*" * 80 + "\n")
+
+        # Put comments before .ends
+        for i, line in enumerate(new_lines):
+            if line.strip().lower().startswith(".ends"):
+                new_lines[i:i] = combined_lines
+                break
+
+    os.makedirs(
+        os.path.dirname(output_sp),
+        exist_ok=True
+    )
+
+    with open(output_sp, "w", encoding="utf-8") as f:
+        f.writelines(new_lines)
+
+    print(f"SPICE netlist created from solution: {output_sp}")
+
+    return output_sp
         

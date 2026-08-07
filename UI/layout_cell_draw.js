@@ -85,15 +85,6 @@ function buildLayoutCellLayout(data) {
   const gapX = drawConfig.layoutCellGapX;
   const gapY = drawConfig.layoutCellGapY;
 
-  /*
-   * Converts names such as:
-   *
-   * "NDROM (i1)" -> "NDROM"
-   * "NDROM (I2)" -> "NDROM"
-   * "NDROM2   (instance_3)" -> "NDROM2"
-   *
-   * Comparison is case-insensitive.
-   */
   function getCellNameFamily(cell) {
     return String(cell.display_name || cell.layout_cell || "")
       .replace(/\s*\([^()]*\)\s*$/, "")
@@ -117,14 +108,6 @@ function buildLayoutCellLayout(data) {
   const rows = [];
   const remainingCells = [];
 
-  /*
-   * First, create rows from cells with matching base names.
-   *
-   * Example:
-   * NDROM (i1) and NDROM (I2) are guaranteed to share a row.
-   *
-   * If four matching instances exist, they become two rows.
-   */
   for (const familyCells of cellsByFamily.values()) {
     let index = 0;
 
