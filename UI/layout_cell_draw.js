@@ -174,6 +174,8 @@ function buildLayoutCellLayout(data) {
     currentY += row.height + gapY;
   }
 
+  alignClosestSharedTerminalRows(placedCells);
+
   const maximumRight = placedCells.length
     ? Math.max(
         ...placedCells.map((cell) => cell.x + cell.width)
@@ -624,8 +626,8 @@ function rotateCellInstance180(layoutInstance, placed, placedCells, svg) {
 }
 
 
-function getLocalCellLayout(elements) {
-  const plan = buildSequentialTerminalPlan(elements), half = drawConfig.imageSize / 2, local = [];
+function getLocalCellLayout(elements, existingPlan = null) {
+  const plan = existingPlan || buildSequentialTerminalPlan(elements), half = drawConfig.imageSize / 2, local = [];
   const getX = col => col * drawConfig.layoutCellElementGapX, getY = row => row * drawConfig.layoutCellElementGapY;
 
   function getJRMembers(block) {
