@@ -323,16 +323,7 @@ function separateRouteFromJR(points, net, jrRails = [], jrMargin = 12) {
   return simplifyOrthogonalPoints(adjusted);
 }
 
-function drawSharedOutputNet(
-  wireLayer,
-  labelLayer,
-  net,
-  terminals,
-  cellElements,
-  routedSegments,
-  jrRails = [],
-  jrMargin = 12
-) {
+function drawSharedOutputNet(wireLayer, labelLayer, net, terminals, cellElements, routedSegments, jrRails = [], jrMargin = 12) {
   const outputs = terminals.filter((terminal) => terminal.kind === "out")
       .sort((first, second) => (first.element ?.layoutOrder ?? Infinity) -
           (second.element ?.layoutOrder ?? Infinity));
@@ -475,16 +466,8 @@ function drawSharedOutputNet(
       continue;
     }
 
-    let routePoints =
-      buildShortestFreeRoute(
-        bestConnection.fromPoint,
-        bestConnection.toPoint,
-        bestConnection.from,
-        bestConnection.to,
-        cellElements,
-        routedSegments,
-        net
-      );
+    let routePoints = buildShortestFreeRoute(bestConnection.fromPoint, bestConnection.toPoint, bestConnection.from, 
+      bestConnection.to, cellElements, routedSegments, net);
 
     if (!Array.isArray(routePoints) || routePoints.length < 2) {
       console.warn(`Skipping unroutable shared connection for ${net}`,

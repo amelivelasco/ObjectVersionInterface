@@ -83,15 +83,11 @@ function placeBiasElementsAboveNetOut(placed) {
     }
 
     const targetIsInductor = getElementType(target) === "L";
-    const connectsToOutput =
-      targetIsInductor &&
-      target.net_out === bias.net_out;
+    const connectsToOutput = targetIsInductor && target.net_out === bias.net_out;
 
     const targetKind = connectsToOutput ? "out" : "in";
 
-    const rawTargetPin = connectsToOutput
-      ? target.outputPin
-      : target.inputPin;
+    const rawTargetPin = connectsToOutput ? target.outputPin : target.inputPin;
 
     if (!rawTargetPin) {
       continue;
@@ -105,52 +101,19 @@ function placeBiasElementsAboveNetOut(placed) {
       layoutInstance: getLayoutInstance(target),
     };
 
-    const targetPin = targetIsInductor
-      ? getTerminalRoutingPoint(targetTerminal, rawTargetPin)
-      : rawTargetPin;
-
-    const targetDirection =
-      target.electricalDirection ??
-      target.direction ??
-      1;
-
-    const desiredJoinX =
-      targetPin.x -
-      targetDirection * drawConfig.biasBranchOffset;
-
+    const targetPin = targetIsInductor ? getTerminalRoutingPoint(targetTerminal, rawTargetPin) : rawTargetPin;
+    const targetDirection = target.electricalDirection ?? target.direction ?? 1;
+    const desiredJoinX = targetPin.x - targetDirection * drawConfig.biasBranchOffset;
     const netY = targetPin.y;
     const biasCenterY = netY - halfSize - gap;
-
-    const biasCenterX = findFreeBiasX(
-      bias,
-      desiredJoinX,
-      biasCenterY,
-      placed
-    );
+    const biasCenterX = findFreeBiasX(bias, desiredJoinX, biasCenterY, placed);
 
     bias.x = biasCenterX;
     bias.y = biasCenterY;
-
-
     bias.biasRotation = 0;
-
-
-    bias.biasFrontPin = {
-      x: biasCenterX,
-      y: biasCenterY + halfSize,
-    };
-
-
-    bias.biasNetJoin = {
-      x: biasCenterX,
-      y: netY,
-    };
-
-    bias.outputPin = {
-      ...bias.biasNetJoin,
-      net: bias.net_out,
-    };
-
+    bias.biasFrontPin = {x: biasCenterX, y: biasCenterY + halfSize,};
+    bias.biasNetJoin = {x: biasCenterX, y: netY,};
+    bias.outputPin = {...bias.biasNetJoin, net: bias.net_out,};
     bias.biasTarget = target.id;
   }
 }
@@ -312,11 +275,7 @@ function snapBiasElementsToNearestNet(wireLayer, placed) {
         getLayoutInstance(element) === layoutInstance
     );
 
-    const jrObstacleBoxes = buildRoutingObstacleBoxes(
-      cellElements,
-      new Set([bias.id]),
-      8
-    ).filter((box) => box.isJRPair);
+    const jrObstacleBoxes = buildRoutingObstacleBoxes(cellElements, new Set([bias.id]), 8).filter((box) => box.isJRPair);
 
     let best = null;
 
@@ -324,10 +283,7 @@ function snapBiasElementsToNearestNet(wireLayer, placed) {
       const childNet = child.dataset.net;
       const childKind = child.dataset.kind || "";
 
-      if (
-        childNet !== bias.net_out ||
-        childKind.startsWith("bias-")
-      ) {
+      if (childNet !== bias.net_out || childKind.startsWith("bias-")) {
         continue;
       }
 
@@ -335,29 +291,17 @@ function snapBiasElementsToNearestNet(wireLayer, placed) {
 
       for (const segment of segments) {
 
-        const horizontal =
-          Math.abs(segment.a.y - segment.b.y) < 0.5;
+        const horizontal = Math.abs(segment.a.y - segment.b.y) < 0.5;
 
         if (!horizontal) {
           continue;
         }
 
-        const minimumX = Math.min(
-          segment.a.x,
-          segment.b.x
-        );
-
-        const maximumX = Math.max(
-          segment.a.x,
-          segment.b.x
-        );
-
+        const minimumX = Math.min(segment.a.x, segment.b.x);
+        const maximumX = Math.max(segment.a.x, segment.b.x);
         const netY = segment.a.y;
 
-        const projectedX = Math.max(
-          minimumX,
-          Math.min(originalX, maximumX)
-        );
+        const projectedX = Math.max(minimumX, Math.min(originalX, maximumX));
 
         const offsets = [
           0,
@@ -372,11 +316,7 @@ function snapBiasElementsToNearestNet(wireLayer, placed) {
         const testedPositions = new Set();
 
         for (const offset of offsets) {
-          const candidateX = Math.max(
-            minimumX,
-            Math.min(projectedX + offset, maximumX)
-          );
-
+          const candidateX = Math.max(minimumX, Math.min(projectedX + offset, maximumX));
           const positionKey = candidateX.toFixed(3);
 
           if (testedPositions.has(positionKey)) {
@@ -385,20 +325,11 @@ function snapBiasElementsToNearestNet(wireLayer, placed) {
 
           testedPositions.add(positionKey);
 
-          const candidateY =
-            netY -
-            halfSize -
-            gap;
+          const candidateY = netY - halfSize - gap;
 
-          const frontPin = {
-            x: candidateX,
-            y: netY - gap,
-          };
+          const frontPin = {x: candidateX, y: netY - gap,};
 
-          const joinPoint = {
-            x: candidateX,
-            y: netY,
-          };
+          const joinPoint = {x: candidateX, y: netY,};
 
           const overlapsJRPair = jrObstacleBoxes.some(
             (box) =>
@@ -412,31 +343,20 @@ function snapBiasElementsToNearestNet(wireLayer, placed) {
 
           const stubCrossesJRPair = jrObstacleBoxes.some(
             (box) =>
-              axisAlignedSegmentHitsBox(
-                frontPin,
-                joinPoint,
-                box
-              )
+              axisAlignedSegmentHitsBox(frontPin, joinPoint, box)
           );
 
           if (overlapsJRPair || stubCrossesJRPair) {
             continue;
           }
 
-          const isFree = isBiasPositionFree(
-            bias,
-            candidateX,
-            candidateY,
-            placed
-          );
+          const isFree = isBiasPositionFree(bias, candidateX, candidateY, placed);
 
           if (!isFree) {
             continue;
           }
 
-          const movement =
-            Math.abs(originalX - candidateX) +
-            Math.abs(originalY - candidateY);
+          const movement = Math.abs(originalX - candidateX) + Math.abs(originalY - candidateY);
 
           if (!best || movement < best.score) {
             best = {
