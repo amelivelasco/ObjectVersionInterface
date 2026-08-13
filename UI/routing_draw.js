@@ -2,7 +2,9 @@ function getPinOffsetForElement(element) {
   return (getElementType(element) === "L" ? drawConfig.inductorPinOffset + 10 : drawConfig.pinOffset + 10);
 }
 
-function isBiasElement(element) {return getElementType(element) === "IB";}
+function isBiasElement(element) {
+  return getElementType(element) === "IB";
+}
 
 function getLayoutInstance(element) {
   return (element.parentLayoutCell || element.layout_instance || element.layout_cell || "unassigned");
@@ -380,27 +382,6 @@ function chooseCellNetAnchor(terminals) {
 }
 
 
-function addWireLayerToRoutedSegments(wireLayer, routedSegments) {
-  if (!wireLayer || !routedSegments) { return; }
-
-
-  const wireElements = wireLayer.querySelectorAll("path, line, polyline");
-
-  for (const wireElement of wireElements) {
-    const net = wireElement.dataset.net || "__existing_wire__";
-
-    const kind = wireElement.dataset.kind || "existing-wire";
-
-    const segments = extractWireSegmentsFromElement(wireElement);
-
-    for (const segment of segments) {
-      if (!segment?.a || !segment?.b) { continue; }
-      routedSegments.push({...segment, net, kind, existingWire: true,});
-    }
-  }
-}
-
-
 function normalizePolarityNet(net) {
   return String(net ?? "").trim().toUpperCase();
 }
@@ -581,131 +562,6 @@ function buildPolarityComponents(placed) {
   return components;
 }
 
-function buildPolarityNetGraph(components) {
-  const graph =new Map();
-
-  function ensureNet(net) {
-    if (!net || graph.has(net)) {return;}
-
-    graph.set(net, new Set());
-  }
-
-  function connectNets(firstNet, secondNet) {
-    if (!firstNet || !secondNet) { return; }
-    ensureNet(firstNet);
-    ensureNet(secondNet);
-
-    if (firstNet === secondNet) { return; }
-    graph.get(firstNet).add(secondNet);
-    graph.get(secondNet).add(firstNet);
-  }
-
-  for (const component of components) {
-    connectNets(component.sideA.netKey, component.sideB.netKey);
-  }
-  return graph;
-}
-
-function calculateBiasNetDistances(sourceNet, graph) {
-  const distances = new Map();
-
-  if (!sourceNet) { return distances;}
-
-  distances.set(sourceNet, 0);
-
-  const queue = [sourceNet,];
-
-  for (let queueIndex = 0; queueIndex < queue.length; queueIndex++) {
-    const currentNet = queue[queueIndex];
-
-    const currentDistance = distances.get(currentNet);
-
-    const neighbours = graph.get(currentNet) || [];
-
-    for (const neighbour of neighbours) {
-      if (distances.has(neighbour)
-      ) {continue;}
-
-      distances.set(neighbour, currentDistance + 1);
-      queue.push(neighbour);
-    }
-  }
-
-  return distances;
-}
-
-function buildPolarityBiases(placed, graph) {
-  return placed.filter(
-      (element) =>
-        isBiasElement(element) && element.net_out
-    )
-    .map((bias) => { const sourceNet = normalizePolarityNet(bias.net_out);
-
-        return {element: bias, sourceNet, point: getBiasPolarityPoint(bias), distances:
-            calculateBiasNetDistances(sourceNet, graph),
-        };
-      }
-    );
-}
-
-function chooseClosestBiasForComponent(component, biases) {
-  let bestBias =  null;
-
-  for (const bias of biases) {
-    const distanceA = bias.distances.has(component.sideA.netKey) ? bias.distances.get(component.sideA.netKey) : Infinity;
-
-    const distanceB = bias.distances.has(component.sideB.netKey) ? bias.distances.get(component.sideB.netKey) : Infinity;
-
-    const graphDistance = Math.min(distanceA, distanceB);
-
-    if (!Number.isFinite(graphDistance)
-    ) { continue; }
-
-    const physicalDistance = getPolarityDistance(bias.point, component.center);
-
-    if (!bestBias || graphDistance < bestBias.graphDistance ||
-      (graphDistance ===  bestBias.graphDistance && physicalDistance < bestBias.physicalDistance)
-    ) { bestBias = { ...bias, graphDistance, physicalDistance, distanceA, distanceB,}; }
-  }
-
-
-  if (!bestBias && biases.length > 0) {
-    const closest = [...biases].sort(
-        (first, second) => getPolarityDistance(first.point, component.center) -
-          getPolarityDistance(second.point, component.center))[0];
-
-    bestBias = {...closest, graphDistance: Infinity, physicalDistance: getPolarityDistance(closest.point, component.center),
-      distanceA: Infinity, distanceB: Infinity, };
-  }
-  return bestBias;
-}
-
-function choosePositiveComponentSide(component, bias) {
-  if (!bias) { return null; }
-  if (bias.distanceA < bias.distanceB) {return component.sideA;}
-  if (bias.distanceB < bias.distanceA) { return component.sideB; }
-
-
-  const sideAIsBiasNet = component.sideA.netKey === bias.sourceNet;
-
-  const sideBIsBiasNet = component.sideB.netKey === bias.sourceNet;
-
-  if (sideAIsBiasNet && !sideBIsBiasNet
-  ) { return component.sideA;}
-
-  if (sideBIsBiasNet && !sideAIsBiasNet ) { return component.sideB; }
-
-  const physicalA = getPolarityDistance(bias.point, component.sideA.point);
-
-  const physicalB = getPolarityDistance(bias.point, component.sideB.point);
-
-  if (physicalB < physicalA) {
-    return component.sideB;
-  }
-
-  return component.sideA;
-}
-
 function getOutwardSignPoint(componentCenter, terminalPoint, offset = 10) {
   const dx = terminalPoint.x - componentCenter.x;
   const dy = terminalPoint.y - componentCenter.y;
@@ -786,56 +642,4 @@ function drawBiasBasedPolaritySigns(labelLayer, placed) {
 
     drawPolarityForComponent(labelLayer, component, component.sideA);
   }
-}
-
-function enableRightClickNavigation(svg) {
-  if (!svg) return;
-
-  function getContentBBox() {
-    const content = svg.querySelector(".circuit-world, .viewport, .zoom-layer, g") || svg;
-    try { return content.getBBox(); } catch { return null; }
-  }
-
-  function getViewBox() {
-    const vb = svg.viewBox.baseVal;
-    if (vb?.width && vb?.height) return { x: vb.x, y: vb.y, width: vb.width, height: vb.height };
-
-    const r = svg.getBoundingClientRect();
-    return { x: 0, y: 0, width: r.width, height: r.height };
-  }
-
-  function screenToSvg(clientX, clientY) {
-    const p = svg.createSVGPoint();
-    p.x = clientX;
-    p.y = clientY;
-    return p.matrixTransform(svg.getScreenCTM().inverse());
-  }
-
-  function centerAt(clientX, clientY) {
-    const p = screenToSvg(clientX, clientY);
-    const vb = getViewBox();
-    svg.setAttribute("viewBox", `${p.x - vb.width / 2} ${p.y - vb.height / 2} ${vb.width} ${vb.height}`);
-  }
-
-  function fitCircuit() {
-    const box = getContentBBox();
-    if (!box || !box.width || !box.height) return;
-
-    const padding = Math.max(box.width, box.height) * 0.06;
-    svg.setAttribute(
-      "viewBox",
-      `${box.x - padding} ${box.y - padding} ${box.width + padding * 2} ${box.height + padding * 2}`
-    );
-  }
-
-  svg.addEventListener("contextmenu", e => {
-    e.preventDefault();
-
-    if (e.ctrlKey) {
-      fitCircuit();        // Ctrl + right click
-      return;
-    }
-
-    centerAt(e.clientX, e.clientY); // Right click
-  });
 }
