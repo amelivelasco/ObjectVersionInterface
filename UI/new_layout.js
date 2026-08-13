@@ -564,12 +564,11 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
       .sort((first, second) => placements.get(first.id).col - placements.get(second.id).col)[0];
 
     if (target) {
-      const targetPlacement = placements.get(target.id), row = targetPlacement.row;
-      shiftRowsFrom(row);
-      const shiftedTarget = placements.get(target.id);
+      const targetPlacement = placements.get(target.id);
 
       placements.set(biasBlock.id, {
-        block: biasBlock, row, col: shiftedTarget.col, span: biasBlock.span, occupiesGrid: true,
+        block: biasBlock, row: targetPlacement.row, col: targetPlacement.col, span: biasBlock.span, occupiesGrid: false,
+        placementMode: "above-target-bias", hostNet: biasBlock.netOut, hostTargetId: target.id,
       });
     }
   }

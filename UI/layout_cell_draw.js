@@ -27,8 +27,7 @@ function resolveLayoutCellElements(layoutCell, elementMap) {
 }
 
 function measureLayoutCell(elements) {
-  const layout = getLocalCellLayout(elements);
-  const padding = drawConfig.layoutCellPadding;
+  const layout = getLocalCellLayout(elements), padding = drawConfig.layoutCellPadding;
 
   return {
     sequentialPlan: layout.plan,
@@ -211,7 +210,7 @@ function placeElementsInsideLayoutCell(cell) {
   const padding = drawConfig.layoutCellPadding;
 
   const offsetX = cell.x + padding - layout.minX;
-  const offsetY = cell.y + padding - layout.minY;
+  const offsetY = cell.y + padding - layout.anchorMinY;
 
   const placed = [];
   let layoutOrder = 0;
@@ -626,42 +625,35 @@ function rotateCellInstance180(layoutInstance, placed, placedCells, svg) {
 
 
 function getLocalCellLayout(elements) {
-  const plan = buildSequentialTerminalPlan(elements);
-  const half = drawConfig.imageSize / 2;
-  const local = [];
-
-  const getX = col => col * drawConfig.layoutCellElementGapX;
-  const getY = row => row * drawConfig.layoutCellElementGapY;
+  const plan = buildSequentialTerminalPlan(elements), half = drawConfig.imageSize / 2, local = [];
+  const getX = col => col * drawConfig.layoutCellElementGapX, getY = row => row * drawConfig.layoutCellElementGapY;
 
   function getJRMembers(block) {
-    const jj = block.elements.find(e => getElementType(e) === "JJ");
-    const resistor = block.elements.find(e => getElementType(e) === "R");
+    const jj = block.elements.find(e => getElementType(e) === "JJ"), resistor = block.elements.find(e => getElementType(e) === "R");
     return jj && resistor && isJJResistorPair(jj, resistor) ? { jj, resistor } : null;
   }
 
-  const ordered = [...plan.placements.values()].sort((a, b) =>
-    a.row - b.row || a.col - b.col || (a.block.originalIndex ?? Infinity) - (b.block.originalIndex ?? Infinity)
-  );
+  const ordered = [...plan.placements.values()].sort((a, b) => a.row - b.row || a.col - b.col || (a.block.originalIndex ?? Infinity) - (b.block.originalIndex ?? Infinity));
 
   for (const placement of ordered) {
-    const jr = getJRMembers(placement.block);
-    const hostWireY = getY(placement.row);
+    const jr = getJRMembers(placement.block), hostWireY = getY(placement.row);
 
     placement.block.elements.forEach((element, memberIndex) => {
       const type = getElementType(element);
       let x, y;
 
       if (placement.placementMode === "inline-grounded-jr" && jr) {
-        const center = getX(placement.centerCol);
-        const spacing = placement.pairSpacing ?? 70;
+        const center = getX(placement.centerCol), spacing = placement.pairSpacing ?? 70;
         x = type === "JJ" ? center - spacing / 2 : center + spacing / 2;
         y = hostWireY + half + (placement.rise ?? 25);
       } else if (placement.placementMode === "inline-jr-bias") {
         x = getX(placement.centerCol);
         y = hostWireY - half - drawConfig.biasOutputGap;
+      } else if (placement.placementMode === "above-target-bias") {
+        x = getX(placement.col + memberIndex);
+        y = hostWireY - half - drawConfig.biasBranchOffset;
       } else if (jr) {
-        const centerCol = placement.col + (Math.max(1, placement.span) - 1) / 2;
-        const center = getX(centerCol);
+        const centerCol = placement.col + (Math.max(1, placement.span) - 1) / 2, center = getX(centerCol);
         x = type === "JJ" ? center - 35 : center + 35;
         y = getY(placement.row);
       } else {
@@ -673,12 +665,12 @@ function getLocalCellLayout(elements) {
     });
   }
 
-  if (!local.length) return { plan, local, minX: 0, minY: 0, width: 0, height: 0 };
+  if (!local.length) return { plan, local, minX: 0, minY: 0, anchorMinY: 0, width: 0, height: 0 };
 
-  const minX = Math.min(...local.map(p => p.x - half));
-  const maxX = Math.max(...local.map(p => p.x + half));
-  const minY = Math.min(...local.map(p => p.y - half));
-  const maxY = Math.max(...local.map(p => p.y + half));
+  const minX = Math.min(...local.map(p => p.x - half)), maxX = Math.max(...local.map(p => p.x + half));
+  const minY = Math.min(...local.map(p => p.y - half)), maxY = Math.max(...local.map(p => p.y + half));
+  const normal = local.filter(p => !isBiasElement(p.element));
+  const anchorMinY = normal.length ? Math.min(...normal.map(p => p.y - half)) : minY;
 
-  return { plan, local, minX, minY, width: maxX - minX, height: maxY - minY };
+  return { plan, local, minX, minY, anchorMinY, width: maxX - minX, height: Math.max(0, maxY - anchorMinY) };
 }

@@ -465,6 +465,22 @@ function addParallelChannelMidpoints(routedSegments, xValues, yValues, wireClear
   }
 }
 
+function getClosestInterCellPair(terminals) {
+  let best = null;
+
+  for (let i = 0; i < terminals.length; i++) {
+    for (let j = i + 1; j < terminals.length; j++) {
+      const first = terminals[i], second = terminals[j];
+      if (first.layoutInstance === second.layoutInstance) continue;
+
+      const distance = Math.abs(first.point.x - second.point.x) + Math.abs(first.point.y - second.point.y);
+      if (!best || distance < best.distance) best = { first, second, distance };
+    }
+  }
+
+  return best;
+}
+
 function drawInterCellConnections(svg, externalWireLayer, placed, clearance = 14) {
   const epsilon = 0.5;
   const halfSize = drawConfig.imageSize / 2;
@@ -684,8 +700,12 @@ function drawInterCellConnections(svg, externalWireLayer, placed, clearance = 14
   }
 
   const netEntries = [...terminalsByNet.entries()].sort((first, second) => {
-    const firstY = Math.min(...first[1].map(terminal => terminal.point.y));
-    const secondY = Math.min(...second[1].map(terminal => terminal.point.y));
+    const firstPair = getClosestInterCellPair(first[1]), secondPair = getClosestInterCellPair(second[1]);
+    const firstDistance = firstPair?.distance ?? Infinity, secondDistance = secondPair?.distance ?? Infinity;
+
+    if (firstDistance !== secondDistance) return firstDistance - secondDistance;
+
+    const firstY = Math.min(...first[1].map(t => t.point.y)), secondY = Math.min(...second[1].map(t => t.point.y));
     return firstY - secondY;
   });
 
@@ -702,7 +722,13 @@ function drawInterCellConnections(svg, externalWireLayer, placed, clearance = 14
     if (terminalsByCell.size < 2) continue;
 
     const remainingCells = [...terminalsByCell.entries()];
-    const connectedCells = [remainingCells.shift()];
+    const closestPair = getClosestInterCellPair(terminals);
+    const seedCell = closestPair?.first.layoutInstance;
+
+    let seedIndex = remainingCells.findIndex(([cell]) => cell === seedCell);
+    if (seedIndex < 0) seedIndex = 0;
+
+    const connectedCells = [remainingCells.splice(seedIndex, 1)[0]];
     let connectionCount = 0;
 
     while (remainingCells.length) {

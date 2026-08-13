@@ -25,7 +25,7 @@ const drawConfig = {
   fontFamily: "Arial, sans-serif",
   
   layoutCellMarginX: 90,
-  layoutCellMarginY: 90,
+  layoutCellMarginY: 100,
 
   layoutCellGapX: 140,
   layoutCellGapY: 140,
