@@ -77,7 +77,6 @@ function buildOrderedLayout(elements) {
   const rows = Math.ceil(count / columns);
 
   const canvasWidth = drawConfig.marginX * 2 + Math.max(0, columns - 1) * drawConfig.gapX;
-
   const canvasHeight = drawConfig.marginY * 2 +  Math.max(0, rows - 1) * drawConfig.gapY;
 
   const placed = elements.map((element, index) => {
