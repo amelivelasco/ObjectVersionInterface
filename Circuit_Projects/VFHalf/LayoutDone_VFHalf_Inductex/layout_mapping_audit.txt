@@ -21,7 +21,7 @@ OK   | raw=XsjI118|X318       path=I118/X318       pid=X318   layout_cell=DC_SFQ
 OK   | raw=XsjI119|X316       path=I119/X316       pid=X316   layout_cell=DC_SFQ device_cell=jj_s_pcell_f0fd
 OK   | raw=XsjI119|X317       path=I119/X317       pid=X317   layout_cell=DC_SFQ device_cell=jj_s_pcell_1a3d
 OK   | raw=XsjI119|X318       path=I119/X318       pid=X318   layout_cell=DC_SFQ device_cell=jj_s_pcell_750f
-OK   | raw=XsjX408            path=X408            pid=X408   layout_cell=jj_s_pcell_61da device_cell=jj_s_pcell_61da
+OK   | raw=XsjX408            path=X408            pid=X408   layout_cell=VFHalf device_cell=jj_s_pcell_61da
 OK   | raw=XsjI117|X405       path=I117/X405       pid=X405   layout_cell=Splitter3 device_cell=jj_s_pcell_34fb
 OK   | raw=XsjI117|X410       path=I117/X410       pid=X410   layout_cell=Splitter3 device_cell=jj_s_pcell_34fb
 OK   | raw=XsjI117|X411       path=I117/X411       pid=X411   layout_cell=Splitter3 device_cell=jj_s_pcell_34fb

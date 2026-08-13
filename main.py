@@ -116,21 +116,21 @@ def main():
     #     / "VFHalf.custom_compiler.gds"
     # )
 
-    # netlist_path = (
-    #     base_dir
-    #     / "Circuit_Projects"
-    #     / "NDROMDrivers 1 (1)"
-    #     / "NDROMDrivers"
-    #     / "LayoutDone_NDROMDrivers.sp"
-    # )
+    netlist_path = (
+        base_dir
+        / "Circuit_Projects"
+        / "NDROMDrivers 1 (1)"
+        / "NDROMDrivers"
+        / "LayoutDone_NDROMDrivers.sp"
+    )
     
-    # layout_path = (
-    #     base_dir 
-    #     / "Circuit_Projects"
-    #     / "NDROMDrivers 1 (1)" 
-    #     / "NDROMDrivers"
-    #     / "NDROMDrivers.custom_compiler.gds"
-    # )
+    layout_path = (
+        base_dir 
+        / "Circuit_Projects"
+        / "NDROMDrivers 1 (1)" 
+        / "NDROMDrivers"
+        / "NDROMDrivers.custom_compiler.gds"
+    )
     
     
     ordered_elems_path = (
@@ -362,24 +362,6 @@ def main():
     )
 
     ordered_components = schematic.read_ordered_components(spice_data)
-
-    # 8. Set each component's first-level layout cell.
-    for component in ordered_components:
-        first_level_cell = first_level_layout_cells.get(component.raw)
-
-        if first_level_cell is None:
-            print(
-                f"WARNING: no first-level layout cell found for "
-                f"{component.raw}. Keeping {component.layout_cell}"
-            )
-            continue
-
-        print(
-            f"Updating {component.raw}: "
-            f"{component.layout_cell} -> {first_level_cell}"
-        )
-
-        component.layout_cell = first_level_cell
 
     # 9. Overwrite ordered_elems.txt.
     generated_at = datetime.now(timezone.utc).isoformat()

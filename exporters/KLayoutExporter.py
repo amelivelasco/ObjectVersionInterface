@@ -48,40 +48,22 @@ class KLayoutExporter(BaseExporter):
         return None
 
     def get_first_level_layout_cell(self, raw_name):
-        """
-        Returns the layout cell directly below the top-level layout.
+        layout_path = self._raw_name_to_layout_path(raw_name)
+        if not layout_path: return None
 
-        Examples:
-            LI0|L1  -> NDROM2
-            LI12|L2 -> NDROM2
-            I6|J7   -> confluenceBufferUpgrade
-        """
+        # J6, L75, IB4, etc. are directly inside the top layout cell.
+        if len(layout_path) == 1:
+            return self.layout_top.name
 
-        layout_path = self._raw_name_to_layout_path(
-            raw_name
-        )
-
-        if not layout_path:
-            return None
-
-        # For I0/L1, only use I0.
+        # I0/J5, I12/L3, I6/IB1, etc.
         first_level_pid = layout_path[0]
 
         for layout_inst in self.layout_top.each_inst():
             pid = layout_inst.property(102)
-
-            if (
-                str(pid).lower()
-                == str(first_level_pid).lower()
-            ):
+            if str(pid).lower() == str(first_level_pid).lower():
                 return layout_inst.cell.name
 
-        print(
-            f"WARNING: first-level layout instance "
-            f"'{first_level_pid}' was not found "
-            f"inside '{self.layout_top.name}'"
-        )
-
+        print(f"WARNING: first-level layout instance '{first_level_pid}' was not found inside '{self.layout_top.name}'")
         return None
     
 

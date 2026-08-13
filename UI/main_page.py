@@ -92,44 +92,40 @@ class Schematic:
         ordered_components.append(new_component)
     
     @staticmethod
-    def get_instance_path(component):
-        path = str(getattr(component, "path", "") or "").strip()
-        path = re.sub(r"^[^/\\]+[/\\]", "", path, count=1)
+    def get_logical_path(component):
+        name = str(getattr(component, "raw", "") or "").strip()
 
-        if "/" in path:
-            return path.rsplit("/", 1)[0]
-        if "|" in path:
-            return path.rsplit("|", 1)[0]
-
-        raw = str(getattr(component, "raw", "") or "").strip()
-
-        for prefix in ("Xsj", "Xpc"):
-            if raw.startswith(prefix):
-                raw = raw[len(prefix):]
+        for prefix in ("Xpc", "Xsj", "L", "R"):
+            if name.lower().startswith(prefix.lower()):
+                name = name[len(prefix):]
                 break
 
-        if raw.startswith("L") and "|" in raw:
-            raw = raw[1:]
+        return name.replace("|", "/").strip("/")
 
-        if "|" in raw:
-            return raw.rsplit("|", 1)[0]
+    @staticmethod
+    def get_instance_path(component):
+        path = Schematic.get_logical_path(component)
+        parts = [part for part in path.split("/") if part]
 
-        return path or "root"
+        # Direct component -> no lower layout instance.
+        if len(parts) <= 1:
+            return ""
+
+        # We are grouping first-level layout instances.
+        return parts[0]
 
 
     def get_layout_instance_id(self, component):
-        return (
-            f"{self.get_instance_path(component)}::"
-            f"{component.layout_cell}"
-        )
+        instance_path = self.get_instance_path(component)
+        return f"{instance_path}::{component.layout_cell}" if instance_path else str(component.layout_cell)
         
     def refresh_ordered_components_file(self, circuit, first_level_layout_cells):
         current_components = []
+        top_cell_name = str(circuit.TOP.name)
 
         def get_value(elem):
             for attribute in ("L", "Ic", "Ib", "R"):
-                if hasattr(elem, attribute):
-                    return getattr(elem, attribute)
+                if hasattr(elem, attribute): return getattr(elem, attribute)
             return None
 
         def walk(cell):
@@ -141,42 +137,41 @@ class Schematic:
                 raw = str(getattr(elem, "raw_name", getattr(elem, "original_name", elem.name)))
                 layout_inst = getattr(elem, "KLayoutInstance", None)
                 pid = layout_inst.property(102) if layout_inst is not None else None
+
+                logical_path = self.get_logical_path(type("_C", (), {"raw": raw})())
+                parts = [part for part in logical_path.split("/") if part]
+                has_parent_instance = len(parts) > 1
+
                 layout_cell = first_level_layout_cells.get(raw)
 
-                if layout_cell is None and layout_inst is not None:
-                    layout_cell = layout_inst.cell.name
+                if layout_cell is None:
+                    if has_parent_instance:
+                        raise RuntimeError(f"No first-level layout-cell mapping for hierarchical component raw={raw}, path={logical_path}")
+                    layout_cell = top_cell_name
 
-                path = str(getattr(elem, "Path_name", None) or getattr(elem, "path", None) or raw)
-                path = re.sub(r"^[^/\\]+[/\\]", "", path, count=1)
                 net_in = getattr(getattr(elem, "net_in", None), "name", None)
                 net_out = getattr(getattr(elem, "net_out", None), "name", None)
 
-                current_components.append(
-                    CircuitComponent(
-                        raw=raw,
-                        path=path,
-                        pid=pid,
-                        layout_cell=layout_cell,
-                        net_in=net_in,
-                        net_out=net_out,
-                        value=get_value(elem),
-                    )
-                )
+                current_components.append(CircuitComponent(
+                    raw=raw,
+                    path=logical_path,
+                    pid=pid,
+                    layout_cell=layout_cell,
+                    net_in=net_in,
+                    net_out=net_out,
+                    value=get_value(elem),
+                ))
 
         walk(circuit.TOP)
 
         self.map_file.parent.mkdir(parents=True, exist_ok=True)
 
-        # "w" completely erases the previous file contents.
         with self.map_file.open("w", encoding="utf-8") as file:
             file.write(f"generated_at: {datetime.now(timezone.utc).isoformat()}\n")
-
-            for component in current_components:
-                file.write(f"{component}\n")
+            for component in current_components: file.write(f"{component}\n")
 
         print(f"Ordered elements file overwritten: {self.map_file.resolve()}")
         print(f"Current components written: {len(current_components)}")
-
         return current_components
                 
         
