@@ -6,7 +6,7 @@ __pycache__/
 .Python
 
 *.cir 
-*.gds
+
 *.sp
 
 Circuit_Projects/NDROmCells/outputWorkingAlmost/
