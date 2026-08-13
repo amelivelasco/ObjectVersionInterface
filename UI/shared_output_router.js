@@ -121,17 +121,8 @@ function buildRoutingObstacleBoxes(elements, excludedIds = new Set(), padding = 
     }
   }
 
-  for (
-    const element of
-    elements
-  ) {
-    if (
-      consumedIds.has(
-        element.id
-      ) ||
-      excludedIds.has(
-        element.id
-      )
+  for (const element of elements) {
+    if (consumedIds.has(element.id) || excludedIds.has(element.id)
     ) {
       continue;
     }
@@ -379,21 +370,6 @@ function getGNDObstacleBox(x, y, size = 20, padding = 5) {
 }
 
 
-function getInductorCenterBarrier(element, verticalPadding = 4,  barrierHalfWidth = 3
-) {
-  const halfSize = drawConfig.imageSize / 2;
-
-  return {
-    left: element.x - barrierHalfWidth,
-    right: element.x + barrierHalfWidth,
-    top: element.y - halfSize - verticalPadding,
-    bottom: element.y + halfSize + verticalPadding,
-    ownerId: element.id,
-    kind: "inductor-center-barrier",
-  };
-}
-
-
 function addParallelChannelMidpoints(routedSegments, xValues, yValues, wireClearance) {
   const epsilon = 0.5;
   const maximumChannelGap = 80;
@@ -488,18 +464,6 @@ function addParallelChannelMidpoints(routedSegments, xValues, yValues, wireClear
     }
   }
 }
-
-function isTerminalNode(node) {
-
-  const hasOnlyJRInternalEdges =
-    node.edges.length > 0 &&
-    node.edges.every((edge) => edge.kind === "jr-internal");
-
-  if (hasOnlyJRInternalEdges) { return false; }
-
-  return node.edges.length === 1;
-}
-
 
 function setupInterCellTerminalHighlights(svg) {
   if (!svg) return;
