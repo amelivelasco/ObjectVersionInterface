@@ -319,54 +319,24 @@ function buildPlacedElements(data, placedCells) {
 }
 
 function drawLayoutCellBoundaries(layer, placedCells) {
+  if (!placedCells.length) return;
+  const boundaryPadding = 25, topMargin = 100, topName = String(window.circuitData?.name || "TOP").trim() || "TOP";
+  const minX = Math.min(...placedCells.map(cell => cell.x)) - topMargin, minY = Math.min(...placedCells.map(cell => cell.y)) - topMargin;
+  const maxX = Math.max(...placedCells.map(cell => cell.x + cell.width)) + topMargin, maxY = Math.max(...placedCells.map(cell => cell.y + cell.height)) + topMargin;
+
+  function drawBoundary(cell, x, y, width, height, titleText, isTopCell) {
+    const group = createSvgElement("g", { class: "layout-cell", "data-layout-cell": cell.layout_cell, "data-layout-instance": cell.layout_instance || cell.id, "data-instance-path": cell.instance_path || "" });
+    const rectangle = createSvgElement("rect", { x: x - boundaryPadding, y: y - boundaryPadding + 20, width: width + boundaryPadding * 2, height: height + boundaryPadding * 2, rx: 16, ry: 16, fill: "#f8fafc", "fill-opacity": isTopCell ? "0.25" : "0.7", stroke: isTopCell ? "#0e67e4" : "#f97316", "stroke-width": isTopCell ? 2 : 3, "stroke-dasharray": "10 6", class: "layout-cell-boundary" });
+    const title = createSvgElement("text", { x: x + width / 2, y: y - boundaryPadding - 10, "font-family": drawConfig.fontFamily, "font-size": "30px", "font-weight": "700", fill: "#0f172a", "text-anchor": "middle", class: "layout-cell-title", "pointer-events": "none" });
+    title.textContent = titleText; group.appendChild(rectangle); group.appendChild(title); layer.appendChild(group);
+  }
+
+  drawBoundary({ layout_cell: topName, layout_instance: `__top__${topName}`, instance_path: "" }, minX, minY, maxX - minX, maxY - minY, topName, true);
+
   for (const cell of placedCells) {
-    const group = createSvgElement("g",
-      {
-        class: "layout-cell",
-        "data-layout-cell": cell.layout_cell,
-        "data-layout-instance": cell.layout_instance || cell.id,
-        "data-instance-path": cell.instance_path || "",
-      }
-    );
-
-    const boundaryPadding = 25;
-
-    const rectangle =
-      createSvgElement(
-        "rect",
-        {
-          x: cell.x - boundaryPadding,
-          y: cell.y - boundaryPadding,
-          width: cell.width + boundaryPadding * 2,
-          height: cell.height + boundaryPadding * 2,
-          rx: 16,
-          ry: 16,
-          fill: "#f8fafc",
-          "fill-opacity": "0.7",
-          stroke: "#64748b",
-          "stroke-width": 2,
-          "stroke-dasharray": "10 6",
-          class: "layout-cell-boundary",
-        }
-      );
-
-    const title = createSvgElement("text", {
-      x: cell.x + cell.width / 2,
-      y: cell.y - boundaryPadding - 10,
-      "font-family": drawConfig.fontFamily,
-      "font-size": "30px",
-      "font-weight": "700",
-      fill: "#0f172a",
-      "text-anchor": "middle",
-      class: "layout-cell-title",
-      "pointer-events": "none",
-    });
-
-    title.textContent = cell.display_name || ( cell.instance_path ? `${cell.layout_cell} (${cell.instance_path})` : cell.layout_cell );
-
-    group.appendChild(rectangle);
-    group.appendChild(title);
-    layer.appendChild(group);
+    if (String(cell.instance_path || "").trim() === "") continue;
+    const title = cell.display_name || `${cell.layout_cell} (${cell.instance_path})`;
+    drawBoundary(cell, cell.x, cell.y, cell.width, cell.height, title, false);
   }
 }
 
