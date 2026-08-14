@@ -633,31 +633,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
 
   const rightTerminalColumn = Math.ceil(maximumComponentColumn) + 2;
 
-  for (const placement of placements.values()) {
-    if (!placement.outputTerminalRow) continue;
-
-    const desiredRightEdge = rightTerminalColumn - 1;
-    const currentRightEdge = getPlacementRightColumn(placement);
-    const shift = desiredRightEdge - currentRightEdge;
-
-    if (shift > 0) {
-      const row = placement.row;
-
-      for (const p of placements.values()) {
-        if (p.row !== row) continue;
-        p.col += shift;
-        if (Number.isFinite(p.centerCol)) p.centerCol += shift;
-      }
-    }
-
-    console.log("✅ [OUTPUT ROW PUSHED TO RIGHT EDGE]", {
-      terminal: placement.outputTerminalNet,
-      row: placement.row,
-      block: placement.block.primary?.id,
-      finalCol: placement.col,
-      rightTerminalColumn
-    });
-  }
   for (const terminal of outputTerminalMap.values()) terminal.col = rightTerminalColumn;
 
   let maximumRow = 0;
