@@ -780,11 +780,12 @@ function alignClosestSharedTerminalRows(placedCells) {
     const plan = cell.sequentialPlan, placementByElement = new Map(), counts = new Map(), result = [];
 
     for (const placement of plan.placements.values()) {
-      for (const element of placement.block.elements) {
-        placementByElement.set(element, placement);
-        if (element.id) placementByElement.set(element.id, placement);
-        if (element.raw) placementByElement.set(element.raw, placement);
-      }
+      placement.block.elements.forEach((element, memberIndex) => {
+        const info = { placement, memberIndex };
+        placementByElement.set(element, info);
+        if (element.id) placementByElement.set(element.id, info);
+        if (element.raw) placementByElement.set(element.raw, info);
+      });
     }
 
     for (const element of cell.elements) {
@@ -800,14 +801,16 @@ function alignClosestSharedTerminalRows(placedCells) {
     for (const element of cell.elements) {
       if (isBiasElement(element) || getElementType(element) === "R") continue;
 
-      const placement = placementByElement.get(element) || placementByElement.get(element.id) || placementByElement.get(element.raw);
-      if (!placement) continue;
+      const info = placementByElement.get(element) || placementByElement.get(element.id) || placementByElement.get(element.raw);
+      if (!info) continue;
 
       for (const [kind, rawNet] of [["in", element.net_in], ["out", element.net_out]]) {
         const net = String(rawNet || "").trim();
         if (!net || isGroundNet(net)) continue;
         if ((counts.get(net) || 0) !== 1 && net.toLowerCase() !== "terminal") continue;
-        if (!result.some(t => t.net === net)) result.push({ net, kind, row: placement.row, cell });
+
+        if (!result.some(t => t.net === net))
+          result.push({ net, kind, row: info.placement.row, cell, element, placement: info.placement, memberIndex: info.memberIndex });
       }
     }
 
@@ -832,19 +835,34 @@ function alignClosestSharedTerminalRows(placedCells) {
         let left = terminals[i], right = terminals[j];
         if (cellId(left.cell) === cellId(right.cell)) continue;
 
-        const leftCenter = left.cell.x + left.cell.width / 2, rightCenter = right.cell.x + right.cell.width / 2;
+        const leftCenter = left.cell.x + left.cell.width / 2;
+        const rightCenter = right.cell.x + right.cell.width / 2;
+
         if (leftCenter > rightCenter) [left, right] = [right, left];
 
-        const verticalOverlap = Math.min(left.cell.y + left.cell.height, right.cell.y + right.cell.height) - Math.max(left.cell.y, right.cell.y);
+        const verticalOverlap =
+          Math.min(left.cell.y + left.cell.height, right.cell.y + right.cell.height) -
+          Math.max(left.cell.y, right.cell.y);
+
         if (verticalOverlap <= 0) continue;
 
         const horizontalGap = Math.max(0, right.cell.x - (left.cell.x + left.cell.width));
-        candidates.push({ net, left, right, horizontalGap, centerDistance: Math.abs(rightCenter - leftCenter) });
+
+        candidates.push({
+          net,
+          left,
+          right,
+          horizontalGap,
+          centerDistance: Math.abs(rightCenter - leftCenter)
+        });
       }
     }
   }
 
-  candidates.sort((a, b) => a.horizontalGap - b.horizontalGap || a.centerDistance - b.centerDistance);
+  candidates.sort((a, b) =>
+    a.horizontalGap - b.horizontalGap ||
+    a.centerDistance - b.centerDistance
+  );
 
   function getLocks(cell) {
     const id = cellId(cell);
@@ -871,53 +889,259 @@ function alignClosestSharedTerminalRows(placedCells) {
 
     for (const placement of plan.placements.values()) {
       placement.row = swap(placement.row);
-      if (Number.isFinite(placement.mergeTargetRow)) placement.mergeTargetRow = swap(placement.mergeTargetRow);
+
+      if (Number.isFinite(placement.mergeTargetRow))
+        placement.mergeTargetRow = swap(placement.mergeTargetRow);
     }
 
-    for (const terminal of plan.inputTerminals) terminal.row = swap(terminal.row);
-    for (const terminal of plan.outputTerminals) terminal.row = swap(terminal.row);
-    for (const terminal of terminalsByCell.get(cellId(cell)) || []) terminal.row = swap(terminal.row);
+    for (const terminal of plan.inputTerminals)
+      terminal.row = swap(terminal.row);
 
-    const cellLocks = getLocks(cell), firstLock = cellLocks.get(firstRow), secondLock = cellLocks.get(secondRow);
+    for (const terminal of plan.outputTerminals)
+      terminal.row = swap(terminal.row);
 
-    if (firstLock) cellLocks.set(secondRow, firstLock); else cellLocks.delete(secondRow);
-    if (secondLock) cellLocks.set(firstRow, secondLock); else cellLocks.delete(firstRow);
+    for (const terminal of terminalsByCell.get(cellId(cell)) || [])
+      terminal.row = swap(terminal.row);
+
+    const cellLocks = getLocks(cell);
+    const firstLock = cellLocks.get(firstRow);
+    const secondLock = cellLocks.get(secondRow);
+
+    if (firstLock) cellLocks.set(secondRow, firstLock);
+    else cellLocks.delete(secondRow);
+
+    if (secondLock) cellLocks.set(firstRow, secondLock);
+    else cellLocks.delete(firstRow);
 
     changedCells.add(cell);
   }
 
+  /*
+   * First do ONLY the original row swaps.
+   */
   const debug = [];
 
   for (const { net, left, right, horizontalGap } of candidates) {
-    const leftRow = left.row, rightRow = right.row;
+    const leftRow = left.row;
+    const rightRow = right.row;
 
     if (leftRow === rightRow) {
       lockRow(left.cell, leftRow, net);
       lockRow(right.cell, rightRow, net);
-      debug.push({ net, gap: horizontalGap, action: "ALREADY ALIGNED", row: leftRow });
+
+      debug.push({
+        net,
+        gap: horizontalGap,
+        action: "ALREADY ALIGNED",
+        row: leftRow
+      });
+
       continue;
     }
 
-    const canMoveRight = !rowBlocked(right.cell, rightRow, net) && !rowBlocked(right.cell, leftRow, net);
-    const canMoveLeft = !rowBlocked(left.cell, leftRow, net) && !rowBlocked(left.cell, rightRow, net);
+    const canMoveRight =
+      !rowBlocked(right.cell, rightRow, net) &&
+      !rowBlocked(right.cell, leftRow, net);
+
+    const canMoveLeft =
+      !rowBlocked(left.cell, leftRow, net) &&
+      !rowBlocked(left.cell, rightRow, net);
 
     if (canMoveRight) {
       swapRows(right.cell, rightRow, leftRow);
+
       lockRow(left.cell, leftRow, net);
       lockRow(right.cell, leftRow, net);
-      debug.push({ net, gap: horizontalGap, action: "SWAP RIGHT", from: rightRow, to: leftRow });
+
+      debug.push({
+        net,
+        gap: horizontalGap,
+        action: "SWAP RIGHT",
+        from: rightRow,
+        to: leftRow
+      });
+
     } else if (canMoveLeft) {
       swapRows(left.cell, leftRow, rightRow);
+
       lockRow(left.cell, rightRow, net);
       lockRow(right.cell, rightRow, net);
-      debug.push({ net, gap: horizontalGap, action: "SWAP LEFT", from: leftRow, to: rightRow });
+
+      debug.push({
+        net,
+        gap: horizontalGap,
+        action: "SWAP LEFT",
+        from: leftRow,
+        to: rightRow
+      });
+
     } else {
-      debug.push({ net, gap: horizontalGap, action: "BLOCKED", leftRow, rightRow });
+      debug.push({
+        net,
+        gap: horizontalGap,
+        action: "BLOCKED",
+        leftRow,
+        rightRow
+      });
     }
   }
 
+  /*
+   * Everything below happens AFTER the row swapping is finished.
+   */
+
+  function getRowBounds(cell, row) {
+    const placements = [...cell.sequentialPlan.placements.values()]
+      .filter(p => p.row === row && Number.isFinite(p.col));
+
+    if (!placements.length) return null;
+
+    const occupied = placements.filter(p => p.occupiesGrid !== false);
+    const used = occupied.length ? occupied : placements;
+
+    return {
+      min: Math.min(...used.map(p => p.col)),
+      max: Math.max(...used.map(p =>
+        p.col + Math.max(1, p.span || 1) - 1
+      ))
+    };
+  }
+
+  function getTerminalColumn(terminal) {
+    const placement = terminal.placement;
+    if (!placement) return null;
+
+    if (Number.isFinite(placement.centerCol))
+      return placement.centerCol;
+
+    return placement.col + (terminal.memberIndex || 0);
+  }
+
+  /*
+   * This is the ONLY function allowed to mark a row as flipped.
+   *
+   * It touches ONLY placements whose placement.row === row.
+   * It does NOT touch electricalDirection.
+   * It does NOT touch layoutReversed.
+   * It does NOT touch elements from another row.
+   */
+  function flipOnlyThisRow(cell, row) {
+    const bounds = getRowBounds(cell, row);
+    if (!bounds) return false;
+
+    const rowPlacements = [...cell.sequentialPlan.placements.values()]
+      .filter(placement => placement.row === row);
+
+    if (!rowPlacements.length) return false;
+
+    for (const placement of rowPlacements) {
+      const span = Math.max(1, placement.span || 1);
+      const oldCol = placement.col;
+      const oldCenterCol = placement.centerCol;
+
+      placement.col =
+        bounds.min + bounds.max -
+        (oldCol + span - 1);
+
+      if (Number.isFinite(oldCenterCol))
+        placement.centerCol =
+          bounds.min + bounds.max - oldCenterCol;
+
+      placement.rowFlipped180 = true;
+    }
+
+    changedCells.add(cell);
+    return true;
+  }
+
+  /*
+   * Re-evaluate the final aligned connections.
+   *
+   * We only test rows belonging to the RIGHT-hand cell because those
+   * terminals should face toward the LEFT-hand cell.
+   */
+  const rowTests = new Map();
+
+  for (const { net, left, right } of candidates) {
+    /*
+     * Because swapRows modifies terminal.row too, these are now
+     * the FINAL row numbers.
+     */
+    if (left.row !== right.row) continue;
+
+    const row = right.row;
+    const bounds = getRowBounds(right.cell, row);
+    const column = getTerminalColumn(right);
+
+    if (!bounds || !Number.isFinite(column)) continue;
+
+    const key = `${cellId(right.cell)}|${row}`;
+
+    if (!rowTests.has(key)) {
+      rowTests.set(key, {
+        cell: right.cell,
+        row,
+        normalScore: 0,
+        flippedScore: 0,
+        nets: []
+      });
+    }
+
+    const test = rowTests.get(key);
+
+    /*
+     * Distance of the terminal from the LEFT side of this row.
+     *
+     * Normal:
+     *
+     * |----- terminal ----------------|
+     * ^ distance
+     *
+     * Flipped:
+     *
+     * |---------------- terminal -----|
+     *                   distance ^
+     */
+    test.normalScore += column - bounds.min;
+    test.flippedScore += bounds.max - column;
+    test.nets.push(net);
+  }
+
+  for (const test of rowTests.values()) {
+    console.log("[ROW FLIP TEST]", {
+      cell: cellId(test.cell),
+      row: test.row,
+      nets: test.nets,
+      normal: test.normalScore,
+      flipped: test.flippedScore
+    });
+
+    /*
+     * Strict condition:
+     * do not modify the row unless the flipped orientation
+     * is actually better.
+     */
+    if (test.flippedScore + 0.25 >= test.normalScore)
+      continue;
+
+    flipOnlyThisRow(test.cell, test.row);
+
+    debug.push({
+      cell: cellId(test.cell),
+      row: test.row,
+      nets: test.nets.join(", "),
+      action: "FLIP THIS ROW ONLY",
+      normal: test.normalScore,
+      flipped: test.flippedScore
+    });
+  }
+
+  /*
+   * Rebuild geometry after all row decisions.
+   */
   for (const cell of changedCells) {
-    cell.localLayout = getLocalCellLayout(cell.elements, cell.sequentialPlan);
+    cell.localLayout =
+      getLocalCellLayout(cell.elements, cell.sequentialPlan);
   }
 
   console.table(debug);

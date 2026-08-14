@@ -219,10 +219,12 @@ function placeElementsInsideLayoutCell(cell) {
 
   for (const item of layout.local) {
     const { element, placement, memberIndex, type } = item;
+
     const x = item.x + offsetX;
     const y = item.y + offsetY;
 
-    const direction = 1;
+    const rowFlipped180 = placement.rowFlipped180 === true;
+    const direction = rowFlipped180 ? -1 : 1;
     const pinOffset = getPinOffsetForElement(element);
     const isInductor = type === "L";
 
@@ -234,12 +236,33 @@ function placeElementsInsideLayoutCell(cell) {
       col: placement.centerCol ?? placement.col + memberIndex,
       direction,
       layoutOrder: layoutOrder++,
-      inputPin: { x: isInductor ? x - pinOffset : x - direction * pinOffset, y, net: element.net_in },
-      outputPin: { x: isInductor ? x + pinOffset : x + direction * pinOffset, y, net: element.net_out },
+
+      inputPin: {
+        x: isInductor
+          ? x - pinOffset
+          : x - direction * pinOffset,
+        y,
+        net: element.net_in
+      },
+
+      outputPin: {
+        x: isInductor
+          ? x + pinOffset
+          : x + direction * pinOffset,
+        y,
+        net: element.net_out
+      },
+
       placementMode: placement.placementMode || null,
       parentLayoutCell: cell.layout_instance || cell.id,
       parentLayoutCellType: cell.layout_cell,
       instancePath: cell.instance_path,
+
+      /*
+       * Crucial:
+       * this flag exists ONLY on the selected row.
+       */
+      rowFlipped180
     };
 
     if (placement.placementMode === "inline-grounded-jr") {
@@ -250,38 +273,157 @@ function placeElementsInsideLayoutCell(cell) {
     }
 
     if (placement.placementMode === "inline-jr-bias") {
-      const hostWireY = placement.row * drawConfig.layoutCellElementGapY + offsetY;
+      const hostWireY =
+        placement.row *
+        drawConfig.layoutCellElementGapY +
+        offsetY;
 
       positionedElement.inlineJRBias = true;
       positionedElement.biasRotation = 0;
       positionedElement.biasPlacementLocked = true;
       positionedElement.biasSnappedToNet = true;
       positionedElement.biasNetSegment = null;
-      positionedElement.biasFrontPin = { x, y: y + half };
-      positionedElement.biasNetJoin = { x, y: hostWireY };
-      positionedElement.outputPin = { x, y: hostWireY, net: positionedElement.net_out };
+      positionedElement.biasFrontPin = {
+        x,
+        y: y + half
+      };
+      positionedElement.biasNetJoin = {
+        x,
+        y: hostWireY
+      };
+      positionedElement.outputPin = {
+        x,
+        y: hostWireY,
+        net: positionedElement.net_out
+      };
       positionedElement.biasTarget = placement.hostJRId;
     }
 
     placed.push(positionedElement);
   }
 
+  /*
+   * Inductor direction correction.
+   *
+   * NORMAL ROW:
+   * preserve your ORIGINAL behavior.
+   *
+   * FLIPPED ROW:
+   * inspect the nearest element to the RIGHT instead of LEFT,
+   * because the complete row has been horizontally mirrored.
+   *
+   * This prevents any untouched row from changing orientation.
+   */
   for (let i = 0; i < placed.length; i++) {
     const element = placed[i];
-    if (getElementType(element) !== "L") continue;
 
-    const previous = placed.slice(0, i)
-      .filter(candidate => candidate.row === element.row && candidate.x < element.x)
-      .sort((a, b) => b.x - a.x)[0] || null;
+    if (getElementType(element) !== "L")
+      continue;
 
-    const reversed = Boolean(previous && element.net_out && previous.net_out === element.net_out);
-    const direction = reversed ? -1 : 1;
     const pinOffset = getPinOffsetForElement(element);
 
-    element.inputPin = { x: element.x - direction * pinOffset, y: element.y, net: element.net_in };
-    element.outputPin = { x: element.x + direction * pinOffset, y: element.y, net: element.net_out };
+    /*
+     * ---------------------------------------------------------
+     * NORMAL ROW — ORIGINAL LOGIC
+     * ---------------------------------------------------------
+     */
+    if (!element.rowFlipped180) {
+      const previous = placed
+        .filter(candidate =>
+          candidate !== element &&
+          candidate.row === element.row &&
+          candidate.x < element.x
+        )
+        .sort((a, b) => b.x - a.x)[0] || null;
+
+      const reversed = Boolean(
+        previous &&
+        element.net_out &&
+        previous.net_out === element.net_out
+      );
+
+      const direction = reversed ? -1 : 1;
+
+      element.direction = direction;
+
+      element.inputPin = {
+        x: element.x - direction * pinOffset,
+        y: element.y,
+        net: element.net_in
+      };
+
+      element.outputPin = {
+        x: element.x + direction * pinOffset,
+        y: element.y,
+        net: element.net_out
+      };
+
+      element.electricalDirection = direction;
+      element.layoutReversed = reversed;
+
+      continue;
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * 180-FLIPPED ROW ONLY
+     * ---------------------------------------------------------
+     *
+     * Before mirroring:
+     *
+     * previous ---> L
+     *
+     * After mirroring, that same previous element is now
+     * physically to the RIGHT:
+     *
+     * L <--- previous
+     *
+     * Therefore use nearest-right instead of nearest-left
+     * to reconstruct the original relation.
+     */
+    const originalPrevious = placed
+      .filter(candidate =>
+        candidate !== element &&
+        candidate.row === element.row &&
+        candidate.x > element.x
+      )
+      .sort((a, b) => a.x - b.x)[0] || null;
+
+    const originallyReversed = Boolean(
+      originalPrevious &&
+      element.net_out &&
+      originalPrevious.net_out === element.net_out
+    );
+
+    /*
+     * Direction this inductor would have had before
+     * the complete row was mirrored.
+     */
+    const originalDirection =
+      originallyReversed ? -1 : 1;
+
+    /*
+     * The row itself is now reversed, therefore flip
+     * that direction.
+     */
+    const direction = -originalDirection;
+
+    element.direction = direction;
+
+    element.inputPin = {
+      x: element.x - direction * pinOffset,
+      y: element.y,
+      net: element.net_in
+    };
+
+    element.outputPin = {
+      x: element.x + direction * pinOffset,
+      y: element.y,
+      net: element.net_out
+    };
+
     element.electricalDirection = direction;
-    element.layoutReversed = reversed;
+    element.layoutReversed = direction < 0;
   }
 
   return placed;
