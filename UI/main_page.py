@@ -119,9 +119,9 @@ class Schematic:
         instance_path = self.get_instance_path(component)
         return f"{instance_path}::{component.layout_cell}" if instance_path else str(component.layout_cell)
         
-    def refresh_ordered_components_file(self, circuit, first_level_layout_cells):
+    def refresh_ordered_components_file(self, circuit, first_level_layout_cells, top_cell_name=None):
         current_components = []
-        top_cell_name = str(circuit.TOP.name)
+        top_cell_name = top_cell_name or str(circuit.TOP.name)
 
         def get_value(elem):
             for attribute in ("L", "Ic", "Ib", "R"):
@@ -168,6 +168,7 @@ class Schematic:
 
         with self.map_file.open("w", encoding="utf-8") as file:
             file.write(f"generated_at: {datetime.now(timezone.utc).isoformat()}\n")
+            file.write(f"cell_name: {top_cell_name}\n")
             for component in current_components: file.write(f"{component}\n")
 
         print(f"Ordered elements file overwritten: {self.map_file.resolve()}")
@@ -248,7 +249,7 @@ class Schematic:
             for line_number, line in enumerate(file, start=1):
                 line = line.strip()
 
-                if not line or line.startswith("generated_at:"):
+                if not line or line.startswith(("generated_at:", "cell_name:")): 
                     continue
 
                 parsed = self.parse_mapping_line(line)
@@ -368,12 +369,10 @@ class Schematic:
             "r",
             encoding="utf-8",
         ) as file:
-            next(file, None)
-            for line_number, line in enumerate(file, start=2):
+            for line_number, line in enumerate(file, start=1):
                 line = line.strip()
+                if not line or line.startswith(("generated_at:", "cell_name:")): continue
 
-                if not line:
-                    continue
 
                 parsed = self.parse_mapping_line(line)
 
@@ -465,7 +464,7 @@ class Schematic:
         return layout_cells_data
 
 
-    def write_circuit_data(self, ordered_components, output_file):
+    def write_circuit_data(self, ordered_components, output_file, top_cell_name=None):
         output_file = Path(output_file)
         ordered_components = list(ordered_components)
 
@@ -513,7 +512,7 @@ class Schematic:
                 })
 
         data = {
-            "name": self.sp_file.stem,
+            "name": top_cell_name or self.sp_file.stem,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "nodes": nodes,
             "elements": elements,

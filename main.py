@@ -7,8 +7,14 @@ from exporters.InductexExporter import InductexExporter
 from exporters.SpiceExporter import SpiceExporter
 from parser.cdl_parser import CDLParser
 import os
+import re
 import subprocess
 
+def read_custom_compiler_cell_name(sp_path):
+    for line in Path(sp_path).read_text(encoding="utf-8", errors="ignore").splitlines():
+        match = re.match(r"^\s*\*\s*Cell\s*:\s*(.+?)\s*$", line, re.IGNORECASE)
+        if match: return match.group(1).strip()
+    return None
 
 def show_file_in_vscode(file_path: Path):
     file_path = file_path.resolve()
@@ -166,6 +172,8 @@ def main():
     print("New InductEx file:", cir_output_path.resolve())
 
     original_netlist_path = netlist_path
+    top_cell_name = read_custom_compiler_cell_name(original_netlist_path)
+    if not top_cell_name: top_cell_name = str(circuit.TOP.name)
     sol_path = original_netlist_path.parent / "sol.txt"
     extracted_sp_path = original_netlist_path.parent / "Netlist_from_sol.sp"
 
@@ -359,6 +367,7 @@ def main():
     schematic.refresh_ordered_components_file(
         circuit=circuit,
         first_level_layout_cells=first_level_layout_cells,
+        top_cell_name=top_cell_name
     )
 
     ordered_components = schematic.read_ordered_components(spice_data)
@@ -368,14 +377,15 @@ def main():
 
     with ordered_elems_path.open("w", encoding="utf-8") as file:
         file.write(f"generated_at: {generated_at}\n")
-        for component in ordered_components:
-            file.write(f"{component}\n")
+        file.write(f"cell_name: {top_cell_name}\n")
+        for component in ordered_components: file.write(f"{component}\n")
 
     print("ordered_elems.txt rewritten at:", ordered_elems_path.resolve())
 
     schematic.write_circuit_data(
         ordered_components=ordered_components,
         output_file=circuit_data_path,
+        top_cell_name=top_cell_name
     )
 
     print("circuit_data.js regenerated at:", circuit_data_path.resolve())
