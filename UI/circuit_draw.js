@@ -306,15 +306,11 @@ function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
     const centerY = (geometry.topMiddle.y + geometry.bottomMiddle.y) / 2 + drawConfig.jrValueOffsetY;
     const resistorPath = `${(current.path || "").split("|")[0]}|R${(current.pid || "").match(/\d+/)?.[0] || ""}`;
 
-    drawComponentValueText(labelLayer, current.path, current.x, current.y, {
-      size: drawConfig.componentValueFontSize, fill: "#7c2d12", className: "jj-pathname",
+    drawComponentValueText(labelLayer, current.path, centerX, centerY + 10, {
+      size: drawConfig.jrValueFontSize,  weight: "700", fill: "#7c2d12", className: "jj-pathname",
     });
 
-    drawComponentValueText(labelLayer, resistorPath, next.x, next.y, {
-      size: drawConfig.componentValueFontSize, fill: "#7c2d12", className: "jj-pathname",
-    });
-
-    drawComponentValueText(labelLayer, value, centerX, centerY, {
+    drawComponentValueText(labelLayer, value, centerX, centerY - 10, {
       size: drawConfig.jrValueFontSize, weight: "700", fill: "#7c2d12",
       background: "#f8fafc", backgroundWidth: 4, className: "jr-jj-value",
     });
