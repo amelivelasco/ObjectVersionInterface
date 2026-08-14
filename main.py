@@ -88,19 +88,19 @@ def main():
     #     / "Layout.gds"
     # )
     
-    # netlist_path = (
-    #     base_dir
-    #     / "Circuit_Projects"
-    #     / "NDROMDrivers"
-    #     / "Netlist.sp"
-    # )
+    netlist_path = (
+        base_dir
+        / "Circuit_Projects"
+        / "NDROMDrivers"
+        / "Netlist.sp"
+    )
 
-    # layout_path = (
-    #     base_dir 
-    #     / "Circuit_Projects"
-    #     / "NDROMDrivers"
-    #     / "NDROMDrivers.custom_compiler.gds"
-    # )
+    layout_path = (
+        base_dir 
+        / "Circuit_Projects"
+        / "NDROMDrivers"
+        / "NDROMDrivers.custom_compiler.gds"
+    )
 
     # netlist_path = (
     #     base_dir

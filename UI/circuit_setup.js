@@ -22,6 +22,8 @@ const drawConfig = {
   groundFill: "#dc2626",
   groundStroke: "#7f1d1d",
 
+  nameFormat: { size: "11px", fill: "#0f172a", weight: "700", className: "bias-name" },
+
   fontFamily: "Arial, sans-serif",
   
   layoutCellMarginX: 90,
