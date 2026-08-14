@@ -220,6 +220,19 @@ function placeElementsInsideLayoutCell(cell) {
   for (const item of layout.local) {
     const { element, placement, memberIndex, type } = item;
 
+    if (placement.terminalDirectionForced || Number.isFinite(placement.terminalForcedDirection)) {
+      console.log("[TERMINAL PLACEMENT REACHED DRAWING]", {
+        element: element.id,
+        type,
+        row: placement.row,
+        col: placement.col,
+        rawNetIn: element.net_in,
+        rawNetOut: element.net_out,
+        terminalForcedDirection: placement.terminalForcedDirection,
+        terminalDirectionForced: placement.terminalDirectionForced
+      });
+}
+
     const x = item.x + offsetX;
     const y = item.y + offsetY;
 
@@ -302,18 +315,6 @@ function placeElementsInsideLayoutCell(cell) {
     placed.push(positionedElement);
   }
 
-  /*
-   * Inductor direction correction.
-   *
-   * NORMAL ROW:
-   * preserve your ORIGINAL behavior.
-   *
-   * FLIPPED ROW:
-   * inspect the nearest element to the RIGHT instead of LEFT,
-   * because the complete row has been horizontally mirrored.
-   *
-   * This prevents any untouched row from changing orientation.
-   */
   for (let i = 0; i < placed.length; i++) {
     const element = placed[i];
 
@@ -322,11 +323,6 @@ function placeElementsInsideLayoutCell(cell) {
 
     const pinOffset = getPinOffsetForElement(element);
 
-    /*
-     * ---------------------------------------------------------
-     * NORMAL ROW — ORIGINAL LOGIC
-     * ---------------------------------------------------------
-     */
     if (!element.rowFlipped180) {
       const previous = placed
         .filter(candidate =>
@@ -364,23 +360,6 @@ function placeElementsInsideLayoutCell(cell) {
       continue;
     }
 
-    /*
-     * ---------------------------------------------------------
-     * 180-FLIPPED ROW ONLY
-     * ---------------------------------------------------------
-     *
-     * Before mirroring:
-     *
-     * previous ---> L
-     *
-     * After mirroring, that same previous element is now
-     * physically to the RIGHT:
-     *
-     * L <--- previous
-     *
-     * Therefore use nearest-right instead of nearest-left
-     * to reconstruct the original relation.
-     */
     const originalPrevious = placed
       .filter(candidate =>
         candidate !== element &&
@@ -395,17 +374,10 @@ function placeElementsInsideLayoutCell(cell) {
       originalPrevious.net_out === element.net_out
     );
 
-    /*
-     * Direction this inductor would have had before
-     * the complete row was mirrored.
-     */
+
     const originalDirection =
       originallyReversed ? -1 : 1;
 
-    /*
-     * The row itself is now reversed, therefore flip
-     * that direction.
-     */
     const direction = -originalDirection;
 
     element.direction = direction;
@@ -426,6 +398,18 @@ function placeElementsInsideLayoutCell(cell) {
     element.layoutReversed = direction < 0;
   }
 
+  console.log("[FINAL TERMINAL ELEMENTS]", placed.filter(e => e.terminalDirectionForced).map(e => ({
+    id: e.id,
+    row: e.row,
+    col: e.col,
+    netIn: e.net_in,
+    netOut: e.net_out,
+    direction: e.direction,
+    electricalDirection: e.electricalDirection,
+    inputPin: e.inputPin,
+    outputPin: e.outputPin
+  })));
+  
   return placed;
 }
 

@@ -16,6 +16,22 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
     return { ...block, primary, rawNetIn, rawNetOut, reverseForBoundary, netIn: reverseForBoundary ? rawNetOut : rawNetIn, netOut: reverseForBoundary ? rawNetIn : rawNetOut, span: Math.max(1, block.elements.length) };
   });
 
+  function getBoundaryTerminalForPath(path) {
+    if (!path?.length) return null;
+
+    const first = path[0], last = path.at(-1);
+
+    for (const net of inputTerminalNets) {
+      if (first.rawNetIn === net) return { net, side: "left", direction: 1, block: first };
+      if (first.rawNetOut === net) return { net, side: "left", direction: -1, block: first };
+    }
+
+    if (isOutputTerminalNet(last.rawNetOut)) return { net: last.rawNetOut, side: "right", direction: 1, block: last };
+    if (isOutputTerminalNet(last.rawNetIn)) return { net: last.rawNetIn, side: "right", direction: -1, block: last };
+
+    return null;
+  }
+
   function isUngroundedJRBlock(block) {
     const jj = block.elements.find(e => getElementType(e) === "JJ"), resistor = block.elements.find(e => getElementType(e) === "R");
     return Boolean(jj && resistor && isJJResistorPair(jj, resistor) && !isGroundNet(jj.net_out));
@@ -224,12 +240,42 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
 
   function placeBlockSequence(sequence, row, startColumn) {
     let column = startColumn;
+
     for (const block of sequence) {
-      const reversed = block.inlineReversed === true || block.reverseForBoundary === true;
-      for (const element of block.elements) { element.electricalDirection = reversed ? -1 : 1; element.layoutReversed = reversed; element.inlineReversed = block.inlineReversed === true; }
-      placements.set(block.id, { block, row, col: column, span: block.span, occupiesGrid: true, inlineReversed: block.inlineReversed === true });
+      const forcedDirection = Number.isFinite(block.forcedTerminalDirection) ? block.forcedTerminalDirection : null;
+      const reversed = forcedDirection !== null ? forcedDirection < 0 : block.inlineReversed === true || block.reverseForBoundary === true;
+      const direction = forcedDirection ?? (reversed ? -1 : 1);
+
+      console.log("[PLACE BLOCK]", {
+        block: block.primary?.id,
+        row,
+        col: column,
+        rawIn: block.rawNetIn,
+        rawOut: block.rawNetOut,
+        netIn: block.netIn,
+        netOut: block.netOut,
+        forcedDirection,
+        reversed,
+        direction
+      });
+
+      for (const element of block.elements) {
+        element.electricalDirection = direction;
+        element.layoutReversed = reversed;
+        element.inlineReversed = block.inlineReversed === true;
+        element.terminalDirectionForced = forcedDirection !== null;
+      }
+
+      placements.set(block.id, {
+        block, row, col: column, span: block.span, occupiesGrid: true,
+        inlineReversed: block.inlineReversed === true,
+        terminalDirectionForced: forcedDirection !== null,
+        terminalForcedDirection: forcedDirection
+      });
+
       column += block.span + 1;
     }
+
     return column;
   }
 
@@ -246,6 +292,9 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
   function placePathSegments(path, inputTerminalNet = null, principalPath = false) {
     if (!Array.isArray(path) || !path.length) return;
 
+    console.group(`[PATH] terminal=${inputTerminalNet || "NONE"} principal=${principalPath}`);
+    console.log("[PATH BLOCKS]", path.map(b => ({ id: b.primary?.id, rawIn: b.rawNetIn, rawOut: b.rawNetOut, netIn: b.netIn, netOut: b.netOut, alreadyPlaced: placements.has(b.id) })));
+
     let index = 0, placedAnySegment = false, fixedRow = null;
 
     while (index < path.length) {
@@ -258,51 +307,148 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
       const segmentEnd = index, segment = path.slice(segmentStart, segmentEnd);
       let predecessor = segmentStart > 0 ? path[segmentStart - 1] : null;
       const successor = segmentEnd < path.length ? path[segmentEnd] : null;
-      let predecessorPlacement = predecessor ? placements.get(predecessor.id) : null, successorPlacement = successor ? placements.get(successor.id) : null;
+      let predecessorPlacement = predecessor ? placements.get(predecessor.id) : null;
+      let successorPlacement = successor ? placements.get(successor.id) : null;
 
-      if (!predecessorPlacement && segment.length) {
-        const firstBlock = segment[0];
+      const firstBlock = segment[0];
+      const startsAtTerminal = Boolean(segmentStart === 0 && inputTerminalNet && !predecessorPlacement);
+
+      console.log("[SEGMENT START]", {
+        inputTerminalNet,
+        segmentStart,
+        segmentEnd,
+        startsAtTerminal,
+        firstBlock: firstBlock?.primary?.id,
+        firstRawIn: firstBlock?.rawNetIn,
+        firstRawOut: firstBlock?.rawNetOut,
+        firstNetIn: firstBlock?.netIn,
+        firstNetOut: firstBlock?.netOut,
+        predecessor: predecessor?.primary?.id || null,
+        predecessorPlaced: Boolean(predecessorPlacement)
+      });
+
+      if (startsAtTerminal) {
+        if (firstBlock.rawNetIn === inputTerminalNet) {
+          firstBlock.forcedTerminalDirection = 1;
+          console.log("✅ [TERMINAL FACES LEFT - NORMAL]", { terminal: inputTerminalNet, block: firstBlock.primary?.id, direction: 1 });
+        } else if (firstBlock.rawNetOut === inputTerminalNet) {
+          firstBlock.forcedTerminalDirection = -1;
+          console.log("✅ [TERMINAL FACES LEFT - ROTATED 180]", { terminal: inputTerminalNet, block: firstBlock.primary?.id, direction: -1 });
+        } else {
+          console.warn("❌ [TERMINAL DOES NOT MATCH FIRST BLOCK RAW NETS]", {
+            terminal: inputTerminalNet,
+            block: firstBlock.primary?.id,
+            rawIn: firstBlock.rawNetIn,
+            rawOut: firstBlock.rawNetOut,
+            netIn: firstBlock.netIn,
+            netOut: firstBlock.netOut
+          });
+        }
+
+        if (!inputTerminalMap.has(inputTerminalNet)) {
+          const proposedRow = getNextPrincipalRow();
+          inputTerminalMap.set(inputTerminalNet, { net: inputTerminalNet, row: proposedRow, col: 0 });
+          console.log("[TERMINAL CREATED]", { terminal: inputTerminalNet, row: proposedRow, col: 0 });
+        }
+      }
+
+      if (!predecessorPlacement && !startsAtTerminal && segment.length) {
         const sharedOutputPredecessors = blocks.filter(candidate => candidate.id !== firstBlock.id && placements.has(candidate.id) && !isBiasElement(candidate.primary) && firstBlock.rawNetOut && (candidate.rawNetOut === firstBlock.rawNetOut || candidate.netOut === firstBlock.rawNetOut))
           .sort((a, b) => Math.abs((a.originalIndex ?? 0) - (firstBlock.originalIndex ?? 0)) - Math.abs((b.originalIndex ?? 0) - (firstBlock.originalIndex ?? 0)));
 
         if (sharedOutputPredecessors.length) {
-          predecessor = sharedOutputPredecessors[0]; predecessorPlacement = placements.get(predecessor.id); firstBlock.inlineReversed = true;
+          predecessor = sharedOutputPredecessors[0];
+          predecessorPlacement = placements.get(predecessor.id);
+          firstBlock.inlineReversed = true;
+          console.log("[RECOVERED SHARED-OUTPUT PREDECESSOR]", { first: firstBlock.primary?.id, predecessor: predecessor.primary?.id });
         } else {
           const placedProducers = (producersByNet.get(firstBlock.netIn) || []).filter(candidate => candidate.id !== firstBlock.id && placements.has(candidate.id) && !isBiasElement(candidate.primary))
             .sort((a, b) => Math.abs((a.originalIndex ?? 0) - (firstBlock.originalIndex ?? 0)) - Math.abs((b.originalIndex ?? 0) - (firstBlock.originalIndex ?? 0)));
-          if (placedProducers.length) { predecessor = placedProducers[0]; predecessorPlacement = placements.get(predecessor.id); }
+
+          if (placedProducers.length) {
+            predecessor = placedProducers[0];
+            predecessorPlacement = placements.get(predecessor.id);
+            console.log("[RECOVERED NORMAL PREDECESSOR]", { first: firstBlock.primary?.id, predecessor: predecessor.primary?.id });
+          }
         }
       }
 
-      const inputTerminal = inputTerminalNet ? inputTerminalMap.get(inputTerminalNet) : null, segmentSpan = getPathSpan(segment);
+      const inputTerminal = inputTerminalNet ? inputTerminalMap.get(inputTerminalNet) : null;
+      const segmentSpan = getPathSpan(segment);
 
       if (fixedRow === null) {
         const continuesThroughUngroundedJR = Boolean(predecessorPlacement && segment.some(isUngroundedJRBlock));
-        fixedRow = continuesThroughUngroundedJR ? predecessorPlacement.row : principalPath ? predecessorPlacement?.row ?? inputTerminal?.row ?? getNextPrincipalRow() : getNextPrincipalRow();
+
+        fixedRow = startsAtTerminal
+          ? inputTerminal?.row ?? getNextPrincipalRow()
+          : continuesThroughUngroundedJR
+            ? predecessorPlacement.row
+            : principalPath
+              ? predecessorPlacement?.row ?? inputTerminal?.row ?? getNextPrincipalRow()
+              : getNextPrincipalRow();
+
+        if (startsAtTerminal) inputTerminalMap.set(inputTerminalNet, { net: inputTerminalNet, row: fixedRow, col: 0 });
+
+        console.log("[ROW CHOSEN]", {
+          terminal: inputTerminalNet,
+          row: fixedRow,
+          startsAtTerminal,
+          terminalRecord: inputTerminalNet ? inputTerminalMap.get(inputTerminalNet) : null
+        });
       }
 
-      const row = fixedRow, startColumn = predecessorPlacement ? getPlacementRightColumn(predecessorPlacement) + 2 : 1;
+      const row = fixedRow;
+      const startColumn = startsAtTerminal ? 1 : predecessorPlacement ? getPlacementRightColumn(predecessorPlacement) + 2 : 1;
+
+      console.log("[SEGMENT POSITION]", {
+        terminal: inputTerminalNet,
+        row,
+        startColumn,
+        startsAtTerminal,
+        blocks: segment.map(b => b.primary?.id)
+      });
 
       if (successorPlacement?.row === row) {
         const required = startColumn + segmentSpan + 1;
-        if (successorPlacement.col < required) { shiftColumnsFrom(successorPlacement.col, required - successorPlacement.col); successorPlacement = placements.get(successor.id); }
+        if (successorPlacement.col < required) {
+          console.log("[SHIFTING SUCCESSOR]", { successor: successor.primary?.id, oldCol: successorPlacement.col, required });
+          shiftColumnsFrom(successorPlacement.col, required - successorPlacement.col);
+          successorPlacement = placements.get(successor.id);
+        }
       }
 
-      if (!isColumnRangeFree(row, startColumn, segmentSpan)) shiftColumnsFrom(startColumn, segmentSpan + 1);
+      if (!isColumnRangeFree(row, startColumn, segmentSpan)) {
+        console.warn("[COLUMN NOT FREE]", { row, startColumn, segmentSpan });
+        shiftColumnsFrom(startColumn, segmentSpan + 1);
+      }
 
-      placeBlockSequence(segment, row, startColumn); placedAnySegment = true;
-      if (segmentStart === 0 && inputTerminalNet) ensureInputTerminal(inputTerminalNet, row);
+      placeBlockSequence(segment, row, startColumn);
+      placedAnySegment = true;
+
+      if (startsAtTerminal) inputTerminalMap.set(inputTerminalNet, { net: inputTerminalNet, row, col: 0 });
 
       const lastBlock = segment.at(-1), lastPlacement = placements.get(lastBlock.id);
+
       if (successorPlacement) {
-        lastPlacement.mergeTargetId = successor.id; lastPlacement.mergeTargetRow = successorPlacement.row; lastPlacement.mergeNet = lastBlock.netOut;
+        lastPlacement.mergeTargetId = successor.id;
+        lastPlacement.mergeTargetRow = successorPlacement.row;
+        lastPlacement.mergeNet = lastBlock.netOut;
         lastPlacement.placementMode = successorPlacement.row === row ? "straight-chain-continuation" : "cross-row-merge";
       } else if (segmentEnd === path.length) ensureOutputTerminal(lastBlock.netOut, row);
     }
 
     const firstPlacement = placements.get(path[0].id), lastPlacement = placements.get(path.at(-1).id);
-    if (!placedAnySegment && firstPlacement && inputTerminalNet) ensureInputTerminal(inputTerminalNet, firstPlacement.row);
+
+    if (!placedAnySegment && firstPlacement && inputTerminalNet) inputTerminalMap.set(inputTerminalNet, { net: inputTerminalNet, row: firstPlacement.row, col: 0 });
     if (lastPlacement && !lastPlacement.mergeTargetId) ensureOutputTerminal(path.at(-1).netOut, lastPlacement.row);
+
+    console.log("[PATH RESULT]", {
+      terminal: inputTerminalNet,
+      terminalRecord: inputTerminalNet ? inputTerminalMap.get(inputTerminalNet) : null,
+      placements: path.map(b => ({ block: b.primary?.id, placement: placements.get(b.id), forcedDirection: b.forcedTerminalDirection }))
+    });
+
+    console.groupEnd();
   }
 
   /*
@@ -310,6 +456,17 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
    */
   for (const inputNet of inputTerminalNets) {
     const paths = enumeratePathsFromNet(inputNet);
+
+    console.log("[TERMINAL PATHS]", {
+      terminal: inputNet,
+      paths: paths.map(path => path.map(b => ({
+        id: b.primary?.id,
+        rawIn: b.rawNetIn,
+        rawOut: b.rawNetOut,
+        netIn: b.netIn,
+        netOut: b.netOut
+      })))
+    });
     if (!paths.length) continue;
 
     const principalPath = paths.reduce((best, candidate) => candidate.filter(block => !isGroundedJRBlock(block)).length > best.filter(block => !isGroundedJRBlock(block)).length ? candidate : best, paths[0]);
@@ -347,14 +504,61 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
     const remainingBlock = blocks.find(block => !placements.has(block.id) && !isBiasElement(block.primary));
     if (!remainingBlock) break;
 
-    const path = longestRemainingPath(remainingBlock);
-    const possibleInputTerminal = remainingBlock.netIn && !isPowerNet(remainingBlock.netIn) && !explicitOutputNets.has(remainingBlock.netIn) &&
-      (explicitInputNets.has(remainingBlock.netIn) || (producersByNet.get(remainingBlock.netIn) || []).length === 0) ? remainingBlock.netIn : null;
+    const path = longestRemainingPath(remainingBlock), boundary = getBoundaryTerminalForPath(path);
 
-    console.log("[REMAINING PATH]", path.map(block => block.primary?.id));
+    console.log("[REMAINING PATH BOUNDARY CHECK]", {
+      path: path.map(b => b.primary?.id),
+      first: path[0]?.primary?.id,
+      last: path.at(-1)?.primary?.id,
+      firstRawIn: path[0]?.rawNetIn,
+      firstRawOut: path[0]?.rawNetOut,
+      lastRawIn: path.at(-1)?.rawNetIn,
+      lastRawOut: path.at(-1)?.rawNetOut,
+      boundary
+    });
+
+    if (boundary?.side === "left") {
+      boundary.block.forcedTerminalDirection = boundary.direction;
+      inputTerminalMap.set(boundary.net, { net: boundary.net, row: getNextPrincipalRow(), col: 0 });
+
+      console.log("✅ [NEW LEFT TERMINAL ROW]", { terminal: boundary.net, block: boundary.block.primary?.id, direction: boundary.direction });
+
+      placePathSegments(path, boundary.net, true);
+      continue;
+    }
+
+    if (boundary?.side === "right") {
+      boundary.block.forcedTerminalDirection = boundary.direction;
+
+      console.log("✅ [NEW RIGHT TERMINAL ROW]", {
+        terminal: boundary.net,
+        block: boundary.block.primary?.id,
+        direction: boundary.direction
+      });
+
+      placePathSegments(path, null, true);
+
+      const terminalPlacement = placements.get(boundary.block.id);
+      if (terminalPlacement) {
+        terminalPlacement.outputTerminalRow = true;
+        terminalPlacement.outputTerminalNet = boundary.net;
+        terminalPlacement.terminalForcedDirection = boundary.direction;
+        terminalPlacement.terminalDirectionForced = true;
+        outputTerminalMap.set(boundary.net, { net: boundary.net, row: terminalPlacement.row, col: 0 });
+      }
+
+      continue;
+    }
+
+    const possibleInputTerminal =
+      remainingBlock.netIn &&
+      !isPowerNet(remainingBlock.netIn) &&
+      !explicitOutputNets.has(remainingBlock.netIn) &&
+      (explicitInputNets.has(remainingBlock.netIn) || (producersByNet.get(remainingBlock.netIn) || []).length === 0)
+        ? remainingBlock.netIn : null;
+
     placePathSegments(path, possibleInputTerminal, true);
   }
-
   /*
    * 3. NOW L7/L8 etc. exist. Move every grounded JR onto its real host wire.
    */
@@ -418,8 +622,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
     for (const t of outputTerminalMap.values()) t.row = swapRow(t.row);
   }
 
-  forceTerminalRowOrder("Sel1", "Sel2");
-
   let minimumColumn = 1;
   for (const p of placements.values()) minimumColumn = Math.min(minimumColumn, p.col);
 
@@ -430,6 +632,32 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
   for (const p of placements.values()) maximumComponentColumn = Math.max(maximumComponentColumn, p.col + Math.max(1, p.span) - 1);
 
   const rightTerminalColumn = Math.ceil(maximumComponentColumn) + 2;
+
+  for (const placement of placements.values()) {
+    if (!placement.outputTerminalRow) continue;
+
+    const desiredRightEdge = rightTerminalColumn - 1;
+    const currentRightEdge = getPlacementRightColumn(placement);
+    const shift = desiredRightEdge - currentRightEdge;
+
+    if (shift > 0) {
+      const row = placement.row;
+
+      for (const p of placements.values()) {
+        if (p.row !== row) continue;
+        p.col += shift;
+        if (Number.isFinite(p.centerCol)) p.centerCol += shift;
+      }
+    }
+
+    console.log("✅ [OUTPUT ROW PUSHED TO RIGHT EDGE]", {
+      terminal: placement.outputTerminalNet,
+      row: placement.row,
+      block: placement.block.primary?.id,
+      finalCol: placement.col,
+      rightTerminalColumn
+    });
+  }
   for (const terminal of outputTerminalMap.values()) terminal.col = rightTerminalColumn;
 
   let maximumRow = 0;
