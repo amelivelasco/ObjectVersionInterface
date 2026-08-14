@@ -80,33 +80,33 @@ def main():
     #     / "NDROMDrivers.custom_compiler.gds"
     # )
 
-    # netlist_path = (
-    #     base_dir
-    #     / "Circuit_Projects"
-    #     / "Splitter" / "Splitter"
-    #     / "Netlist.sp"
-    # )
-
-    # layout_path = (
-    #     base_dir
-    #     / "Circuit_Projects"
-    #     / "Splitter" / "Splitter"
-    #     / "Layout.gds"
-    # )
-    
     netlist_path = (
         base_dir
         / "Circuit_Projects"
-        / "NDROMDrivers"
+        / "Splitter" / "Splitter"
         / "Netlist.sp"
     )
 
     layout_path = (
-        base_dir 
+        base_dir
         / "Circuit_Projects"
-        / "NDROMDrivers"
-        / "NDROMDrivers.custom_compiler.gds"
+        / "Splitter" / "Splitter"
+        / "Layout.gds"
     )
+    
+    # netlist_path = (
+    #     base_dir
+    #     / "Circuit_Projects"
+    #     / "NDROMDrivers"
+    #     / "Netlist.sp"
+    # )
+
+    # layout_path = (
+    #     base_dir 
+    #     / "Circuit_Projects"
+    #     / "NDROMDrivers"
+    #     / "NDROMDrivers.custom_compiler.gds"
+    # )
 
     # netlist_path = (
     #     base_dir
