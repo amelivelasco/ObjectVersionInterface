@@ -843,19 +843,28 @@ class KLayoutExporter(BaseExporter):
             print(f"Cell {self.layout_top.name} est vide, rien à recouvrir.")
             return
 
-        xmin, xmax, ymax = bbox.left, bbox.right, bbox.top
+        xmin, xmax, ymin, ymax = bbox.left, bbox.right, bbox.bottom, bbox.top
+
         path_width = 10
-        path_y = ymax - path_width // 2
-        banner_height = 10
-        text = "Pdc M3 M0"
-        anchor = pya.Point((xmin + xmax) // 2, ymax - banner_height // 2)
+        banner_length = 500
+        center_y = (ymin + ymax) // 2
+
+        # Vertical Pdc on the RIGHT border.
+        path_x = xmax - path_width // 2
+        y1 = center_y - banner_length // 2
+        y2 = center_y + banner_length // 2
+
+        text = "Pdc M2 M0"
+        anchor = pya.Point(path_x, center_y)
+
         banner_path = pya.Path(
-            [pya.Point(xmin, path_y), pya.Point(xmax, path_y)],
+            [pya.Point(path_x, y1), pya.Point(path_x, y2)],
             path_width,
         )
+
         self.insert_managed_text(
             text=text,
-            text_trans=pya.Trans(anchor),
+            text_trans=pya.Trans(1, False, anchor.x, anchor.y),
             geometry=banner_path,
             geometry_layer=self.term_layer,
             label_layer=self.label_layer,
@@ -863,7 +872,6 @@ class KLayoutExporter(BaseExporter):
 
         self.layout_top.shapes(cover_layer).clear()
         self.layout_top.shapes(cover_layer).insert(pya.Box(bbox))
-
         self.layout.write(str(self.layout_path))
         
     def get_closest_resistor_center_trans(self, inst, r2_layer_number, r2_datatype=0):
@@ -996,7 +1004,7 @@ class KLayoutExporter(BaseExporter):
 
                 elif inst_type == "IB":
                     inst.global_trans = global_trans
-                    port_ib = f"{inst.name} M3 M2"
+                    port_ib = f"{inst.name} M2 R2"
 
                     label_trans = self.get_ib_center_trans(
                         inst,
