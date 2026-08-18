@@ -1,22 +1,15 @@
-function findShortestOrthogonalRoute(start, end, obstacleBoxes, routedSegments, net = null) {
-  if (start.x > end.x + 0.5) { return null; }
-  const wireClearance = 10;
-  const bendPenalty = 14;
-
-  const xValues = [start.x, end.x,];
-  const yValues = [start.y,end.y,];
-
+function collectRoutingCoordinates(obstacleBoxes, routedSegments, xValues, yValues, wireClearance) {
   for (const box of obstacleBoxes) {
-    xValues.push(box.left,box.right);
-    yValues.push(box.top,box.bottom);
+    xValues.push(box.left, box.right);
+    yValues.push(box.top, box.bottom);
   }
 
   for (const segment of routedSegments) {
-    if (!segment?.a ||!segment?.b) {
+    if (!segment?.a || !segment?.b) {
       continue;
     }
 
-    const horizontal = Math.abs(segment.a.y -segment.b.y) < 0.5;
+    const horizontal = Math.abs(segment.a.y - segment.b.y) < 0.5;
 
     if (horizontal) {
       yValues.push(segment.a.y - wireClearance, segment.a.y + wireClearance);
@@ -26,147 +19,334 @@ function findShortestOrthogonalRoute(start, end, obstacleBoxes, routedSegments, 
       yValues.push(segment.a.y, segment.b.y);
     }
   }
+}
 
-  addParallelChannelMidpoints(routedSegments, xValues, yValues, wireClearance);
+function createRoutingGrid(start, end, obstacleBoxes, routedSegments, wireClearance) {
+  const xValues = [start.x, end.x];
+  const yValues = [start.y, end.y];
 
-  const xs = uniqueSortedNumbers(xValues);
-  const ys = uniqueSortedNumbers(yValues);
+  collectRoutingCoordinates(
+    obstacleBoxes,
+    routedSegments,
+    xValues,
+    yValues,
+    wireClearance
+  );
 
-  const startX = xs.indexOf(Number(start.x.toFixed(2)));
-  const startY = ys.indexOf(Number(start.y.toFixed(3)));
-  const endX = xs.indexOf(Number(end.x.toFixed(3)));
-  const endY = ys.indexOf(Number(end.y.toFixed(3)));
+  addParallelChannelMidpoints(
+    routedSegments,
+    xValues,
+    yValues,
+    wireClearance
+  );
 
-  function pointAt(xIndex, yIndex) {
-    return {x: xs[xIndex], y: ys[yIndex],};
+  return {
+    xs: uniqueSortedNumbers(xValues),
+    ys: uniqueSortedNumbers(yValues),
+  };
+}
+
+function createRoutingIndexes(start, end, grid) {
+  return {
+    startX: grid.xs.indexOf(Number(start.x.toFixed(2))),
+    startY: grid.ys.indexOf(Number(start.y.toFixed(3))),
+    endX: grid.xs.indexOf(Number(end.x.toFixed(3))),
+    endY: grid.ys.indexOf(Number(end.y.toFixed(3))),
+  };
+}
+
+function pointAt(grid, xIndex, yIndex) {
+  return {
+    x: grid.xs[xIndex],
+    y: grid.ys[yIndex],
+  };
+}
+
+function pointAllowed(point, obstacleBoxes) {
+  return !obstacleBoxes.some((box) => pointInsideBox(point, box));
+}
+
+function segmentIntersectsOtherNet(candidate, existing, net) {
+  if (!existing?.a || !existing?.b) {
+    return false;
   }
 
-  function pointAllowed(point) {
-    return !obstacleBoxes.some((box) => pointInsideBox(point, box));
+  if (existing.net && net && existing.net === net) {
+    return false;
   }
 
-  function segmentAllowed(first, second) {
-    const hitsComponent = obstacleBoxes.some((box) => axisAlignedSegmentHitsBox(first, second, box));
-    if (hitsComponent) { return false; }
+  return (
+    axisAlignedSegmentsIntersect(candidate, existing) ||
+    segmentsWithinClearance(candidate, existing, 10)
+  );
+}
 
-    const candidate = {a: first, b: second};
+function segmentAllowed(first, second, routingContext) {
+  const { obstacleBoxes, routedSegments, net } = routingContext;
 
-    const hitsAnotherNet = routedSegments.some((existing) => {
-      if (!existing?.a || !existing?.b) { return false; }
-      if (existing.net && net && existing.net === net) { return false; }
+  const hitsComponent = obstacleBoxes.some((box) =>
+    axisAlignedSegmentHitsBox(first, second, box)
+  );
 
-      return axisAlignedSegmentsIntersect(candidate, existing) ||
-        segmentsWithinClearance(candidate, existing, 10);
-    });
-
-    return !hitsAnotherNet;
+  if (hitsComponent) {
+    return false;
   }
 
-  function stateKey(xIndex, yIndex, direction) {
-    return `${xIndex},${yIndex},${direction}`;
+  const candidate = { a: first, b: second };
+
+  return !routedSegments.some((existing) =>
+    segmentIntersectsOtherNet(candidate, existing, net)
+  );
+}
+
+function stateKey(xIndex, yIndex, direction) {
+  return `${xIndex},${yIndex},${direction}`;
+}
+
+function createNeighborIndexes(currentState) {
+  return [
+    [currentState.xIndex - 1, currentState.yIndex, "H"],
+    [currentState.xIndex + 1, currentState.yIndex, "H"],
+    [currentState.xIndex, currentState.yIndex - 1, "V"],
+    [currentState.xIndex, currentState.yIndex + 1, "V"],
+  ];
+}
+
+function indexesAllowed(nextX, nextY, grid) {
+  return (
+    nextX >= 0 &&
+    nextY >= 0 &&
+    nextX < grid.xs.length &&
+    nextY < grid.ys.length
+  );
+}
+
+function calculateBendCost(currentDirection, nextDirection, bendPenalty) {
+  return currentDirection !== "N" &&
+    currentDirection !== nextDirection
+    ? bendPenalty
+    : 0;
+}
+
+function calculateRouteDistance(currentState, currentPoint, nextPoint, searchContext) {
+  const length =
+    Math.abs(currentPoint.x - nextPoint.x) +
+    Math.abs(currentPoint.y - nextPoint.y);
+
+  const bendCost = calculateBendCost(
+    currentState.direction,
+    searchContext.nextDirection,
+    searchContext.bendPenalty
+  );
+
+  const wireCost = getWirePenalty(
+    currentPoint,
+    nextPoint,
+    searchContext.routedSegments
+  );
+
+  return searchContext.currentDistance + length + bendCost + wireCost;
+}
+
+function processNeighbor(currentState, neighbor, searchContext) {
+  const [nextX, nextY, nextDirection] = neighbor;
+  const {
+    grid,
+    routingContext,
+    bendPenalty,
+    distances,
+    previous,
+    queue,
+    end,
+  } = searchContext;
+
+  if (!indexesAllowed(nextX, nextY, grid)) {
+    return;
   }
 
+  const currentPoint = pointAt(
+    grid,
+    currentState.xIndex,
+    currentState.yIndex
+  );
+
+  const nextPoint = pointAt(grid, nextX, nextY);
+
+  if (
+    !pointAllowed(nextPoint, routingContext.obstacleBoxes) ||
+    !segmentAllowed(currentPoint, nextPoint, routingContext)
+  ) {
+    return;
+  }
+
+  const currentKey = stateKey(
+    currentState.xIndex,
+    currentState.yIndex,
+    currentState.direction
+  );
+
+  const currentDistance = distances.get(currentKey);
+
+  const nextDistance = calculateRouteDistance(
+    currentState,
+    currentPoint,
+    nextPoint,
+    {
+      currentDistance,
+      nextDirection,
+      bendPenalty,
+      routedSegments: routingContext.routedSegments,
+    }
+  );
+
+  const nextKey = stateKey(nextX, nextY, nextDirection);
+
+  if (nextDistance >= (distances.get(nextKey) ?? Infinity)) {
+    return;
+  }
+
+  distances.set(nextKey, nextDistance);
+  previous.set(nextKey, currentKey);
+
+  const heuristic =
+    Math.abs(nextPoint.x - end.x) +
+    Math.abs(nextPoint.y - end.y);
+
+  queue.push({
+    xIndex: nextX,
+    yIndex: nextY,
+    direction: nextDirection,
+    priority: nextDistance + heuristic,
+  });
+}
+
+function isGoalState(currentState, indexes) {
+  return (
+    currentState.xIndex === indexes.endX &&
+    currentState.yIndex === indexes.endY
+  );
+}
+
+function searchShortestRoute(start, end, grid, indexes, routingContext, bendPenalty) {
   const queue = new RoutingMinHeap();
   const distances = new Map();
   const previous = new Map();
 
-  const startKey = stateKey(startX,startY,"N");
+  const startKey = stateKey(
+    indexes.startX,
+    indexes.startY,
+    "N"
+  );
 
   distances.set(startKey, 0);
 
   queue.push({
-    xIndex: startX,
-    yIndex: startY,
+    xIndex: indexes.startX,
+    yIndex: indexes.startY,
     direction: "N",
     priority:
       Math.abs(start.x - end.x) +
       Math.abs(start.y - end.y),
   });
 
-  let goalKey = null;
-
   while (true) {
     const currentState = queue.pop();
-    if (!currentState) {break;}
-    const currentKey = stateKey(currentState.xIndex, currentState.yIndex, currentState.direction);
-    const currentDistance = distances.get(currentKey);
-    if (
-      currentState.xIndex === endX &&
-      currentState.yIndex === endY
-    ) {
-      goalKey = currentKey;
-      break;
+
+    if (!currentState) {
+      return { goalKey: null, previous };
     }
-    const neighborIndexes = [
-      [currentState.xIndex - 1, currentState.yIndex, "H"],
-      [currentState.xIndex + 1, currentState.yIndex, "H"],
-      [currentState.xIndex, currentState.yIndex - 1, "V"],
-      [currentState.xIndex, currentState.yIndex + 1, "V"],
-    ];
 
-    const currentPoint = pointAt(currentState.xIndex, currentState.yIndex);
-    for (const [
-      nextX,
-      nextY,
-      nextDirection,
-    ] of neighborIndexes) {
-      if (
-        nextX < 0 ||
-        nextY < 0 ||
-        nextX >= xs.length ||
-        nextY >= ys.length
-      ) {
-        continue;
-      }
-      const nextPoint = pointAt(nextX, nextY);
-      if (
-        !pointAllowed(nextPoint) ||
-        !segmentAllowed(currentPoint, nextPoint)
-      ) {
-        continue;
-      }
-      const length =
-        Math.abs(currentPoint.x - nextPoint.x) +
-        Math.abs(currentPoint.y - nextPoint.y);
+    const currentKey = stateKey(
+      currentState.xIndex,
+      currentState.yIndex,
+      currentState.direction
+    );
 
-      const bendCost =
-        currentState.direction !== "N" &&
-        currentState.direction !== nextDirection
-          ? bendPenalty
-          : 0;
+    if (isGoalState(currentState, indexes)) {
+      return { goalKey: currentKey, previous };
+    }
 
-      const wireCost = getWirePenalty(currentPoint, nextPoint, routedSegments);
-      const nextDistance = currentDistance + length + bendCost + wireCost;
-      const nextKey = stateKey(nextX, nextY, nextDirection);
+    const neighbors = createNeighborIndexes(currentState);
 
-      if (nextDistance >= (distances.get(nextKey) ?? Infinity)) {continue;}
-
-      distances.set(nextKey, nextDistance);
-      previous.set(nextKey, currentKey);
-
-      const heuristic = Math.abs(nextPoint.x - end.x) + Math.abs(nextPoint.y - end.y);
-
-      queue.push({xIndex: nextX, yIndex: nextY, direction: nextDirection, priority: nextDistance + heuristic,});
+    for (const neighbor of neighbors) {
+      processNeighbor(currentState, neighbor, {
+        grid,
+        routingContext,
+        bendPenalty,
+        distances,
+        previous,
+        queue,
+        end,
+      });
     }
   }
+}
 
-  if (!goalKey) {
-    console.debug(`Preferred route not found for ${net}; caller may use a fallback`, { start, end });
-    return null;
-  }
-
+function reconstructRoute(goalKey, previous, grid) {
   const reversed = [];
   let currentKey = goalKey;
 
   while (currentKey) {
-    const [xIndex, yIndex] = currentKey.split(",").slice(0, 2).map(Number);
-    reversed.push(pointAt(xIndex, yIndex));
+    const [xIndex, yIndex] = currentKey
+      .split(",")
+      .slice(0, 2)
+      .map(Number);
+
+    reversed.push(pointAt(grid, xIndex, yIndex));
     currentKey = previous.get(currentKey);
   }
 
-  return simplifyOrthogonalPoints(
-    reversed.toReversed()
+  return simplifyOrthogonalPoints(reversed.toReversed());
+}
+
+function findShortestOrthogonalRoute(
+  start,
+  end,
+  obstacleBoxes,
+  routedSegments,
+  net = null
+) {
+  if (start.x > end.x + 0.5) {
+    return null;
+  }
+
+  const wireClearance = 10;
+  const bendPenalty = 14;
+
+  const grid = createRoutingGrid(
+    start,
+    end,
+    obstacleBoxes,
+    routedSegments,
+    wireClearance
   );
+
+  const indexes = createRoutingIndexes(start, end, grid);
+
+  const routingContext = {
+    obstacleBoxes,
+    routedSegments,
+    net,
+  };
+
+  const { goalKey, previous } = searchShortestRoute(
+    start,
+    end,
+    grid,
+    indexes,
+    routingContext,
+    bendPenalty
+  );
+
+  if (!goalKey) {
+    console.debug(
+      `Preferred route not found for ${net}; caller may use a fallback`,
+      { start, end }
+    );
+    return null;
+  }
+
+  return reconstructRoute(goalKey, previous, grid);
 }
 
 function getInductorApproachPoint(terminal, point, clearance = 18) {

@@ -10,7 +10,7 @@ $COMMAND
   MeshFile     "BIG_Cell.msh"
   MeshType     Tetra
   Mode         MQS
-  Netlist      "BIG_Cell_inductex_V1.cir"
+  Netlist      "BIG_Cell_inductex_V5.cir"
   Plot         [ J ]
   Process      "..\seeqc_v8.ldf"
   Fidelity     High
@@ -21,8 +21,8 @@ $END
 * MAIN (TOP-LEVEL) STRUCTURE
 * ----------------------------------------------
 $STRUCT
-  Name    "MultiplexerAmeli"
+  Name    "NDROMDrivers"
   $GDS
-    Name  "MultiplexerAmeli.custom_compiler.gds"
+    Name  "NDROMDrivers.custom_compiler.gds"
   $END
 $END
