@@ -263,6 +263,33 @@ def main():
 
     parser = CDLParser()
     circuit = parser.parse(netlist_path)
+    
+    original_parser = CDLParser()
+    original_circuit = original_parser.parse(original_netlist_path)
+
+    def component_value(elem):
+        if getattr(elem, "type", None) == "JJ": return getattr(elem, "Ic", None)
+        if getattr(elem, "type", None) == "IB": return getattr(elem, "Ib", None)
+        if getattr(elem, "type", None) == "L": return getattr(elem, "L", None)
+        if getattr(elem, "type", None) == "R": return getattr(elem, "R", None)
+        return None
+
+    def attach_original_values(original_cell, extracted_cell):
+        original_elements, extracted_elements = [], []
+
+        def collect(cell, result):
+            for elem in cell.instances:
+                if hasattr(elem, "instances"): collect(elem, result)
+                else: result.append(elem)
+
+        collect(original_cell, original_elements)
+        collect(extracted_cell, extracted_elements)
+
+        for original, extracted in zip(original_elements, extracted_elements):
+            extracted.target_value = component_value(original)
+            extracted.extracted_value = component_value(extracted)
+
+    attach_original_values(original_circuit.TOP, circuit.TOP)
 
     # 2. Create exporters using the same fixed output directory.
     klayout_exp = KLayoutExporter(circuit, layout_path)

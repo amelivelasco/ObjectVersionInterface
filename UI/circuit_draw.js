@@ -128,7 +128,7 @@ function drawComponentValueText(parent, text, x, y, options = {}) {
   return valueText;
 }
 
-function drawComponent(layer, element, jjval = -1) {
+function drawComponent(layer, element) {
   const halfSize = drawConfig.imageSize / 2;
   const g = createSvgElement("g", { class: `component component-${element.type}`,});
 
@@ -159,12 +159,11 @@ function drawComponent(layer, element, jjval = -1) {
 
   title.textContent = [
     `cir_name=${element.cir_name || ""}`,
-    `path=${isResistor ? resistorPath: element.path || ""}`,
-    `type=${element.type?.[0] || ""}`,
-    `pid=${isResistor ? `R${resistorNumber}` : element.pid || ""}`,
+    `path=${isResistor ? resistorPath : element.path || ""}`,
     `net_in=${element.net_in || ""}`,
     `net_out=${element.net_out || ""}`,
-    `value=${formatComponentValue(element, isResistor ? jjval : undefined)}`,
+    `target_val=${formatComponentValue(element, "target")}`,
+    `extracted_val=${formatComponentValue(element, "extracted")}`,
   ].join("\n");
 
   g.appendChild(title);
@@ -290,7 +289,7 @@ function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
   next.forcedRotation = grounded ? 90 : reversed ? 180 : 0;
 
   drawComponent(componentLayer, current);
-  drawComponent(componentLayer, next, current.value);
+  drawComponent(componentLayer, next);
 
   const value = formatComponentValue(current);
 

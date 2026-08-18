@@ -507,7 +507,8 @@ $END
                     "label": raw_name,
                     "net_in": net_in,
                     "net_out": net_out,
-                    "value": get_element_value(inst),
+                    "target_value": get_element_value(inst),
+                    "extracted_value": getattr(inst, "extracted_value", get_element_value(inst)),
                     "image": get_image(inst),
                 })
 

@@ -21,7 +21,8 @@ class Schematic:
             r"layout_cell=(?P<layout_cell>[^,]+),\s*"
             r"net_in=(?P<net_in>[^,]+),\s*"
             r"net_out=(?P<net_out>[^,\)]+)"
-            r"(?:,\s*value=(?P<value>[^)]+))?"
+            r"(?:,\s*target_value=(?P<target_value>[^,\)]+))?"
+            r"(?:,\s*extracted_value=(?P<extracted_value>[^)]+))?"
             r"\s*\)\s*$"
         )
 
@@ -54,7 +55,8 @@ class Schematic:
             "layout_cell": clean_value(match.group("layout_cell")),
             "net_in": clean_value(match.group("net_in")),
             "net_out": clean_value(match.group("net_out")),
-            "value": clean_value(match.group("value")),
+            "target_value": clean_value(match.group("target_value")),
+            "extracted_value": clean_value(match.group("extracted_value")),
         }
         
     def insert_component_by_net(self, ordered_components, new_component):
@@ -155,14 +157,10 @@ class Schematic:
                 net_out = getattr(getattr(elem, "net_out", None), "name", None)
 
                 current_components.append(CircuitComponent(
-                    raw=raw,
-                    cir_name=cir_name,
-                    path=logical_path,
-                    pid=pid,
-                    layout_cell=layout_cell,
-                    net_in=net_in,
-                    net_out=net_out,
-                    value=get_value(elem),
+                    raw=raw, cir_name=cir_name, path=logical_path, pid=pid, layout_cell=layout_cell,
+                    net_in=net_in, net_out=net_out,
+                    target_value=getattr(elem, "target_value", None),
+                    extracted_value=getattr(elem, "extracted_value", get_value(elem)),
                 ))
 
         walk(circuit.TOP)
@@ -273,19 +271,14 @@ class Schematic:
                 if net_out is None:
                     net_out = fallback.get("net_out")
 
-                value = parsed["value"]
+                value = parsed["target_value"]
                 if value is None:
-                    value = fallback.get("value")
+                    value = fallback.get("target_value")
 
                 component = CircuitComponent(
-                    raw=raw,
-                    cir_name=parsed["cir_name"],
-                    path=parsed["path"],
-                    pid=parsed["pid"],
-                    layout_cell=parsed["layout_cell"],
-                    net_in=net_in,
-                    net_out=net_out,
-                    value=value,
+                    raw=raw, cir_name=parsed["cir_name"], path=parsed["path"], pid=parsed["pid"],
+                    layout_cell=parsed["layout_cell"], net_in=net_in, net_out=net_out,
+                    target_value=parsed["target_value"], extracted_value=parsed["extracted_value"],
                 )
 
                 # Preserve where the component appeared in the source file.
@@ -504,7 +497,8 @@ class Schematic:
                 "path": component.path, "pid": component.pid,
                 "layout_cell": component.layout_cell, "layout_instance": layout_instance,
                 "instance_path": instance_path, "type": (component_type1, component_type2),
-                "net_in": component.net_in, "net_out": component.net_out, "value": component.value,
+                "net_in": component.net_in, "net_out": component.net_out, 
+                "target_value": component.target_value, "extracted_value": component.extracted_value,
                 "image": self.get_component_image(component),
             })
 
@@ -515,7 +509,9 @@ class Schematic:
                     "path": component.path, "pid": component.pid,
                     "layout_cell": component.layout_cell, "layout_instance": layout_instance,
                     "instance_path": instance_path, "type": ("R", ""), "net_in": component.net_in,
-                    "net_out": component.net_out, "value": None, "image": "../img/res_draw.png",
+                    "net_out": component.net_out, 
+                    "target_value": component.target_value, "extracted_value": component.extracted_value,
+                    "image": "../img/res_draw.png",
                 })
 
         data = {

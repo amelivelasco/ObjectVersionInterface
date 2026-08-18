@@ -520,13 +520,17 @@ function setupInterCellTerminalHighlights(svg) {
   svg.addEventListener("click", clearHighlight);
 }
 
-function formatComponentValue(element, overrideValue) {
-  const raw = overrideValue !== undefined ? overrideValue : element?.value;
-  if (raw === null || raw === undefined || raw === "" || raw === -1) return "";
+function formatComponentValue(element, source = "display") {
+  const isValid = value => value !== null && value !== undefined && value !== "" && value !== -1 && !["none", "null", "undefined"].includes(String(value).trim().toLowerCase());
+
+  let raw;
+  if (source === "target") raw = element?.target_value;
+  else if (source === "extracted") raw = element?.extracted_value;
+  else raw = isValid(element?.extracted_value) ? element.extracted_value : element?.target_value;
+
+  if (!isValid(raw)) return "";
 
   const text = String(raw).trim();
-  if (!text || ["none", "null"].includes(text.toLowerCase())) return "";
-
   const type = getElementType(element);
   const format = value => Number(Number(value).toFixed(2)).toString();
 
@@ -534,22 +538,24 @@ function formatComponentValue(element, overrideValue) {
     if (/p(?:h)?$/i.test(text)) return `${format(text.replace(/p(?:h)?$/i, ""))} pH`;
     if (/n(?:h)?$/i.test(text)) return `${format(text.replace(/n(?:h)?$/i, ""))} nH`;
     if (/µh$/i.test(text)) return `${format(text.replace(/µh$/i, ""))} µH`;
-    if (/[a-zA-Zµ]$/.test(text)) return text;
-
     const value = Number(text);
-    if (!Number.isFinite(value)) return text;
-    return `${format(Math.abs(value) < 1e-6 ? value * 1e12 : value)} pH`;
+    return Number.isFinite(value) ? `${format(Math.abs(value) < 1e-6 ? value * 1e12 : value)} pH` : text;
   }
 
-  if (["R", "JJ", "IB"].includes(type)) {
+  if (type === "R") {
+    if (/k(?:ohm|Ω)?$/i.test(text)) return `${format(text.replace(/k(?:ohm|Ω)?$/i, ""))} kΩ`;
+    if (/(?:ohm|Ω)$/i.test(text)) return `${format(text.replace(/(?:ohm|Ω)$/i, ""))} Ω`;
+    const value = Number(text);
+    return Number.isFinite(value) ? `${format(value)} Ω` : text;
+  }
+
+  if (["JJ", "IB"].includes(type)) {
     if (/u(?:a)?$/i.test(text)) return `${format(text.replace(/u(?:a)?$/i, ""))} µA`;
     if (/µa$/i.test(text)) return `${format(text.replace(/µa$/i, ""))} µA`;
     if (/ma$/i.test(text)) return `${format(text.replace(/ma$/i, ""))} mA`;
     if (/a$/i.test(text)) return `${format(text.replace(/a$/i, ""))} A`;
-
     const value = Number(text);
-    if (!Number.isFinite(value)) return text;
-    return `${format(Math.abs(value) < 1 ? value * 1e6 : value)} µA`;
+    return Number.isFinite(value) ? `${format(Math.abs(value) < 1 ? value * 1e6 : value)} µA` : text;
   }
 
   const value = Number(text);
