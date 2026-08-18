@@ -154,12 +154,13 @@ function drawComponent(layer, element, jjval = -1) {
   const title = createSvgElement("title");
   const isResistor = componentType === "R";
   const resistorNumber = (element.pid || "").match(/\d+/)?.[0] || "";
-  const resistorPath = `${(element.path || "").split("|")[0]}|R${(element.pid || "").match(/\d+/)?.[0] || ""}`;
-
+  const resistorBasePath = (element.path || "").split("|")[0].replace(/\/J\d+$/, "");
+  const resistorPath = `${resistorBasePath}/R${resistorNumber}`;
+  
   title.textContent = [
+    `cir_name=${element.cir_name || ""}`,
     `type=${element.type?.[0] || ""}`,
     `pid=${isResistor ? `R${resistorNumber}` : element.pid || ""}`,
-    `cir_name=${element.cir_name || ""}`,
     `path=${isResistor ? resistorPath: element.path || ""}`,
     `net_in=${element.net_in || ""}`,
     `net_out=${element.net_out || ""}`,
