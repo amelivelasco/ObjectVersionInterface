@@ -155,34 +155,34 @@ class CDLParser:
         last_mod = datetime.now().strftime("%d %B %Y")
 
         content = f"""* IXI File for InductEx example - resistance:rsfq_dcsfq_res
-    * RSFQ DC-SFQ circuit with resistance
-    * Authors: L Schindler
-    * Last mod: {last_mod}
-    *******************************************************
-    * ----------------------------------------------
-    * COMMAND FOR MODEL/SIMULATION CONTROL
-    * ----------------------------------------------
-    $COMMAND
-    MeshFile     "BIG_Cell.msh"
-    MeshType     Tetra
-    Mode         MQS
-    Netlist      "{cir_name}"
-    Plot         [ J ]
-    Process      "..\\seeqc_v8.ldf"
-    Fidelity     High
-    Cores        8
-    $END
+* RSFQ DC-SFQ circuit with resistance
+* Authors: L Schindler
+* Last mod: {last_mod}
+*******************************************************
+* ----------------------------------------------
+* COMMAND FOR MODEL/SIMULATION CONTROL
+* ----------------------------------------------
+$COMMAND
+  MeshFile     "BIG_Cell.msh"
+  MeshType     Tetra
+  Mode         MQS
+  Netlist      "{cir_name}"
+  Plot         [ J ]
+  Process      "..\\seeqc_v8.ldf"
+  Fidelity     High
+  Cores        8
+$END
 
-    * ----------------------------------------------
-    * MAIN (TOP-LEVEL) STRUCTURE
-    * ----------------------------------------------
-    $STRUCT
-    Name    "{cell_name}"
-    $GDS
-        Name  "{gds_name}"
-    $END
-    $END
-    """
+* ----------------------------------------------
+* MAIN (TOP-LEVEL) STRUCTURE
+* ----------------------------------------------
+$STRUCT
+  Name    "{cell_name}"
+  $GDS
+    Name  "{gds_name}"
+  $END
+$END
+"""
 
         xi_path.write_text(content, encoding="utf-8")
 
