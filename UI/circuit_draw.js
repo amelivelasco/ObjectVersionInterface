@@ -156,12 +156,12 @@ function drawComponent(layer, element, jjval = -1) {
   const resistorNumber = (element.pid || "").match(/\d+/)?.[0] || "";
   const resistorBasePath = (element.path || "").split("|")[0].replace(/\/J\d+$/, "");
   const resistorPath = `${resistorBasePath}/R${resistorNumber}`;
-  
+
   title.textContent = [
     `cir_name=${element.cir_name || ""}`,
+    `path=${isResistor ? resistorPath: element.path || ""}`,
     `type=${element.type?.[0] || ""}`,
     `pid=${isResistor ? `R${resistorNumber}` : element.pid || ""}`,
-    `path=${isResistor ? resistorPath: element.path || ""}`,
     `net_in=${element.net_in || ""}`,
     `net_out=${element.net_out || ""}`,
     `value=${formatComponentValue(element, isResistor ? jjval : undefined)}`,

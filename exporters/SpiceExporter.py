@@ -1,3 +1,4 @@
+import datetime
 import os
 from exporters.BaseExporter import BaseExporter
 
@@ -167,6 +168,7 @@ class SpiceExporter(BaseExporter):
     def create_sp_from_sol(sol_path, source_sp, output_sp, name_map):
         import re
         from pathlib import Path
+        from datetime import datetime
 
         sol_path, source_sp, output_sp = Path(sol_path), Path(source_sp), Path(output_sp)
         if not sol_path.exists(): raise FileNotFoundError(f"SOL file not found: {sol_path}")
@@ -174,21 +176,17 @@ class SpiceExporter(BaseExporter):
 
         values = SpiceExporter.parse_sol_file(sol_path)
         name_map = {str(k).upper(): str(v).upper() for k, v in name_map.items()}
-
-        rib_names = sorted((n for n in values["R"] if re.fullmatch(r"RIB\d+", n)), key=lambda n: int(n[3:]))
-        lib_names = sorted((n for n in values["L"] if re.fullmatch(r"LIB\d+", n)), key=lambda n: int(n[3:]))
-
-        ib_sol_map = {}
-        for i, rib_name in enumerate(rib_names, 1):
-            suffix = rib_name[3:]
-            ib_sol_map[f"IB{i}"] = {"rib": rib_name, "lib": f"LIB{suffix}"}
-
-        print("\n=== IB -> SOL BIAS MAP ===")
-        for ib_name, bias in ib_sol_map.items():
-            print(f"{ib_name} -> {bias['rib']} / {bias['lib']}")
-        print("==========================\n")
-
         lines = source_sp.read_text(encoding="utf-8").splitlines(keepends=True)
+        
+        now = datetime.now()
+        days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        current_date = f"*{days[now.weekday()]} {months[now.month - 1]} {now.day:02d} {now:%H:%M:%S %Y}\n"
+
+        for i, line in enumerate(lines):
+            if re.match(r"^\*[A-Z][a-z]{2} [A-Z][a-z]{2} \d{1,2} \d{2}:\d{2}:\d{2} \d{4}", line):
+                lines[i] = current_date
+                break
 
         def get_sol_name(component):
             component = component.upper()
@@ -198,52 +196,52 @@ class SpiceExporter(BaseExporter):
             if component.startswith("XPC"): candidates.append(component[3:])
             return next((name_map[c] for c in candidates if c in name_map), None)
 
+        def get_original_l(line):
+            m = re.search(r"\bl\s*=\s*([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][-+]?\d+)?)([fpnum]?)", line, re.IGNORECASE)
+            if not m: return None
+            value, suffix = float(m.group(1)), m.group(2).lower()
+            return value * {"": 1.0, "f": 1e-3, "p": 1.0, "n": 1e3, "u": 1e6, "m": 1e9}.get(suffix, 1.0)
+
+        rib_names = sorted((n for n in values["R"] if re.fullmatch(r"RIB\d+", n)), key=lambda n: int(n[3:]))
+        ib_sol_map = {f"IB{i}": {"rib": rib_name, "lib": f"LIB{rib_name[3:]}"} for i, rib_name in enumerate(rib_names, 1)}
+
         inductors = {}
         for i, line in enumerate(lines):
             parts = line.strip().split()
             if len(parts) < 4 or not parts[0].upper().startswith("L"): continue
             sol_name = get_sol_name(parts[0])
-            if sol_name and re.fullmatch(r"L\d+", sol_name):
-                inductors[sol_name] = {"index": i, "component": parts[0], "net1": parts[1], "net2": parts[2]}
+            if sol_name and re.fullmatch(r"L\d+", sol_name): inductors[sol_name] = {"index": i, "component": parts[0], "original_value": get_original_l(line)}
 
-        combined_replacements, removed_indexes, combined_layout_map = {}, set(), {}
-
-        for combined_name, value in values["combined_L"].items():
-            match = re.fullmatch(r"L(\d+)\+\+(\d+)", combined_name.upper())
-            if not match: continue
+        combined_inductor_values = {}
+        for combined_name, extracted_total in values["combined_L"].items():
+            match = re.fullmatch(r"L(\d+)\+\+L?(\d+)", combined_name.upper())
+            if not match:
+                print(f"WARNING: Unsupported combined inductor name: {combined_name}")
+                continue
 
             first_name, second_name = f"L{match.group(1)}", f"L{match.group(2)}"
             first, second = inductors.get(first_name), inductors.get(second_name)
-
             if first is None or second is None:
-                print(f"WARNING: Cannot create {combined_name}: {first_name} or {second_name} missing")
+                print(f"WARNING: Cannot split {combined_name}: {first_name} or {second_name} missing")
                 continue
 
-            new_name = f"LL{match.group(1)}{match.group(2)}"
+            first_original, second_original = first["original_value"], second["original_value"]
+            if first_original is None or second_original is None or first_original + second_original == 0:
+                print(f"WARNING: Cannot split {combined_name}: invalid original inductance values")
+                continue
 
-            # Synthetic SP component uses the outside terminals chosen for the combined component.
-            net1, net2 = first["net1"], second["net2"]
-            insert_at = min(first["index"], second["index"])
+            original_total = first_original + second_original
+            first_ratio, second_ratio = first_original / original_total, second_original / original_total
+            first_extracted = extracted_total * first_ratio
+            second_extracted = extracted_total - first_extracted
+            combined_inductor_values[first_name], combined_inductor_values[second_name] = first_extracted, second_extracted
 
-            combined_replacements[insert_at] = f"{new_name} {net1} {net2} ind2 l={value:g}p\n"
-            removed_indexes.update((first["index"], second["index"]))
-
-            # CRITICAL: remember which real GDS components this synthetic L represents.
-            combined_layout_map[new_name.upper()] = [
-                first["component"].upper(),
-                second["component"].upper(),
-            ]
-
-            print(f"COMBINED {combined_name} -> {new_name} ({first['component']} + {second['component']})")
+            print(f"COMBINED {combined_name} = {extracted_total:g}p")
+            print(f"  {first_name}: {first_original:g}/{original_total:g} = {first_ratio:.6f} -> {first_extracted:g}p")
+            print(f"  {second_name}: {second_original:g}/{original_total:g} = {second_ratio:.6f} -> {second_extracted:g}p")
 
         new_lines = []
-
-        for i, line in enumerate(lines):
-            if i in combined_replacements:
-                new_lines.append(combined_replacements[i])
-                continue
-            if i in removed_indexes: continue
-
+        for line in lines:
             stripped = line.strip()
             if not stripped or stripped.startswith(("*", ".")):
                 new_lines.append(line)
@@ -251,23 +249,22 @@ class SpiceExporter(BaseExporter):
 
             component = stripped.split()[0]
             sol_name = get_sol_name(component)
-
             if sol_name is None:
                 new_lines.append(line)
                 continue
 
-            if sol_name in values["L"]:
-                line = re.sub(r"\bl\s*=\s*[-+0-9.eE]+p?", f"l={values['L'][sol_name]:g}p", line, flags=re.IGNORECASE)
+            if sol_name in combined_inductor_values:
+                line = re.sub(r"\bl\s*=\s*[-+0-9.eE]+[fpnum]?", f"l={combined_inductor_values[sol_name]:g}p", line, flags=re.IGNORECASE)
+            elif sol_name in values["L"]:
+                line = re.sub(r"\bl\s*=\s*[-+0-9.eE]+[fpnum]?", f"l={values['L'][sol_name]:g}p", line, flags=re.IGNORECASE)
             elif sol_name in values["R"]:
                 line = re.sub(r"\br\s*=\s*[-+0-9.eE]+", f"r={values['R'][sol_name]:g}", line, flags=re.IGNORECASE)
             elif sol_name in values["J"]:
                 line = re.sub(r"\bics\s*=\s*[-+0-9.eE]+u?", f"ics={values['J'][sol_name]:g}u", line, flags=re.IGNORECASE)
             elif sol_name.startswith("IB"):
                 bias = ib_sol_map.get(sol_name)
-
                 if bias:
                     rib = values["R"].get(bias["rib"])
-
                     if rib not in (None, 0):
                         ib_value = 2600.0 / rib
                         line = re.sub(r"\bib\s*=\s*[-+0-9.eE]+u?", f"ib={ib_value:g}u", line, flags=re.IGNORECASE)
@@ -277,9 +274,5 @@ class SpiceExporter(BaseExporter):
 
         output_sp.parent.mkdir(parents=True, exist_ok=True)
         output_sp.write_text("".join(new_lines), encoding="utf-8")
-
-        print("\n=== COMBINED LAYOUT MAP ===")
-        for synthetic, physical in combined_layout_map.items(): print(f"{synthetic} -> {physical}")
-        print("===========================\n")
-
-        return str(output_sp.resolve()), combined_layout_map
+        print("SPICE netlist created from InductEx solution:", output_sp.resolve())
+        return str(output_sp.resolve()), {}

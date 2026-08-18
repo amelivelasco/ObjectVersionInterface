@@ -1,5 +1,5 @@
 *Custom Compiler Version T-2022.06-SP1
-*Thu Jul 23 10:15:37 2026
+*Tue Aug 18 07:09:01 2026
 
 *.SCALE METER
 *.LDD
@@ -14,17 +14,20 @@
 .subckt NDROM2 Q RD SET0 SET1 VDD
 *.PININFO Q:O RD:I SET0:I SET1:I VDD:B
 LL75 net142 net127 ind2 l=1.99109p
-LL213 net144 net138 ind2 l=4.82862p
+LL76 net144 net145 ind2 l=0.726939p
 LL74 net140 net137 ind2 l=3.08097p
 LL12 net139 Q ind2 l=1.09049p
-LL515 net145 net4 ind2 l=3.88879p
+LL11 net145 net139 ind2 l=2.4932p
 LL10 net110 net124 ind2 l=4.46027p
 LL9 RD net110 ind2 l=2.84774p
 LL8 net100 net145 ind2 l=2.31889p
 LL7 net121 net100 ind2 l=1.6565p
-LL1014 net127 net136 ind2 l=5.0356p
+LL6 net127 net138 ind2 l=3.53815p
 LL5 net119 net141 ind2 l=3.97746p
 LL4 SET0 net119 ind2 l=1.43178p
+LL3 net137 net138 ind2 l=4.10168p
+LL2 net4 net136 ind2 l=1.49745p
+LL1 SET1 net4 ind2 l=1.39559p
 XpcIB5 GND! VDD net110 pwrcell ib=169.633u
 XpcIB6 GND! VDD net139 pwrcell ib=140.405u
 XpcIB4 GND! VDD net100 pwrcell ib=291.458u

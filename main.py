@@ -52,19 +52,19 @@ def main():
         / "MultiplexerAmeli.custom_compiler.gds"
     )
 
-    # netlist_path = (
-    #     base_dir
-    #     / "Circuit_Projects"
-    #     / "NDROmCells"
-    #     / "Netlist.sp"
-    # )
+    netlist_path = (
+        base_dir
+        / "Circuit_Projects"
+        / "NDROmCells"
+        / "Netlist.sp"
+    )
        
-    # layout_path = (
-    #     base_dir 
-    #     / "Circuit_Projects"
-    #     / "NDROmCells"
-    #     / "BIG_Cellname.gds"
-    # )
+    layout_path = (
+        base_dir 
+        / "Circuit_Projects"
+        / "NDROmCells"
+        / "BIG_Cellname.gds"
+    )
 
     # netlist_path = (
     #     base_dir
@@ -251,7 +251,7 @@ def main():
             name_map=name_map,
         )
 
-        #netlist_path = extracted_sp_path
+        netlist_path = extracted_sp_path
 
         print("Netlist updated while preserving original SP format:", netlist_path.resolve())
         show_file_in_vscode(netlist_path)
