@@ -264,14 +264,6 @@ def main():
     parser = CDLParser()
     circuit = parser.parse(netlist_path)
 
-    # Parse the SP with its ORIGINAL component names and ORIGINAL nets preserved.
-    parser = CDLParser()
-    circuit = parser.parse(netlist_path)
-
-    # 1. Parse circuit.
-    parser = CDLParser()
-    circuit = parser.parse(netlist_path)
-
     # 2. Create exporters using the same fixed output directory.
     klayout_exp = KLayoutExporter(circuit, layout_path)
 
@@ -315,6 +307,15 @@ def main():
             output_path=cir_output_path,
         )
     ).resolve()
+    
+    xi_path = netlist_path.parent / f"{top_cell_name}.xi"
+
+    parser.create_or_update_xi(
+        xi_path=xi_path,
+        cir_path=generated_cir_path,
+        gds_path=layout_path,
+        cell_name=top_cell_name,
+    )
 
     # Force the generated result into the one official output path.
     if generated_cir_path != cir_output_path.resolve():

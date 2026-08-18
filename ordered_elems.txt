@@ -1,4 +1,4 @@
-generated_at: 2026-08-18T08:52:28.730059+00:00
+generated_at: 2026-08-18T09:33:13.803499+00:00
 cell_name: splitter
 CircuitComponent(raw=XsjJ2, cir_name=J1, path=J2, pid=J2, layout_cell=splitter, net_in=net25, net_out=GND!, value=250.00000000000003)
 CircuitComponent(raw=LL6, cir_name=L4, path=L6, pid=L6, layout_cell=splitter, net_in=net14, net_out=net25, value=1.6)

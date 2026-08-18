@@ -1,3 +1,5 @@
+from datetime import datetime
+from pathlib import Path
 from Hierarchy.cell import Cell
 from elements.jj import JJElement
 from elements.bias_ib import BiasIBElement
@@ -145,6 +147,50 @@ class CDLParser:
         element = ResistorElement(head[1:], None, None, self._compute_value(raw_value))
         element.raw_name = head
         self.current_cell.add_element(element, tokens[1], tokens[2], [])
+        
+    def create_or_update_xi(self, xi_path, cir_path, gds_path, cell_name):
+        xi_path = Path(xi_path)
+        cir_name = Path(cir_path).name
+        gds_name = Path(gds_path).name
+        last_mod = datetime.now().strftime("%d %B %Y")
+
+        content = f"""* IXI File for InductEx example - resistance:rsfq_dcsfq_res
+    * RSFQ DC-SFQ circuit with resistance
+    * Authors: L Schindler
+    * Last mod: {last_mod}
+    *******************************************************
+    * ----------------------------------------------
+    * COMMAND FOR MODEL/SIMULATION CONTROL
+    * ----------------------------------------------
+    $COMMAND
+    MeshFile     "BIG_Cell.msh"
+    MeshType     Tetra
+    Mode         MQS
+    Netlist      "{cir_name}"
+    Plot         [ J ]
+    Process      "..\\seeqc_v8.ldf"
+    Fidelity     High
+    Cores        8
+    $END
+
+    * ----------------------------------------------
+    * MAIN (TOP-LEVEL) STRUCTURE
+    * ----------------------------------------------
+    $STRUCT
+    Name    "{cell_name}"
+    $GDS
+        Name  "{gds_name}"
+    $END
+    $END
+    """
+
+        xi_path.write_text(content, encoding="utf-8")
+
+        print("XI file:", xi_path.resolve())
+        print("  CIR:", cir_name)
+        print("  GDS:", gds_name)
+
+        return xi_path
     
     def _instructor(self, head, tokens, filename, new_circuit, line_number):
         head_lower = head.lower()
