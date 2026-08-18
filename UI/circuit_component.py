@@ -1,6 +1,7 @@
 class CircuitComponent:
-    def __init__(self, raw, path, pid, layout_cell, net_in, net_out, value = None, row = None, column= None):
+    def __init__(self, raw, cir_name, path, pid, layout_cell, net_in, net_out, value = None, row = None, column= None):
         self.raw = raw
+        self.cir_name = cir_name
         self.path = path
         self.pid = pid
         self.layout_cell = layout_cell
@@ -9,7 +10,6 @@ class CircuitComponent:
         self.row = row
         self.column = column
         self.value = value
-        
     @property
     def nets(self):
         return {net for net in [self.net_in, self.net_out] if net is not None}
@@ -22,6 +22,7 @@ class CircuitComponent:
         return (
             "CircuitComponent("
             f"raw={self.raw}, "
+            f"cir_name={self.cir_name}, "
             f"path={self.path}, "
             f"pid={self.pid}, "
             f"layout_cell={self.layout_cell}, "

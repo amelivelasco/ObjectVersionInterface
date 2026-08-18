@@ -11,11 +11,11 @@ class Schematic:
         self.sp_file = Path(sp_file)
         self.map_file = Path(map_file)
     
-
     def parse_mapping_line(self, line):
         pattern = (
             r"^\s*CircuitComponent\(\s*"
             r"raw=(?P<raw>[^,]+),\s*"
+            r"cir_name=(?P<cir_name>[^,]+),\s*"
             r"path=(?P<path>[^,]+),\s*"
             r"pid=(?P<pid>[^,]+),\s*"
             r"layout_cell=(?P<layout_cell>[^,]+),\s*"
@@ -48,6 +48,7 @@ class Schematic:
             
         return {
             "raw": clean_value(match.group("raw")),
+            "cir_name": clean_value(match.group("cir_name")),
             "path": clean_value(match.group("path")),
             "pid": clean_value(match.group("pid")),
             "layout_cell": clean_value(match.group("layout_cell")),
@@ -135,6 +136,7 @@ class Schematic:
                     continue
 
                 raw = str(getattr(elem, "raw_name", getattr(elem, "original_name", elem.name)))
+                cir_name = str(elem.name)
                 layout_inst = getattr(elem, "KLayoutInstance", None)
                 pid = layout_inst.property(102) if layout_inst is not None else None
 
@@ -154,6 +156,7 @@ class Schematic:
 
                 current_components.append(CircuitComponent(
                     raw=raw,
+                    cir_name=cir_name,
                     path=logical_path,
                     pid=pid,
                     layout_cell=layout_cell,
@@ -276,6 +279,7 @@ class Schematic:
 
                 component = CircuitComponent(
                     raw=raw,
+                    cir_name=parsed["cir_name"],
                     path=parsed["path"],
                     pid=parsed["pid"],
                     layout_cell=parsed["layout_cell"],
@@ -383,6 +387,7 @@ class Schematic:
 
                 component = CircuitComponent(
                     raw=parsed["raw"],
+                    cir_name=parsed["cir_name"],
                     path=parsed["path"],
                     pid=parsed["pid"],
                     layout_cell=parsed["layout_cell"],
@@ -495,7 +500,8 @@ class Schematic:
             instance_path = self.get_instance_path(component)
 
             elements.append({
-                "id": component.raw, "raw": component.raw, "path": component.path, "pid": component.pid,
+                "id": component.raw, "sp_name": component.raw, "cir_name": component.cir_name,
+                "path": component.path, "pid": component.pid,
                 "layout_cell": component.layout_cell, "layout_instance": layout_instance,
                 "instance_path": instance_path, "type": (component_type1, component_type2),
                 "net_in": component.net_in, "net_out": component.net_out, "value": component.value,
@@ -505,7 +511,8 @@ class Schematic:
             if component_type1 == "JJ":
                 resistor_id = self.get_junction_resistor_id(component.raw)
                 elements.append({
-                    "id": resistor_id, "raw": resistor_id, "path": component.path, "pid": component.pid,
+                    "id": resistor_id, "sp_name": resistor_id, "cir_name": component.cir_name,
+                    "path": component.path, "pid": component.pid,
                     "layout_cell": component.layout_cell, "layout_instance": layout_instance,
                     "instance_path": instance_path, "type": ("R", ""), "net_in": component.net_in,
                     "net_out": component.net_out, "value": None, "image": "../img/res_draw.png",

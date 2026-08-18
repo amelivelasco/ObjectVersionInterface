@@ -5,6 +5,10 @@ __pycache__/
 *.pyd
 .Python
 
+*.cir
+*.sp
+*.gds
+
 Circuit_Projects/NDROmCells/outputWorkingAlmost/
 
 UI/circuit_data.js

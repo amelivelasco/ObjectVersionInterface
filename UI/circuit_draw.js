@@ -159,6 +159,7 @@ function drawComponent(layer, element, jjval = -1) {
   title.textContent = [
     `type=${element.type?.[0] || ""}`,
     `pid=${isResistor ? `R${resistorNumber}` : element.pid || ""}`,
+    `cir_name=${element.cir_name || ""}`,
     `path=${isResistor ? resistorPath: element.path || ""}`,
     `net_in=${element.net_in || ""}`,
     `net_out=${element.net_out || ""}`,
@@ -187,8 +188,8 @@ function drawComponent(layer, element, jjval = -1) {
 
   if (componentType === "IB") {
     const biasName = element.path || element.pid || element.id || "";
-    drawComponentValueText(g, biasName, element.x, element.y - halfSize - 8, drawConfig.nameFormat);
-    drawComponentValueText(g, formatComponentValue(element), element.x, element.y - 10, { size: drawConfig.componentValueFontSize, fill: "#7c2d12", className: "bias-value" });
+    drawComponentValueText(g, element.cir_name, element.x, element.y - halfSize - 8, drawConfig.nameFormat);
+    drawComponentValueText(g, formatComponentValue(element), element.x, element.y - 18, { size: drawConfig.componentValueFontSize, fill: "#7c2d12", className: "bias-value" });
   }
 
   if (
@@ -202,9 +203,10 @@ function drawComponent(layer, element, jjval = -1) {
       }
     );
 
-    if (element.path) {
-      drawComponentValueText(g, element.path, element.x, element.y + 12, drawConfig.nameFormat);
+    if (element.cir_name) {
+      drawComponentValueText(g, element.cir_name, element.x, element.y + 12, drawConfig.nameFormat);
     }
+
   }
 
   layer.appendChild(g);
@@ -296,7 +298,9 @@ function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
     const centerY = (geometry.topMiddle.y + geometry.bottomMiddle.y) / 2 + drawConfig.jrValueOffsetY;
     const resistorPath = `${(current.path || "").split("|")[0]}|R${(current.pid || "").match(/\d+/)?.[0] || ""}`;
 
-    drawComponentValueText(labelLayer, current.path, centerX, centerY + 10, drawConfig.nameFormat);
+    if (current.cir_name) {
+      drawComponentValueText(labelLayer, current.cir_name, centerX, centerY + 10, drawConfig.nameFormat);
+    }
 
     drawComponentValueText(labelLayer, value, centerX, centerY - 10, {
       size: drawConfig.jrValueFontSize, weight: "700", fill: "#7c2d12",
