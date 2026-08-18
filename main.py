@@ -287,10 +287,13 @@ def main():
 
         for original, extracted in zip(original_elements, extracted_elements):
             extracted.target_value = component_value(original)
-            extracted.extracted_value = component_value(extracted)
+            # Only set extracted_value if sol.txt exists
+            if sol_path.exists():
+                extracted.extracted_value = component_value(extracted)
+            else:
+                extracted.extracted_value = None
 
     attach_original_values(original_circuit.TOP, circuit.TOP)
-
     # 2. Create exporters using the same fixed output directory.
     klayout_exp = KLayoutExporter(circuit, layout_path)
 
