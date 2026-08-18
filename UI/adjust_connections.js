@@ -422,278 +422,263 @@ function getLongestHorizontalSegment(points) {
 }
 
 
+function pushUniqueRoutePoint(adjusted, point, epsilon) {
+  const previous = adjusted.at(-1);
+  if (previous && Math.abs(previous.x - point.x) < epsilon && Math.abs(previous.y - point.y) < epsilon) return;
+  adjusted.push({ x: point.x, y: point.y });
+}
+
+function findConflictingJRRail(first, second, jrRails, net, jrMargin, epsilon) {
+  const segmentMinX = Math.min(first.x, second.x);
+  const segmentMaxX = Math.max(first.x, second.x);
+
+  return jrRails.find((rail) => {
+    if (net && rail.net === net) return false;
+    const overlap = Math.min(segmentMaxX, rail.maxX) - Math.max(segmentMinX, rail.minX);
+    return overlap > epsilon && Math.abs(first.y - rail.y) < jrMargin;
+  });
+}
+
+function getJRVerticalDirection(firstY, rail, epsilon) {
+  if (firstY < rail.y - epsilon) return -1;
+  if (firstY > rail.y + epsilon) return 1;
+  return rail.side === "top" ? -1 : 1;
+}
+
+function addJRDetour(adjusted, first, second, rail, jrMargin, epsilon) {
+  const segmentMinX = Math.min(first.x, second.x);
+  const segmentMaxX = Math.max(first.x, second.x);
+  const verticalDirection = getJRVerticalDirection(first.y, rail, epsilon);
+  const detourY = rail.y + verticalDirection * jrMargin;
+  const detourMinX = Math.max(segmentMinX, rail.minX - jrMargin);
+  const detourMaxX = Math.min(segmentMaxX, rail.maxX + jrMargin);
+  const movingRight = second.x >= first.x;
+  const entryX = movingRight ? detourMinX : detourMaxX;
+  const exitX = movingRight ? detourMaxX : detourMinX;
+
+  pushUniqueRoutePoint(adjusted, { x: entryX, y: first.y }, epsilon);
+  pushUniqueRoutePoint(adjusted, { x: entryX, y: detourY }, epsilon);
+  pushUniqueRoutePoint(adjusted, { x: exitX, y: detourY }, epsilon);
+  pushUniqueRoutePoint(adjusted, { x: exitX, y: first.y }, epsilon);
+  pushUniqueRoutePoint(adjusted, second, epsilon);
+}
+
 function separateRouteFromJR(points, net, jrRails = [], jrMargin = 12) {
-  if (!Array.isArray(points) || points.length < 2 || jrRails.length === 0
-  ) {  return points; }
+  if (!Array.isArray(points) || points.length < 2 || jrRails.length === 0) return points;
 
   const epsilon = 0.5;
   const adjusted = [];
+  pushUniqueRoutePoint(adjusted, points[0], epsilon);
 
-  function pushPoint(point) {
-    const previous = adjusted.at(-1);
-    if (previous && Math.abs(previous.x - point.x) < epsilon &&
-      Math.abs(previous.y - point.y) < epsilon
-    ) { return; }
-
-    adjusted.push({ x: point.x, y: point.y,});
-  }
-
-  pushPoint(points[0]);
-
-  for (let index = 1; index < points.length; index++
-  ) {
+  for (let index = 1; index < points.length; index++) {
     const first = points[index - 1];
     const second = points[index];
-
     const isEndpointSegment = index === 1 || index === points.length - 1;
-
-    if (isEndpointSegment) {
-      pushPoint(second);
-      continue;
-    }
-
     const horizontal = Math.abs(first.y - second.y) < epsilon;
 
-    if (!horizontal) {
-      pushPoint(second);
+    if (isEndpointSegment || !horizontal) {
+      pushUniqueRoutePoint(adjusted, second, epsilon);
       continue;
     }
 
-    const segmentMinX = Math.min(first.x, second.x);
-    const segmentMaxX = Math.max(first.x, second.x);
-
-    const conflictingRail =
-      jrRails.find((rail) => {
-        if (net && rail.net === net) {return false;}
-
-        const overlap = Math.min(segmentMaxX, rail.maxX) - Math.max(segmentMinX, rail.minX);
-        if (overlap <= epsilon) { return false;}
-        return (Math.abs(first.y - rail.y) < jrMargin);
-      }
-    );
+    const conflictingRail = findConflictingJRRail(first, second, jrRails, net, jrMargin, epsilon);
 
     if (!conflictingRail) {
-      pushPoint(second);
+      pushUniqueRoutePoint(adjusted, second, epsilon);
       continue;
     }
 
-    let verticalDirection;
-
-    if (first.y < conflictingRail.y - epsilon) {
-      verticalDirection = -1;
-    } else if ( first.y > conflictingRail.y + epsilon) {
-      verticalDirection = 1;
-    } else {verticalDirection = conflictingRail.side === "top" ? -1: 1;
-    }
-
-    const detourY = conflictingRail.y + verticalDirection * jrMargin;
-    const detourMinX = Math.max(segmentMinX, conflictingRail.minX - jrMargin);
-    const detourMaxX = Math.min(segmentMaxX, conflictingRail.maxX + jrMargin);
-    const movingRight = second.x >= first.x;
-    const entryX = movingRight ? detourMinX : detourMaxX;
-    const exitX = movingRight ? detourMaxX : detourMinX;
-
-    pushPoint({x: entryX, y: first.y,});
-    pushPoint({x: entryX, y: detourY,});
-    pushPoint({x: exitX,y: detourY,});
-    pushPoint({x: exitX, y: first.y,});
-    pushPoint(second);
+    addJRDetour(adjusted, first, second, conflictingRail, jrMargin, epsilon);
   }
 
   return simplifyOrthogonalPoints(adjusted);
 }
+function railAlreadyAdded(rail, segments) {
+  return segments.some((segment) => segment.ownerId === rail.ownerId && Math.abs(segment.a.y - rail.y) < 0.5 &&
+    Math.abs(Math.min(segment.a.x, segment.b.x) - rail.minX) < 0.5 && Math.abs(Math.max(segment.a.x, segment.b.x) - rail.maxX) < 0.5);
+}
 
-function drawSharedOutputNet(wireLayer, labelLayer, net, terminals, cellElements, routedSegments, jrRails = [], jrMargin = 12) {
+function addOwnerRailsToConnectedNet(ownerId, context) {
+  if (!ownerId) return;
+  const { jrRails, net, connectedNetSegments } = context;
+
+  for (const rail of jrRails) {
+    if (rail.ownerId !== ownerId || rail.net !== net || railAlreadyAdded(rail, connectedNetSegments)) continue;
+    connectedNetSegments.push({ a: { x: rail.minX, y: rail.y }, b: { x: rail.maxX, y: rail.y }, net, ownerId: rail.ownerId, isJRRail: true });
+  }
+}
+
+function closestPointOnSegment(point, segment) {
+  const epsilon = 0.5;
+  const horizontal = Math.abs(segment.a.y - segment.b.y) < epsilon;
+
+  if (horizontal) {
+    const minimumX = Math.min(segment.a.x, segment.b.x);
+    const maximumX = Math.max(segment.a.x, segment.b.x);
+    return { x: Math.max(minimumX, Math.min(maximumX, point.x)), y: segment.a.y };
+  }
+
+  const vertical = Math.abs(segment.a.x - segment.b.x) < epsilon;
+  if (!vertical) return null;
+
+  const minimumY = Math.min(segment.a.y, segment.b.y);
+  const maximumY = Math.max(segment.a.y, segment.b.y);
+  return { x: segment.a.x, y: Math.max(minimumY, Math.min(maximumY, point.y)) };
+}
+
+function findClosestPointOnConnectedNet(destination, connectedNetSegments) {
+  let best = null;
+
+  connectedNetSegments.forEach((segment, segmentIndex) => {
+    const point = closestPointOnSegment(destination, segment);
+    if (!point) return;
+
+    const distance = getManhattanDistance(point, destination);
+    if (!best || distance < best.distance) best = { point, distance, segmentIndex };
+  });
+
+  return best;
+}
+
+function findTerminalConnection(candidate, index, connected, currentBest) {
+  let bestConnection = currentBest;
+
+  for (const connectedTerminal of connected) {
+    if (candidate.ownerId === connectedTerminal.ownerId) continue;
+
+    const pointConnection = findBestTerminalConnection(connectedTerminal, candidate);
+    if (!pointConnection) continue;
+
+    const sameKindPenalty = connectedTerminal.kind === candidate.kind ? 1000000 : 0;
+    const score = pointConnection.distance + sameKindPenalty;
+
+    if (!bestConnection || score < bestConnection.score) {
+      bestConnection = {
+        from: connectedTerminal, to: candidate, fromPoint: pointConnection.firstPoint, toPoint: pointConnection.secondPoint,
+        remainingIndex: index, score, startsFromExistingNet: false
+      };
+    }
+  }
+
+  return bestConnection;
+}
+
+function createExistingNetConnection(candidate, destinationPoint, existingConnection, index, net) {
+  const sourcePoint = { ...existingConnection.point };
+
+  return {
+    from: {
+      net, kind: "existing-net", ownerId: `existing-net:${net}:${existingConnection.segmentIndex}`, element: null,
+      point: sourcePoint, candidatePoints: [sourcePoint], selectedPoint: sourcePoint
+    },
+    to: candidate, fromPoint: sourcePoint, toPoint: destinationPoint, remainingIndex: index,
+    score: existingConnection.distance, startsFromExistingNet: true
+  };
+}
+
+function findExistingNetConnection(candidate, index, currentBest, context) {
+  let bestConnection = currentBest;
+
+  for (const destinationPoint of getTerminalPoints(candidate)) {
+    const existingConnection = findClosestPointOnConnectedNet(destinationPoint, context.connectedNetSegments);
+    if (!existingConnection) continue;
+    if (bestConnection && existingConnection.distance >= bestConnection.score) continue;
+
+    bestConnection = createExistingNetConnection(candidate, destinationPoint, existingConnection, index, context.net);
+  }
+
+  return bestConnection;
+}
+
+function findBestSharedConnection(context) {
+  let bestConnection = null;
+
+  for (let index = 0; index < context.remaining.length; index++) {
+    const candidate = context.remaining[index];
+    bestConnection = findTerminalConnection(candidate, index, context.connected, bestConnection);
+    bestConnection = findExistingNetConnection(candidate, index, bestConnection, context);
+  }
+
+  return bestConnection;
+}
+
+function removeSharedCandidate(connection, context) {
+  context.remaining.splice(connection.remainingIndex, 1);
+}
+
+function connectSharedCandidate(connection, context) {
+  context.connected.push(connection.to);
+  addOwnerRailsToConnectedNet(connection.to.ownerId, context);
+  removeSharedCandidate(connection, context);
+}
+
+function drawSharedNetLabel(routePoints, context) {
+  if (context.labelWasDrawn) return;
+
+  const labelSegment = getLongestHorizontalSegment(routePoints);
+  if (!labelSegment) return;
+
+  drawLabel(context.labelLayer, context.net, (labelSegment.a.x + labelSegment.b.x) / 2, labelSegment.a.y, { size: "8.5px", fill: "#334155" });
+  context.labelWasDrawn = true;
+}
+
+function getSharedRoute(connection, context) {
+  return buildShortestFreeRoute(connection.fromPoint, connection.toPoint, connection.from, connection.to,
+    context.cellElements, context.routedSegments, context.net);
+}
+
+function warnUnroutableSharedConnection(connection, context) {
+  console.warn(`Skipping unroutable shared connection for ${context.net}`, {
+    from: connection.fromPoint, to: connection.toPoint, fromOwner: connection.from.ownerId, toOwner: connection.to.ownerId
+  });
+}
+
+function drawAndStoreSharedRoute(routePoints, context) {
+  drawPath(context.wireLayer, routePoints[0], routePoints[routePoints.length - 1], {
+    stroke: drawConfig.wireStroke, pathData: routePointsToPathData(routePoints), net: context.net, kind: "shared-net-route"
+  });
+
+  const taggedSegments = routePointsToSegments(routePoints).map((segment) => ({ ...segment, net: context.net }));
+  context.routedSegments.push(...taggedSegments);
+  context.connectedNetSegments.push(...taggedSegments);
+  drawSharedNetLabel(routePoints, context);
+}
+
+function processSharedConnection(connection, context) {
+  if (connection.startsFromExistingNet && connection.score < 0.5) {
+    connectSharedCandidate(connection, context);
+    return;
+  }
+
+  const routePoints = getSharedRoute(connection, context);
+
+  if (!Array.isArray(routePoints) || routePoints.length < 2) {
+    warnUnroutableSharedConnection(connection, context);
+    removeSharedCandidate(connection, context);
+    return;
+  }
+
+  drawAndStoreSharedRoute(routePoints, context);
+  connectSharedCandidate(connection, context);
+}
+
+function drawSharedOutputNet(wireLayer, labelLayer, net, terminals, cellElements, routedSegments, jrRails = []) {
   const outputs = terminals.filter((terminal) => terminal.kind === "out")
-      .sort((first, second) => (first.element ?.layoutOrder ?? Infinity) -
-          (second.element ?.layoutOrder ?? Infinity));
+    .sort((first, second) => (first.element?.layoutOrder ?? Infinity) - (second.element?.layoutOrder ?? Infinity));
 
   const root = outputs[0] || terminals[0];
-  const connected = [root,];
+  const context = {
+    wireLayer, labelLayer, net, cellElements, routedSegments, jrRails,
+    connected: [root], remaining: terminals.filter((terminal) => terminal !== root),
+    connectedNetSegments: [], labelWasDrawn: false
+  };
 
-  const remaining = terminals.filter((terminal) => terminal !== root);
-  let labelWasDrawn = false;
+  addOwnerRailsToConnectedNet(root.ownerId, context);
 
-  const connectedNetSegments = [];
-  
-  function addOwnerRailsToConnectedNet(ownerId) {
-    if (!ownerId) { return; }
-
-    for (const rail of jrRails) {
-      if (rail.ownerId !== ownerId || rail.net !== net
-      ) { continue; }
-
-      const alreadyAdded = connectedNetSegments.some(
-          (segment) => segment.ownerId === rail.ownerId &&
-            Math.abs(segment.a.y - rail.y) < 0.5 &&
-            Math.abs(Math.min(segment.a.x, segment.b.x) - rail.minX) < 0.5 &&
-            Math.abs(Math.max(segment.a.x, segment.b.x) - rail.maxX) < 0.5
-        );
-
-      if (alreadyAdded) {continue;}
-
-      connectedNetSegments.push({
-        a: { x: rail.minX, y: rail.y,},
-        b: {x: rail.maxX, y: rail.y,},
-        net,
-        ownerId: rail.ownerId,
-        isJRRail: true,
-      });
-    }
-  }
-
-  addOwnerRailsToConnectedNet(root.ownerId);
-
-  function closestPointOnSegment(point, segment) {
-    const epsilon = 0.5;
-
-    const horizontal = Math.abs(segment.a.y - segment.b.y) < epsilon;
-    if (horizontal) { const minimumX = Math.min(segment.a.x, segment.b.x);
-      const maximumX = Math.max(segment.a.x, segment.b.x);
-      return { x: Math.max(minimumX, Math.min(maximumX, point.x)), y: segment.a.y,};
-    }
-
-    const vertical =
-      Math.abs(segment.a.x - segment.b.x) < epsilon;
-
-    if (vertical) { const minimumY = Math.min(segment.a.y, segment.b.y);
-
-      const maximumY = Math.max(segment.a.y, segment.b.y);
-
-      return {x: segment.a.x, y: Math.max(minimumY, Math.min(maximumY, point.y)),};
-    }
-
-    return null;
-  }
-
-  function findClosestPointOnConnectedNet(destination) {
-    let best = null;
-    connectedNetSegments.forEach((segment, segmentIndex) => {
-        const point = closestPointOnSegment(destination, segment);
-        if (!point) {return;}
-        const distance = getManhattanDistance(point, destination);
-
-        if (!best || distance < best.distance
-        ) { best = { point, distance, segmentIndex, };
-        }
-      }
-    );
-
-    return best;
-  }
-
-  while (remaining.length > 0) {
-    let bestConnection = null;
-
-    for (let index = 0; index < remaining.length; index++) {
-      const candidate = remaining[index];
-      for (const connectedTerminal of connected
-      ) {
-        if (candidate.ownerId === connectedTerminal.ownerId
-        ) { continue; }
-
-        const pointConnection = findBestTerminalConnection(connectedTerminal, candidate);
-
-        if (!pointConnection) {continue;}
-
-        const sameKindPenalty = connectedTerminal.kind === candidate.kind ? 1000000 : 0;
-
-        const score = pointConnection.distance + sameKindPenalty;
-
-        if (!bestConnection || score < bestConnection.score
-        ) { bestConnection = { from: connectedTerminal, to: candidate, fromPoint: pointConnection.firstPoint,
-            toPoint: pointConnection.secondPoint, remainingIndex: index, score, startsFromExistingNet: false,
-          };
-        }
-      }
-
-      for (const destinationPoint of getTerminalPoints(candidate)) {
-        const existingConnection = findClosestPointOnConnectedNet(destinationPoint);
-
-        if (!existingConnection) {continue;}
-
-        if (bestConnection && existingConnection.distance >= bestConnection.score) {continue;}
-
-        const sourcePoint = {...existingConnection.point,};
-
-        bestConnection = {
-          from: {
-            net,
-            kind: "existing-net",
-            ownerId:`existing-net:${net}:${existingConnection.segmentIndex}`,
-            element: null,
-            point: sourcePoint,
-            candidatePoints: [sourcePoint,],
-            selectedPoint: sourcePoint,
-          },
-
-          to: candidate,
-          fromPoint: sourcePoint,
-          toPoint: destinationPoint,
-          remainingIndex: index,
-          score: existingConnection.distance,
-          startsFromExistingNet: true,
-        };
-      }
-    }
-
-    if (!bestConnection) { break; }
-    if (bestConnection.startsFromExistingNet && bestConnection.score < 0.5
-    ) {
-      connected.push(bestConnection.to);
-      addOwnerRailsToConnectedNet(bestConnection.to.ownerId);
-      remaining.splice(bestConnection.remainingIndex, 1);
-      continue;
-    }
-
-    let routePoints = buildShortestFreeRoute(bestConnection.fromPoint, bestConnection.toPoint, bestConnection.from, 
-      bestConnection.to, cellElements, routedSegments, net);
-
-    if (!Array.isArray(routePoints) || routePoints.length < 2) {
-      console.warn(`Skipping unroutable shared connection for ${net}`,
-        {
-          from: bestConnection.fromPoint,
-          to: bestConnection.toPoint,
-          fromOwner: bestConnection.from.ownerId,
-          toOwner:bestConnection.to.ownerId,
-        }
-      );
-      remaining.splice(bestConnection.remainingIndex, 1);
-      continue;
-    }
-
-
-    drawPath(wireLayer, routePoints[0], routePoints[routePoints.length - 1],
-      {
-        stroke: drawConfig.wireStroke,
-        pathData: routePointsToPathData(routePoints),
-        net,
-        kind:"shared-net-route",
-      }
-    );
-
-    const taggedSegments = routePointsToSegments(routePoints).map(
-        (segment) => ({...segment, net,}));
-
-    routedSegments.push(...taggedSegments);
-
-    connectedNetSegments.push(...taggedSegments);
-
-    if (!labelWasDrawn) {
-      const labelSegment = getLongestHorizontalSegment(routePoints);
-
-      if (labelSegment) {
-        drawLabel(
-          labelLayer,
-          net,
-          (labelSegment.a.x + labelSegment.b.x) / 2, labelSegment.a.y, { size:"8.5px", fill:"#334155", }
-        );
-        labelWasDrawn = true;
-      }
-    }
-    connected.push(bestConnection.to);
-    addOwnerRailsToConnectedNet(bestConnection.to.ownerId);
-    remaining.splice(bestConnection.remainingIndex, 1);
+  while (context.remaining.length > 0) {
+    const bestConnection = findBestSharedConnection(context);
+    if (!bestConnection) break;
+    processSharedConnection(bestConnection, context);
   }
 }
 
@@ -707,142 +692,138 @@ function getTerminalSpan(terminals) {
   return (Math.max(...xs) - Math.min(...xs) + Math.max(...ys) - Math.min(...ys));
 }
 
-function drawConnectionsInsideLayoutCells(wireLayer, labelLayer, placed) {
+function groupElementsByLayoutInstance(placed) {
   const elementsByCell = new Map();
+
   for (const element of placed) {
     const layoutInstance = getLayoutInstance(element);
-
-    if (!elementsByCell.has(layoutInstance)
-    ) {
-      elementsByCell.set(layoutInstance, []);
-    }
-
+    if (!elementsByCell.has(layoutInstance)) elementsByCell.set(layoutInstance, []);
     elementsByCell.get(layoutInstance).push(element);
   }
 
-  for (const [layoutInstance, cellElements,] of elementsByCell) {
-    const terminalsByNet = collectNetTerminals(cellElements);
+  return elementsByCell;
+}
 
-    const entries = [...terminalsByNet.entries(),].filter(
-      ([, terminals]) => terminals.length >= 2);
+function getSortedConnectionEntries(cellElements) {
+  const terminalsByNet = collectNetTerminals(cellElements);
+  const entries = [...terminalsByNet.entries()].filter(([, terminals]) => terminals.length >= 2);
+  const sortBySpan = ([, first], [, second]) => getTerminalSpan(first) - getTerminalSpan(second);
 
-    const ordinaryEntries = entries.filter(([, terminals]) => !isSharedOutputConflict(terminals))
-        .sort(
-          ([, firstTerminals],[, secondTerminals]) =>
-            getTerminalSpan(firstTerminals) -  getTerminalSpan(secondTerminals)
-        );
+  return {
+    ordinaryEntries: entries.filter(([, terminals]) => !isSharedOutputConflict(terminals)).sort(sortBySpan),
+    sharedOutputEntries: entries.filter(([, terminals]) => isSharedOutputConflict(terminals)).sort(sortBySpan)
+  };
+}
 
-    const sharedOutputEntries = entries.filter(([, terminals]) => isSharedOutputConflict(terminals))
-        .sort(([, firstTerminals], [, secondTerminals]) =>
-            getTerminalSpan(firstTerminals) - getTerminalSpan(secondTerminals)
-        );
+function createJRPairRails(current, geometry) {
+  return [
+    {
+      minX: Math.min(geometry.topAtJJ.x, geometry.topAtResistor.x), maxX: Math.max(geometry.topAtJJ.x, geometry.topAtResistor.x),
+      y: geometry.topAtJJ.y, net: current.net_in, side: "top", ownerId: `pair:${current.id}`
+    },
+    {
+      minX: Math.min(geometry.bottomAtJJ.x, geometry.bottomAtResistor.x), maxX: Math.max(geometry.bottomAtJJ.x, geometry.bottomAtResistor.x),
+      y: geometry.bottomAtJJ.y, net: current.net_out, side: "bottom", ownerId: `pair:${current.id}`
+    }
+  ];
+}
 
-    const routedSegments = [];
-    const jrRails = [];
-    const jrMargin = 12;
-    for (let index = 0; index < cellElements.length - 1; index++) {
-      const current = cellElements[index];
-      const next = cellElements[index + 1];
+function collectJRRails(cellElements) {
+  const jrRails = [];
 
-      if (!isJJResistorPair(current, next)
-      ) { continue; }
+  for (let index = 0; index < cellElements.length - 1; index++) {
+    const current = cellElements[index];
+    const next = cellElements[index + 1];
 
-      const geometry = getJJPairGeometry(current, next, 25);
+    if (!isJJResistorPair(current, next)) continue;
 
-      jrRails.push(
-        { 
-          minX: Math.min(geometry.topAtJJ.x, geometry.topAtResistor.x),
-          maxX: Math.max(geometry.topAtJJ.x, geometry.topAtResistor.x),
-          y: geometry.topAtJJ.y,
-          net: current.net_in,
-          side: "top",
-          ownerId: `pair:${current.id}`,
-        },
+    const geometry = getJJPairGeometry(current, next, 25);
+    jrRails.push(...createJRPairRails(current, geometry));
+    index++;
+  }
 
-        {
-          minX: Math.min(geometry.bottomAtJJ.x, geometry.bottomAtResistor.x),
-          maxX: Math.max(geometry.bottomAtJJ.x, geometry.bottomAtResistor.x),
-          y: geometry.bottomAtJJ.y,
-          net: current.net_out,
-          side: "bottom",
-          ownerId: `pair:${current.id}`,
-        }
-      );
+  return jrRails;
+}
 
-      index++;
+function addInductorLeadSegments(cellElements, routedSegments) {
+  for (const element of cellElements) {
+    if (getElementType(element) !== "L") continue;
+
+    if (element.inputNeedsLead && element.net_in && element.inputPin && element.inputLeadPoint) {
+      routedSegments.push({ a: element.inputPin, b: element.inputLeadPoint, net: element.net_in, protectedInductorLead: true });
     }
 
-    for (const element of cellElements
-    ) {
-      if (getElementType(element) !== "L"
-      ) { continue; }
-
-      if (element.inputNeedsLead && element.net_in && element.inputPin && element.inputLeadPoint
-      ) {
-        routedSegments.push({
-          a: element.inputPin,
-          b: element.inputLeadPoint,
-          net:element.net_in,
-          protectedInductorLead: true,
-        });
-      }
-
-      if (element.outputNeedsLead && element.net_out && element.outputPin && element.outputLeadPoint
-      ) {
-        routedSegments.push({
-          a: element.outputPin,
-          b: element.outputLeadPoint,
-          net: element.net_out,
-          protectedInductorLead: true,
-        });
-      }
+    if (element.outputNeedsLead && element.net_out && element.outputPin && element.outputLeadPoint) {
+      routedSegments.push({ a: element.outputPin, b: element.outputLeadPoint, net: element.net_out, protectedInductorLead: true });
     }
-    for (const rail of jrRails) {
-      routedSegments.push({
-        a: { x: rail.minX, y: rail.y,},
-        b: { x: rail.maxX, y: rail.y,},
-        net: rail.net,
-        kind: "jr-rail-obstacle",
-        ownerId: rail.ownerId,
-        isJRRail: true,
-      });
-    }
+  }
+}
 
-    for (const [net, terminals,] of ordinaryEntries
-    ) {
-      const firstNewChild = wireLayer.children.length;
-      const routedSegmentCount = routedSegments.length;
+function addJRRailSegments(jrRails, routedSegments) {
+  for (const rail of jrRails) {
+    routedSegments.push({
+      a: { x: rail.minX, y: rail.y }, b: { x: rail.maxX, y: rail.y }, net: rail.net,
+      kind: "jr-rail-obstacle", ownerId: rail.ownerId, isJRRail: true
+    });
+  }
+}
 
-      drawTerminalTree(wireLayer, labelLayer, net, terminals,
-        { drawLabel: true, cellElements, routedSegments, jrRails, jrMargin,}
-      );
+function storeNewWireSegments(wireLayer, firstNewChild, routedSegments, net) {
+  const newChildren = Array.from(wireLayer.children).slice(firstNewChild);
 
-      if (routedSegments.length === routedSegmentCount
-      ) {
-        const newChildren = Array.from(wireLayer.children).slice(firstNewChild);
+  for (const child of newChildren) {
+    routedSegments.push(...extractWireSegmentsFromElement(child).map((segment) => ({ ...segment, net })));
+  }
+}
 
-        for (const child of newChildren
-        ) {
-          routedSegments.push(...extractWireSegmentsFromElement(child).map(
-              (segment) => ({...segment, net,})
-            )
-          );
-        }
-      }
-    }
+function drawOrdinaryConnection(net, terminals, context) {
+  const { wireLayer, labelLayer, cellElements, routedSegments, jrRails, jrMargin } = context;
+  const firstNewChild = wireLayer.children.length;
+  const routedSegmentCount = routedSegments.length;
 
-    for (const [net, terminals,] of sharedOutputEntries) {
-      drawSharedOutputNet(wireLayer, labelLayer, net, terminals, cellElements, routedSegments, jrRails, jrMargin);
-    }
+  drawTerminalTree(wireLayer, labelLayer, net, terminals, { drawLabel: true, cellElements, routedSegments, jrRails, jrMargin });
 
-    console.log(
-      `Finished internal connections for ${layoutInstance}`,
-      {
-        ordinaryNets: ordinaryEntries.length,
-        reroutedSharedOutputs: sharedOutputEntries.length,
-        jrRails: jrRails.length,
-      }
-    );
+  if (routedSegments.length === routedSegmentCount) storeNewWireSegments(wireLayer, firstNewChild, routedSegments, net);
+}
+
+function drawOrdinaryConnections(entries, context) {
+  for (const [net, terminals] of entries) drawOrdinaryConnection(net, terminals, context);
+}
+
+function drawSharedConnections(entries, context) {
+  const { wireLayer, labelLayer, cellElements, routedSegments, jrRails } = context;
+
+  for (const [net, terminals] of entries) {
+    drawSharedOutputNet(wireLayer, labelLayer, net, terminals, cellElements, routedSegments, jrRails);
+  }
+}
+
+function drawLayoutCellConnections(layoutInstance, cellElements, wireLayer, labelLayer) {
+  const { ordinaryEntries, sharedOutputEntries } = getSortedConnectionEntries(cellElements);
+  const routedSegments = [];
+  const jrRails = collectJRRails(cellElements);
+  const jrMargin = 12;
+
+  addInductorLeadSegments(cellElements, routedSegments);
+  addJRRailSegments(jrRails, routedSegments);
+
+  const context = { wireLayer, labelLayer, cellElements, routedSegments, jrRails, jrMargin };
+
+  drawOrdinaryConnections(ordinaryEntries, context);
+  drawSharedConnections(sharedOutputEntries, context);
+
+  console.log(`Finished internal connections for ${layoutInstance}`, {
+    ordinaryNets: ordinaryEntries.length,
+    reroutedSharedOutputs: sharedOutputEntries.length,
+    jrRails: jrRails.length
+  });
+}
+
+function drawConnectionsInsideLayoutCells(wireLayer, labelLayer, placed) {
+  const elementsByCell = groupElementsByLayoutInstance(placed);
+
+  for (const [layoutInstance, cellElements] of elementsByCell) {
+    drawLayoutCellConnections(layoutInstance, cellElements, wireLayer, labelLayer);
   }
 }
 
