@@ -6,8 +6,59 @@ function getPathSpan(path) {
   return path.length ? path.reduce((total, block) => total + block.span + 1, 0) - 1 : 0;
 }
 
+function isUngroundedJRBlock(block) {
+  const jj = block.elements.find(e => getElementType(e) === "JJ"), resistor = block.elements.find(e => getElementType(e) === "R");
+  return Boolean(jj && resistor && isJJResistorPair(jj, resistor) && !isGroundNet(jj.net_out));
+}
+
+function orientInlineUngroundedJRContinuations(list) {
+  let previous = null;
+  for (const block of list) {
+    if (isBiasElement(block.primary)) continue;
+    if (previous && isUngroundedJRBlock(block) && previous.netOut && block.rawNetOut === previous.netOut && block.rawNetIn !== previous.netOut) {
+      block.reverseForBoundary = true; block.inlineReversed = true; block.netIn = block.rawNetOut; block.netOut = block.rawNetIn;
+    }
+    previous = block;
+  }
+}
+
+function orientSharedOutputUngroundedJRs(list) {
+  const decisions = [];
+  for (const block of list) {
+    if (!isUngroundedJRBlock(block) || block.reverseForBoundary) continue;
+    const others = list.filter(other => other !== block && !isBiasElement(other.primary));
+    const normalPredecessors = others.filter(other => other.netOut === block.rawNetIn), reversedPredecessors = others.filter(other => other.netOut === block.rawNetOut);
+    const normalSuccessors = others.filter(other => other.netIn === block.rawNetOut), reversedSuccessors = others.filter(other => other.netIn === block.rawNetIn);
+    const normalScore = normalPredecessors.length * 4 + normalSuccessors.length, reversedScore = reversedPredecessors.length * 4 + reversedSuccessors.length;
+    if (reversedPredecessors.length && reversedScore > normalScore) decisions.push({ block });
+  }
+  for (const { block } of decisions) {
+    block.reverseForBoundary = true; block.inlineReversed = true;
+    block.netIn = block.rawNetOut; block.netOut = block.rawNetIn;
+  }
+}
+
+function columnRangesOverlap(a, aSpan, b, bSpan) { 
+  return a <= b + bSpan - 1 && b <= a + aSpan - 1; 
+}
+
+function addToMap(map, net, block) {
+  if (!net) return;
+  if (!map.has(net)) map.set(net, []);
+  map.get(net).push(block);
+}
+
+function isGroundedJRBlock(block) {
+  const jj = block.elements.find(e => getElementType(e) === "JJ"), resistor = block.elements.find(e => getElementType(e) === "R");
+  return Boolean(jj && resistor && isJJResistorPair(jj, resistor) && isGroundNet(jj.net_out));
+}
+
 function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
-  const normalizeNets = value => Array.isArray(value) ? value.map(net => String(net).trim()).filter(Boolean) : value == null ? [] : String(value).split(",").map(net => net.trim()).filter(Boolean);
+  const normalizeNets = value => {
+    if (Array.isArray(value)) return value.map(net => String(net).trim()).filter(Boolean);
+    if (value == null) return [];
+    return String(value).split(",").map(net => net.trim()).filter(Boolean);
+  };
   const explicitInputNets = new Set(normalizeNets(terminalInfo.net_in)), explicitOutputNets = new Set(normalizeNets(terminalInfo.net_out));
 
   const blocks = createPlacementBlocks(elements).map(block => {
@@ -32,42 +83,9 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
     return null;
   }
 
-  function isUngroundedJRBlock(block) {
-    const jj = block.elements.find(e => getElementType(e) === "JJ"), resistor = block.elements.find(e => getElementType(e) === "R");
-    return Boolean(jj && resistor && isJJResistorPair(jj, resistor) && !isGroundNet(jj.net_out));
-  }
-
-  function orientSharedOutputUngroundedJRs(list) {
-    const decisions = [];
-    for (const block of list) {
-      if (!isUngroundedJRBlock(block) || block.reverseForBoundary) continue;
-      const others = list.filter(other => other !== block && !isBiasElement(other.primary));
-      const normalPredecessors = others.filter(other => other.netOut === block.rawNetIn), reversedPredecessors = others.filter(other => other.netOut === block.rawNetOut);
-      const normalSuccessors = others.filter(other => other.netIn === block.rawNetOut), reversedSuccessors = others.filter(other => other.netIn === block.rawNetIn);
-      const normalScore = normalPredecessors.length * 4 + normalSuccessors.length, reversedScore = reversedPredecessors.length * 4 + reversedSuccessors.length;
-      if (reversedPredecessors.length && reversedScore > normalScore) decisions.push({ block });
-    }
-    for (const { block } of decisions) {
-      block.reverseForBoundary = true; block.inlineReversed = true;
-      block.netIn = block.rawNetOut; block.netOut = block.rawNetIn;
-    }
-  }
-
-  function orientInlineUngroundedJRContinuations(list) {
-    let previous = null;
-    for (const block of list) {
-      if (isBiasElement(block.primary)) continue;
-      if (previous && isUngroundedJRBlock(block) && previous.netOut && block.rawNetOut === previous.netOut && block.rawNetIn !== previous.netOut) {
-        block.reverseForBoundary = true; block.inlineReversed = true; block.netIn = block.rawNetOut; block.netOut = block.rawNetIn;
-      }
-      previous = block;
-    }
-  }
-
   orientSharedOutputUngroundedJRs(blocks);
 
   const consumersByNet = new Map(), producersByNet = new Map();
-  function addToMap(map, net, block) { if (!net) return; if (!map.has(net)) map.set(net, []); map.get(net).push(block); }
 
   for (const block of blocks) {
     addToMap(producersByNet, block.netOut, block);
@@ -115,11 +133,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
   }
 
   const placements = new Map(), inputTerminalMap = new Map(), outputTerminalMap = new Map();
-
-  function isGroundedJRBlock(block) {
-    const jj = block.elements.find(e => getElementType(e) === "JJ"), resistor = block.elements.find(e => getElementType(e) === "R");
-    return Boolean(jj && resistor && isJJResistorPair(jj, resistor) && isGroundNet(jj.net_out));
-  }
 
   const getPlacementRightColumn = placement => placement.col + placement.span - 1;
 
@@ -171,10 +184,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
     return true;
   }
 
-  /*
-   * IMPORTANT:
-   * Run this only AFTER every non-bias block has been placed.
-   */
   function forceGroundedJRsInlineOnExistingChains() {
     for (const jrBlock of blocks) {
       if (!isGroundedJRBlock(jrBlock)) continue;
@@ -201,7 +210,7 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
       const centerCol = (getPlacementRightColumn(best.pp) + best.cp.col) / 2;
       placements.set(jrBlock.id, { block: jrBlock, row: best.pp.row, col: centerCol, centerCol, span: 1, occupiesGrid: false, placementMode: "inline-grounded-jr", hostNet, hostProducerId: best.producer.id, hostConsumerId: best.consumer.id, pairSpacing: 70, rise: 25 });
 
-      console.log("✅ [JR INLINE]", { jr: jrBlock.primary?.id, hostNet, producer: best.producer.primary?.id, consumer: best.consumer.primary?.id, row: best.pp.row, centerCol });
+      console.log("[JR INLINE]", { jr: jrBlock.primary?.id, hostNet, producer: best.producer.primary?.id, consumer: best.consumer.primary?.id, row: best.pp.row, centerCol });
     }
   }
 
@@ -213,12 +222,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
 
   const getNextPrincipalRow = () => { const max = getMaximumRow(); return max < 0 ? 0 : max + 1; };
 
-  function shiftRowsFrom(startRow) {
-    for (const placement of placements.values()) if (placement.row >= startRow) placement.row++;
-    for (const terminal of inputTerminalMap.values()) if (terminal.row >= startRow) terminal.row++;
-    for (const terminal of outputTerminalMap.values()) if (terminal.row >= startRow) terminal.row++;
-  }
-
   function shiftColumnsFrom(startColumn, amount) {
     if (amount <= 0) return;
     for (const placement of placements.values()) {
@@ -229,8 +232,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
     for (const terminal of inputTerminalMap.values()) if (terminal.col >= startColumn) terminal.col += amount;
     for (const terminal of outputTerminalMap.values()) if (terminal.col >= startColumn) terminal.col += amount;
   }
-
-  function columnRangesOverlap(a, aSpan, b, bSpan) { return a <= b + bSpan - 1 && b <= a + aSpan - 1; }
 
   function isColumnRangeFree(row, startColumn, span) {
     for (const p of placements.values()) if (p.row === row && p.occupiesGrid !== false && columnRangesOverlap(startColumn, span, p.col, p.span)) return false;
@@ -450,10 +451,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
 
     console.groupEnd();
   }
-
-  /*
-   * 1. Place normal/principal paths.
-   */
   for (const inputNet of inputTerminalNets) {
     const paths = enumeratePathsFromNet(inputNet);
 
@@ -483,9 +480,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
     }
   }
 
-  /*
-   * 2. IMPORTANT: finish ALL non-bias blocks before JR normalization.
-   */
   function longestRemainingPath(startBlock, visiting = new Set()) {
     if (visiting.has(startBlock.id)) return [];
     const next = new Set(visiting); next.add(startBlock.id);
@@ -559,14 +553,9 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
 
     placePathSegments(path, possibleInputTerminal, true);
   }
-  /*
-   * 3. NOW L7/L8 etc. exist. Move every grounded JR onto its real host wire.
-   */
+
   forceGroundedJRsInlineOnExistingChains();
 
-  /*
-   * 4. Place biases only after final JR positions are known.
-   */
   const claimedInlineJRIds = new Set();
 
   for (const biasBlock of blocks.filter(block => isBiasElement(block.primary))) {
@@ -591,9 +580,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
     }
   }
 
-  /*
-   * 5. Absolute fallback.
-   */
   for (const block of blocks) {
     if (placements.has(block.id)) continue;
     placements.set(block.id, { block, row: getNextPrincipalRow(), col: 1, span: block.span, occupiesGrid: true });
@@ -609,17 +595,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
     inputTerminalMap.delete(net); outputTerminalMap.delete(net);
     const block = blocks.find(candidate => candidate.netOut === net), placement = block ? placements.get(block.id) : null;
     if (placement) outputTerminalMap.set(net, { net, row: placement.row, col: 0 });
-  }
-
-  function forceTerminalRowOrder(firstNet, secondNet) {
-    const getTerminal = net => inputTerminalMap.get(net) || outputTerminalMap.get(net), first = getTerminal(firstNet), second = getTerminal(secondNet);
-    if (!first || !second || first.row <= second.row) return;
-
-    const firstRow = first.row, secondRow = second.row, swapRow = row => row === firstRow ? secondRow : row === secondRow ? firstRow : row;
-
-    for (const p of placements.values()) { p.row = swapRow(p.row); if (Number.isFinite(p.mergeTargetRow)) p.mergeTargetRow = swapRow(p.mergeTargetRow); }
-    for (const t of inputTerminalMap.values()) t.row = swapRow(t.row);
-    for (const t of outputTerminalMap.values()) t.row = swapRow(t.row);
   }
 
   let minimumColumn = 1;
@@ -936,10 +911,6 @@ function alignClosestSharedTerminalRows(placedCells) {
     }
   }
 
-  /*
-   * Everything below happens AFTER the row swapping is finished.
-   */
-
   function getRowBounds(cell, row) {
     const placements = [...cell.sequentialPlan.placements.values()]
       .filter(p => p.row === row && Number.isFinite(p.col));
@@ -967,14 +938,6 @@ function alignClosestSharedTerminalRows(placedCells) {
     return placement.col + (terminal.memberIndex || 0);
   }
 
-  /*
-   * This is the ONLY function allowed to mark a row as flipped.
-   *
-   * It touches ONLY placements whose placement.row === row.
-   * It does NOT touch electricalDirection.
-   * It does NOT touch layoutReversed.
-   * It does NOT touch elements from another row.
-   */
   function flipOnlyThisRow(cell, row) {
     const bounds = getRowBounds(cell, row);
     if (!bounds) return false;
@@ -1004,19 +967,9 @@ function alignClosestSharedTerminalRows(placedCells) {
     return true;
   }
 
-  /*
-   * Re-evaluate the final aligned connections.
-   *
-   * We only test rows belonging to the RIGHT-hand cell because those
-   * terminals should face toward the LEFT-hand cell.
-   */
   const rowTests = new Map();
 
   for (const { net, left, right } of candidates) {
-    /*
-     * Because swapRows modifies terminal.row too, these are now
-     * the FINAL row numbers.
-     */
     if (left.row !== right.row) continue;
 
     const row = right.row;
@@ -1038,20 +991,6 @@ function alignClosestSharedTerminalRows(placedCells) {
     }
 
     const test = rowTests.get(key);
-
-    /*
-     * Distance of the terminal from the LEFT side of this row.
-     *
-     * Normal:
-     *
-     * |----- terminal ----------------|
-     * ^ distance
-     *
-     * Flipped:
-     *
-     * |---------------- terminal -----|
-     *                   distance ^
-     */
     test.normalScore += column - bounds.min;
     test.flippedScore += bounds.max - column;
     test.nets.push(net);
@@ -1066,11 +1005,6 @@ function alignClosestSharedTerminalRows(placedCells) {
       flipped: test.flippedScore
     });
 
-    /*
-     * Strict condition:
-     * do not modify the row unless the flipped orientation
-     * is actually better.
-     */
     if (test.flippedScore + 0.25 >= test.normalScore)
       continue;
 
@@ -1086,9 +1020,6 @@ function alignClosestSharedTerminalRows(placedCells) {
     });
   }
 
-  /*
-   * Rebuild geometry after all row decisions.
-   */
   for (const cell of changedCells) {
     cell.localLayout =
       getLocalCellLayout(cell.elements, cell.sequentialPlan);

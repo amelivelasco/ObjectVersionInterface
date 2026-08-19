@@ -10,7 +10,7 @@ $COMMAND
   MeshFile     "BIG_Cell.msh"
   MeshType     Tetra
   Mode         MQS
-  Netlist      "BIG_Cell_inductex_V5.cir"
+  Netlist      "BIG_Cell_inductex_V7.cir"
   Plot         [ J ]
   Process      "..\seeqc_v8.ldf"
   Fidelity     High
