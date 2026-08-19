@@ -277,7 +277,7 @@ function enableRightClickNavigation(svg) {
 
   function fitCircuit() {
     const box = getContentBBox();
-    if (!box || !box.width || !box.height) return;
+    if (!box?.width || !box?.height) return;
 
     const padding = Math.max(box.width, box.height) * 0.06;
     svg.setAttribute(
@@ -296,6 +296,19 @@ function enableRightClickNavigation(svg) {
 
     centerAt(e.clientX, e.clientY); // Right click
   });
+}
+
+function restoreWire(wire) {
+  wire.setAttribute("stroke", wire.dataset.originalStroke || drawConfig.wireStroke);
+
+  wire.setAttribute("stroke-width", wire.dataset.originalStrokeWidth || drawConfig.wireStrokeWidth);
+
+  wire.classList.remove("is-wire-selected");
+}
+
+function handleWireMouseDown(event) {
+  event.preventDefault();
+  event.stopPropagation();
 }
 
 function setupWireSelection(svg, hitMargin = 3) {
@@ -317,14 +330,6 @@ function setupWireSelection(svg, hitMargin = 3) {
     listeners.push({element, eventName, handler,});
   }
 
-  function restoreWire(wire) {
-    wire.setAttribute("stroke", wire.dataset.originalStroke || drawConfig.wireStroke);
-
-    wire.setAttribute("stroke-width", wire.dataset.originalStrokeWidth || drawConfig.wireStrokeWidth);
-
-    wire.classList.remove("is-wire-selected");
-  }
-
   function clearCurrentSelection() {
     for (const selectedWire of selectedWires
     ) { restoreWire(selectedWire);}
@@ -341,11 +346,6 @@ function setupWireSelection(svg, hitMargin = 3) {
       segment.setAttribute( "stroke-width", Number(segment.dataset.originalStrokeWidth || drawConfig.wireStrokeWidth) + 2);
       segment.classList.add("is-wire-selected");
     }
-  }
-
-  function handleWireMouseDown(event) {
-    event.preventDefault();
-    event.stopPropagation();
   }
 
   function handleWireClick(event, wire ) {
@@ -520,53 +520,71 @@ function setupInterCellTerminalHighlights(svg) {
   svg.addEventListener("click", clearHighlight);
 }
 
-function formatComponentValue(element, source = "display") {
-  const isValid = value => value !== null && value !== undefined && value !== "" && value !== -1 && !["none", "null", "undefined"].includes(String(value).trim().toLowerCase());
+function isValidComponentValue(value) {
+  return value !== null && value !== undefined && value !== "" && value !== -1 &&
+    !["none", "null", "undefined"].includes(String(value).trim().toLowerCase());
+}
 
-  let raw;
+function getRawComponentValue(element, source) {
+  if (source === "target") return element?.target_value;
+  if (source === "extracted") return isValidComponentValue(element?.extracted_value) ? element.extracted_value : "None";
+  return isValidComponentValue(element?.extracted_value) ? element.extracted_value : element?.target_value;
+}
 
-  if (source === "target") {
-    raw = element?.target_value;
-  } else if (source === "extracted") {
-    raw = element?.extracted_value;
-    if (!isValid(raw)) return "None";
-  } else {
-    raw = isValid(element?.extracted_value) ? element.extracted_value : element?.target_value;
-  }
+function formatComponentNumber(value) {
+  return Number(Number(value).toFixed(2)).toString();
+}
 
-  if (!isValid(raw)) return "";
-
-  const text = String(raw).trim();
-  const type = getElementType(element);
-  const format = value => Number(Number(value).toFixed(2)).toString();
-
-  if (type === "L") {
-    if (/p(?:h)?$/i.test(text)) return `${format(text.replace(/p(?:h)?$/i, ""))} pH`;
-    if (/n(?:h)?$/i.test(text)) return `${format(text.replace(/n(?:h)?$/i, ""))} nH`;
-    if (/µh$/i.test(text)) return `${format(text.replace(/µh$/i, ""))} µH`;
-
-    const value = Number(text);
-    return Number.isFinite(value) ? `${format(Math.abs(value) < 1e-6 ? value * 1e12 : value)} pH` : text;
-  }
-
-  if (type === "R") {
-    if (/k(?:ohm|Ω)?$/i.test(text)) return `${format(text.replace(/k(?:ohm|Ω)?$/i, ""))} kΩ`;
-    if (/(?:ohm|Ω)$/i.test(text)) return `${format(text.replace(/(?:ohm|Ω)$/i, ""))} Ω`;
-
-    const value = Number(text);
-    return Number.isFinite(value) ? `${format(value)} Ω` : text;
-  }
-
-  if (["JJ", "IB"].includes(type)) {
-    if (/u(?:a)?$/i.test(text)) return `${format(text.replace(/u(?:a)?$/i, ""))} µA`;
-    if (/µa$/i.test(text)) return `${format(text.replace(/µa$/i, ""))} µA`;
-    if (/ma$/i.test(text)) return `${format(text.replace(/ma$/i, ""))} mA`;
-    if (/a$/i.test(text)) return `${format(text.replace(/a$/i, ""))} A`;
-
-    const value = Number(text);
-    return Number.isFinite(value) ? `${format(Math.abs(value) < 1 ? value * 1e6 : value)} µA` : text;
-  }
+function formatInductorValue(text) {
+  if (/p(?:h)?$/i.test(text)) return `${formatComponentNumber(text.replace(/p(?:h)?$/i, ""))} pH`;
+  if (/n(?:h)?$/i.test(text)) return `${formatComponentNumber(text.replace(/n(?:h)?$/i, ""))} nH`;
+  if (/µh$/i.test(text)) return `${formatComponentNumber(text.replace(/µh$/i, ""))} µH`;
 
   const value = Number(text);
-  return Number.isFinite(value) ? format(value) : text;
+  if (!Number.isFinite(value)) return text;
+
+  const normalizedValue = Math.abs(value) < 1e-6 ? value * 1e12 : value;
+  return `${formatComponentNumber(normalizedValue)} pH`;
+}
+
+function formatResistorValue(text) {
+  if (/k(?:ohm|Ω)?$/i.test(text)) return `${formatComponentNumber(text.replace(/k(?:ohm|Ω)?$/i, ""))} kΩ`;
+  if (/(?:ohm|Ω)$/i.test(text)) return `${formatComponentNumber(text.replace(/(?:ohm|Ω)$/i, ""))} Ω`;
+
+  const value = Number(text);
+  return Number.isFinite(value) ? `${formatComponentNumber(value)} Ω` : text;
+}
+
+function formatCurrentValue(text) {
+  if (/u(?:a)?$/i.test(text)) return `${formatComponentNumber(text.replace(/u(?:a)?$/i, ""))} µA`;
+  if (/µa$/i.test(text)) return `${formatComponentNumber(text.replace(/µa$/i, ""))} µA`;
+  if (/ma$/i.test(text)) return `${formatComponentNumber(text.replace(/ma$/i, ""))} mA`;
+  if (/a$/i.test(text)) return `${formatComponentNumber(text.replace(/a$/i, ""))} A`;
+
+  const value = Number(text);
+  if (!Number.isFinite(value)) return text;
+
+  const normalizedValue = Math.abs(value) < 1 ? value * 1e6 : value;
+  return `${formatComponentNumber(normalizedValue)} µA`;
+}
+
+function formatGenericComponentValue(text) {
+  const value = Number(text);
+  return Number.isFinite(value) ? formatComponentNumber(value) : text;
+}
+
+function formatComponentByType(type, text) {
+  if (type === "L") return formatInductorValue(text);
+  if (type === "R") return formatResistorValue(text);
+  if (["JJ", "IB"].includes(type)) return formatCurrentValue(text);
+  return formatGenericComponentValue(text);
+}
+
+function formatComponentValue(element, source = "display") {
+  const raw = getRawComponentValue(element, source);
+  if (source === "extracted" && raw === "None") return "None";
+  if (!isValidComponentValue(raw)) return "";
+
+  const text = String(raw).trim();
+  return formatComponentByType(getElementType(element), text);
 }
