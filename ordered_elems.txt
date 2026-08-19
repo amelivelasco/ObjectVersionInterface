@@ -1,4 +1,4 @@
-generated_at: 2026-08-19T13:36:51.397356+00:00
+generated_at: 2026-08-19T13:47:20.781932+00:00
 cell_name: NDROM2
 CircuitComponent(raw=LL6, cir_name=L10, path=L6, pid=L6, layout_cell=NDROM2, net_in=net127, net_out=net138, target_value=3.6623, extracted_value=3.53815)
 CircuitComponent(raw=XsjJ6, cir_name=J4, path=J6, pid=J6, layout_cell=NDROM2, net_in=net127, net_out=GND!, target_value=258.0, extracted_value=248.34)

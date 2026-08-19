@@ -27,24 +27,74 @@ class CDLParser:
         self.TOP = None
         self.is_a_cell = False
         
+    def _is_spice_number_start(self, expression, index):
+        return expression[index].isdigit() or (expression[index] == "." and index + 1 < len(expression) and expression[index + 1].isdigit())
+
+    def _is_blocked_spice_number_start(self, expression, index):
+        return index > 0 and (expression[index - 1].isalnum() or expression[index - 1] in "_.")
+
+    def _consume_digits(self, expression, index):
+        while index < len(expression) and expression[index].isdigit(): index += 1
+        return index
+
+    def _consume_spice_number(self, expression, start):
+        index = start
+        if expression[index] == ".": index += 1
+        index = self._consume_digits(expression, index)
+
+        if index < len(expression) and expression[index] == "." and "." not in expression[start:index]:
+            index = self._consume_digits(expression, index + 1)
+
+        if index >= len(expression) or expression[index] != "e": return index
+
+        exponent_start = index
+        index += 1
+        if index < len(expression) and expression[index] in "+-": index += 1
+        digit_start = index
+        index = self._consume_digits(expression, index)
+        return exponent_start if index == digit_start else index
+
+    def _get_spice_suffix(self, expression, index):
+        return "meg" if expression.startswith("meg", index) else expression[index:index + 1]
+
+    def _valid_spice_suffix(self, expression, index, suffix, scales):
+        if suffix not in scales: return False
+        suffix_end = index + len(suffix)
+        return suffix_end >= len(expression) or not expression[suffix_end].isalpha()
+
+    def _replace_spice_scaled_values(self, expression, scales, target_scale):
+        result, i = [], 0
+
+        while i < len(expression):
+            start = i
+
+            if not self._is_spice_number_start(expression, i) or self._is_blocked_spice_number_start(expression, i):
+                result.append(expression[i]); i += 1; continue
+
+            number_end = self._consume_spice_number(expression, start)
+            suffix = self._get_spice_suffix(expression, number_end)
+
+            if not self._valid_spice_suffix(expression, number_end, suffix, scales):
+                result.append(expression[start]); i = start + 1; continue
+
+            result.append(str(float(expression[start:number_end]) * scales[suffix] / target_scale))
+            i = number_end + len(suffix)
+
+        return "".join(result)
+        
     def _compute_value(self, raw_value, target_suffix=None):
         expression = str(raw_value).strip().strip("'\"").lower()
         scales = {"t": 1e12, "g": 1e9, "meg": 1e6, "k": 1e3, "m": 1e-3, "u": 1e-6, "n": 1e-9, "p": 1e-12, "f": 1e-15}
         target_scale = scales.get(target_suffix, 1.0)
-        pattern = re.compile(r"(?<![a-z0-9_.])((?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)(meg|[tgkmunpf])(?![a-z])", re.I)
-        expression = pattern.sub(lambda match: str(float(match.group(1)) * scales[match.group(2).lower()] / target_scale), expression)
+        expression = self._replace_spice_scaled_values(expression, scales, target_scale)
 
         operators = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv, ast.Pow: operator.pow, ast.USub: operator.neg, ast.UAdd: operator.pos}
 
         def evaluate(node):
-            if isinstance(node, ast.Expression):
-                return evaluate(node.body)
-            if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-                return float(node.value)
-            if isinstance(node, ast.BinOp) and type(node.op) in operators:
-                return operators[type(node.op)](evaluate(node.left), evaluate(node.right))
-            if isinstance(node, ast.UnaryOp) and type(node.op) in operators:
-                return operators[type(node.op)](evaluate(node.operand))
+            if isinstance(node, ast.Expression): return evaluate(node.body)
+            if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)): return float(node.value)
+            if isinstance(node, ast.BinOp) and type(node.op) in operators: return operators[type(node.op)](evaluate(node.left), evaluate(node.right))
+            if isinstance(node, ast.UnaryOp) and type(node.op) in operators: return operators[type(node.op)](evaluate(node.operand))
             raise ValueError(f"Unsupported numeric expression: {raw_value}")
 
         try:
@@ -69,7 +119,6 @@ class CDLParser:
         self.current_cell = Cell(name=cell_name)
         self.current_cell.lines.append(line_number)
 
-        # Preserve the exact ports declared after the .subckt name.
         self.current_cell.port_names = ports.copy()
 
         for port_name in ports:
@@ -237,39 +286,38 @@ $END
         if pending_line is not None:
             yield pending_number, pending_line
 
+    def _handle_parse_directive(self, line, lower_line, line_number, circuit):
+        if lower_line.startswith(".subckt"):
+            self._handle_subckt(line, line_number); return True
+        if not lower_line.startswith(".ends"): return False
+        if self.current_cell is None: raise ValueError(f"[line {line_number}] .ends without .subckt")
+        self._handle_ends(circuit, line_number)
+        return True
+
+    def _parse_component_line(self, line, filename, circuit, line_number):
+        comment_pos = line.find("$")
+        if comment_pos > 0 and line[comment_pos - 1].isspace():
+            line = line[:comment_pos]
+        line = line.strip()
+        if not line: return
+        tokens = line.split()
+        if not self._instructor(tokens[0], tokens, filename, circuit, line_number):
+            raise ValueError(f"[line {line_number}] Unsupported component: {line}")
+
+    def _validate_parsed_circuit(self, filename):
+        if self.current_cell is not None: raise ValueError(f"Subcircuit '{self.current_cell.name}' has no .ends")
+        if self.TOP is None: raise ValueError(f"No .subckt found in {filename}")
+
     def parse(self, filename: str):
         new_circuit = Circuit()
         self.current_cell, self.TOP, self.is_a_cell = None, None, False
 
         for line_number, line in self._iter_logical_lines(filename):
-            lower_line = line.lower()
+            if self._handle_parse_directive(line, line.lower(), line_number, new_circuit): continue
+            if self.current_cell is None or line.startswith("*") or line.startswith("."): continue
+            self._parse_component_line(line, filename, new_circuit, line_number)
 
-            if lower_line.startswith(".subckt"):
-                self._handle_subckt(line, line_number)
-                continue
-
-            if lower_line.startswith(".ends"):
-                if self.current_cell is None:
-                    raise ValueError(f"[line {line_number}] .ends without .subckt")
-                self._handle_ends(new_circuit, line_number)
-                continue
-
-            if self.current_cell is None or line.startswith("*") or line.startswith("."):
-                continue
-
-            line = re.split(r"\s+\$", line, maxsplit=1)[0].strip()
-            if not line:
-                continue
-
-            tokens = line.split()
-            if not self._instructor(tokens[0], tokens, filename, new_circuit, line_number):
-                raise ValueError(f"[line {line_number}] Unsupported component: {line}")
-
-        if self.current_cell is not None:
-            raise ValueError(f"Subcircuit '{self.current_cell.name}' has no .ends")
-        if self.TOP is None:
-            raise ValueError(f"No .subckt found in {filename}")
-
+        self._validate_parsed_circuit(filename)
         new_circuit.define_top(self.TOP)
         return new_circuit
 
@@ -422,101 +470,44 @@ $END
 
         return None
                 
+    def _schematic_node_name(self, node):
+        return node.name if hasattr(node, "name") else str(node)
+
+    def _add_schematic_node(self, name, nodes, node_seen):
+        if name in node_seen: return
+        node_seen.add(name); nodes.append({"id": name, "label": name})
+
+    def _get_schematic_element_value(self, inst):
+        spice_value = getattr(inst, "spice_value", None)
+        if spice_value is not None: return str(spice_value)
+        for attribute in ("Ic", "Ib", "L", "R"):
+            if hasattr(inst, attribute): return str(getattr(inst, attribute))
+        return None
+
+    def _get_schematic_image(self, inst):
+        images = {"JJ": "../img/jj_draw.png", "IB": "../img/biais_draw.png", "L": "../img/ind_draw.png", "R": "../img/res_draw.png"}
+        return images.get(getattr(inst, "type", ""), "")
+
+    def _append_schematic_element(self, inst, elements, nodes, node_seen):
+        if not hasattr(inst, "net_in") or not hasattr(inst, "net_out"): return
+
+        net_in = self._schematic_node_name(inst.net_in); net_out = self._schematic_node_name(inst.net_out)
+        self._add_schematic_node(net_in, nodes, node_seen); self._add_schematic_node(net_out, nodes, node_seen)
+        raw_name = getattr(inst, "raw_name", inst.name)
+        value = self._get_schematic_element_value(inst)
+
+        elements.append({
+            "id": raw_name, "type": getattr(inst, "type", ""), "label": raw_name, "net_in": net_in, "net_out": net_out,
+            "target_value": value, "extracted_value": getattr(inst, "extracted_value", value), "image": self._get_schematic_image(inst),
+        })
+
+    def _walk_schematic_instances(self, cell, elements, nodes, node_seen):
+        for inst in cell.instances:
+            if hasattr(inst, "instances"):
+                self._walk_schematic_instances(inst, elements, nodes, node_seen); continue
+            self._append_schematic_element(inst, elements, nodes, node_seen)
+
     def circuit_to_schematic_data(self, circuit):
-        elements = []
-        nodes = []
-        node_seen = set()
-
-        def node_name(node):
-            if hasattr(node, "name"):
-                return node.name
-            return str(node)
-
-        def add_node(name):
-            if name not in node_seen:
-                node_seen.add(name)
-                nodes.append({
-                    "id": name,
-                    "label": name,
-                })
-
-        def get_element_value(inst):
-
-            spice_value = getattr(
-                inst,
-                "spice_value",
-                None,
-            )
-
-            if spice_value is not None:
-                return str(
-                    spice_value
-                )
-
-            if hasattr(inst, "Ic"):
-                return str(inst.Ic)
-
-            if hasattr(inst, "Ib"):
-                return str(inst.Ib)
-
-            if hasattr(inst, "L"):
-                return str(inst.L)
-
-            if hasattr(inst, "R"):
-                return str(inst.R)
-
-            return None
-
-        def get_image(inst):
-            inst_type = getattr(inst, "type", "")
-
-            if inst_type == "JJ":
-                return "../img/jj_draw.png"
-            if inst_type == "IB":
-                return "../img/biais_draw.png"
-            if inst_type == "L":
-                return "../img/ind_draw.png"
-            if inst_type == "R":
-                return "../img/res_draw.png"
-
-            return ""
-
-        def walk(cell):
-            for inst in cell.instances:
-
-                # Sub-cell
-                if hasattr(inst, "instances"):
-                    walk(inst)
-                    continue
-
-                # Base element
-                if not hasattr(inst, "net_in") or not hasattr(inst, "net_out"):
-                    continue
-
-                net_in = node_name(inst.net_in)
-                net_out = node_name(inst.net_out)
-
-                add_node(net_in)
-                add_node(net_out)
-
-                raw_name = getattr(inst, "raw_name", inst.name)
-
-                elements.append({
-                    "id": raw_name,
-                    "type": getattr(inst, "type", ""),
-                    "label": raw_name,
-                    "net_in": net_in,
-                    "net_out": net_out,
-                    "target_value": get_element_value(inst),
-                    "extracted_value": getattr(inst, "extracted_value", get_element_value(inst)),
-                    "image": get_image(inst),
-                })
-
-        walk(circuit.TOP)
-
-        return {
-            "name": circuit.TOP.name,
-            "nodes": nodes,
-            "elements": elements,
-        }
-            
+        elements, nodes, node_seen = [], [], set()
+        self._walk_schematic_instances(circuit.TOP, elements, nodes, node_seen)
+        return {"name": circuit.TOP.name, "nodes": nodes, "elements": elements}
