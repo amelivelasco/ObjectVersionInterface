@@ -60,274 +60,112 @@ class InductexExporter(BaseExporter):
                 node.GlobalName = gnd_number
     
     
-    def read_inductex_file(self):
-        """
-        Lit un fichier InductEx et construit la structure du circuit.
+    def _new_inductex_internal_node(self):
+        node = Node(self.counter_node); node.GlobalName = int(self.counter_node); self.counter_node += 1
+        if node not in self.list_nodes_top: self.list_nodes_top.append(node)
+        return node
 
-        Gère :
-        - L
-        - JJ
-        - IB
-        - R
+    def _emit_inductex_l(self, elem, lines):
+        self.list_additional_node = None
+        l_value = self.get_value(elem, "RealL", elem.L)
+        lines.append(f"{elem.name:<10} {elem.net_in.GlobalName:<15} {elem.net_out.GlobalName:<15} {self.format_cir_value(l_value)}")
 
-        Ajoute les nœuds internes créés dans self.list_nodes_top.
-        """
+    def _emit_inductex_jj(self, elem, lines):
+        jname, suffix = elem.name, elem.name[1:]
+        prb_name, lj_name, rs_name = f"Prb{suffix}", f"Lj{suffix}", f"Rs{suffix}"
+        lp_net, W_NAME, W_NET = elem.net_out, 10, 15
+        jj_value = self.format_cir_value(elem.Ic)
+        rs_value = self.format_cir_value(self.sol_value("R", f"RS{suffix}", getattr(elem, "RParral", elem.Ic)))
 
-        lines = []
+        if str(elem.net_out.GlobalName) == "0":
+            lp_net = self._new_inductex_internal_node(); lp_name = f"Lp{suffix}"; lp_value = self.format_cir_value(0.4)
+            lp_net.connected_elements.append(jname); lp_net.connected_elements.append(elem.net_out.GlobalName); elem.listAdditionalNode.append(lp_net)
+            lines.append(f"{lp_name:<{W_NAME}} {lp_net.GlobalName:<{W_NET}} {elem.net_out.GlobalName:<{W_NET}} {lp_value}")
 
-        def new_internal_node():
-            """
-            Crée un nom de nœud interne unique et l'ajoute à self.list_nodes_top.
-            """
-            node = Node(self.counter_node)
-            node.GlobalName = int(self.counter_node)
-            self.counter_node +=1
+        additional_net, second_additional_net = self._new_inductex_internal_node(), self._new_inductex_internal_node()
+        additional_net.connected_elements.extend([jname, lj_name]); second_additional_net.connected_elements.extend([prb_name, rs_name])
+        elem.listAdditionalNode.append(additional_net); elem.listAdditionalNode.append(second_additional_net)
 
-            # Évite les doublons
-            if node not in self.list_nodes_top:
-                self.list_nodes_top.append(node)
+        lines.append(f"{jname:<{W_NAME}} {elem.net_in.GlobalName:<{W_NET}} {additional_net.GlobalName:<{W_NET}} {jj_value}")
+        lines.append(f"{prb_name:<{W_NAME}} {elem.net_in.GlobalName:<{W_NET}} {second_additional_net.GlobalName:<{W_NET}}")
+        lines.append(f"{lj_name:<{W_NAME}} {additional_net.GlobalName:<{W_NET}} {lp_net.GlobalName:<{W_NET}}")
+        lines.append(f"{rs_name:<{W_NAME}} {second_additional_net.GlobalName:<{W_NET}} {lp_net.GlobalName:<{W_NET}} {rs_value}")
 
-            return node
+    def _emit_inductex_ib(self, elem, lines):
+        ibname = str(elem.name); ib_port_name = ibname; lib_name = "Lib" + ibname[2:]; rib_name = "Rib" + ibname[2:]
+        additional_net, second_additional_net = self._new_inductex_internal_node(), self._new_inductex_internal_node()
+        second_additional_net.connected_elements.append(lib_name); second_additional_net.connected_elements.append(rib_name)
+        additional_net.connected_elements.append(ibname); additional_net.connected_elements.append(lib_name)
+        elem.listAdditionalNode.append(additional_net); elem.listAdditionalNode.append(second_additional_net)
 
-        
-        def emit_l(elem):  # The L is an inductor element in the circuit. 
-            """
-            Format :
-            Lname net_in net_out Lvalue
-            """
-            self.list_additional_node = None
+        W_NAME, W_NET = 10, 15
+        original_rib = 2600 / elem.Ib
+        rib_value = self.format_cir_value(self.get_value(elem, "RealIB", original_rib))
+        lib_value = self.get_value(elem, "RealLIB", None)
 
-            l_value = self.get_value(elem, "RealL", elem.L)
+        lines.append(f"{ib_port_name:<{W_NAME}} {str(elem.net_in.GlobalName):<{W_NET}} {str(additional_net.GlobalName):<{W_NET}}")
+        lib_line = f"{lib_name:<{W_NAME}} {str(additional_net.GlobalName):<{W_NET}} {str(second_additional_net.GlobalName):<{W_NET}}"
+        if self.use_extracted_values and lib_value is not None: lib_line += f" {self.format_cir_value(lib_value)}"
+        lines.append(lib_line)
+        lines.append(f"{rib_name:<{W_NAME}} {str(second_additional_net.GlobalName):<{W_NET}} {str(elem.net_out.GlobalName):<{W_NET}} {rib_value}")
 
-            lines.append(
-                f"{elem.name:<10} "
-                f"{elem.net_in.GlobalName:<15} "
-                f"{elem.net_out.GlobalName:<15} "
-                f"{self.format_cir_value(l_value)}"
-            )
+    def _emit_inductex_r(self, elem, lines):
+        rname = elem.name; pr_name = "PR" + rname[1:]
+        additional_net = self._new_inductex_internal_node()
+        additional_net.connected_elements.append(rname); additional_net.connected_elements.append(pr_name); elem.listAdditionalNode.append(additional_net)
 
+        W_NAME, W_NET = 10, 15
+        pr_name = "Pr" + rname[1:]
+        lines.append(f"{pr_name:<{W_NAME}} {elem.net_in.GlobalName:<{W_NET}} {additional_net.GlobalName:<{W_NET}}")
+        r_value = self.get_value(elem, "RealR", elem.R)
+        lines.append(f"{rname:<{W_NAME}} {additional_net.GlobalName:<{W_NET}} {elem.net_out.GlobalName:<{W_NET}} {self.format_cir_value(r_value)}")
 
-        def emit_jj(elem):
-            jname = elem.name
-            suffix = jname[1:]
-            prb_name, lj_name, rs_name = f"Prb{suffix}", f"Lj{suffix}", f"Rs{suffix}"
-            lp_net = elem.net_out
-            W_NAME, W_NET = 10, 15
+    def _reset_inductex_generated_state(self, original_node_count):
+        del self.list_nodes_top[original_node_count:]; self.counter_node = 0
+        self._reset_inductex_cell(self.circuit.TOP)
 
-            jj_value = self.format_cir_value(elem.Ic)
-            rs_value = self.format_cir_value(self.sol_value("R", f"RS{suffix}", getattr(elem, "RParral", elem.Ic)))
+    def _reset_inductex_cell(self, cell):
+        for elem in cell.instances:
+            if hasattr(elem, "net_in"):
+                for attr in ("listAdditionalNode", "list_additional_node"):
+                    nodes = getattr(elem, attr, None)
+                    if isinstance(nodes, list): nodes.clear()
+            elif hasattr(elem, "instances"): self._reset_inductex_cell(elem)
 
-            if str(elem.net_out.GlobalName) == "0":
-                lp_net = new_internal_node()
-                lp_name = f"Lp{suffix}"
-                lp_value = self.format_cir_value(0.4)
+    def _get_first_level_inductex_instance(self, elem):
+        raw_name = str(getattr(elem, "original_name", getattr(elem, "raw_name", elem.name)))
+        for prefix in ("Xpc", "Xsj", "L", "R"):
+            if raw_name.lower().startswith(prefix.lower()):
+                raw_name = raw_name[len(prefix):]; break
+        path_parts = raw_name.split("|")
+        return path_parts[0] if len(path_parts) > 1 else str(getattr(self.circuit.TOP, "name", "TOP"))
 
-                lp_net.connected_elements.append(jname)
-                lp_net.connected_elements.append(elem.net_out.GlobalName)
-                elem.listAdditionalNode.append(lp_net)
+    def _get_inductex_emitter(self, elem):
+        return {"L": self._emit_inductex_l, "JJ": self._emit_inductex_jj, "IB": self._emit_inductex_ib, "R": self._emit_inductex_r}.get(getattr(elem, "type", None))
 
-                lines.append(
-                    f"{lp_name:<{W_NAME}} "
-                    f"{lp_net.GlobalName:<{W_NET}} "
-                    f"{elem.net_out.GlobalName:<{W_NET}} "
-                    f"{lp_value}"
-                )
+    def _collect_inductex_instance_groups(self, cell, lines, instance_groups):
+        for elem in cell.instances:
+            emitter = self._get_inductex_emitter(elem)
+            if emitter is not None:
+                start_index = len(lines); emitter(elem, lines); emitted_lines = lines[start_index:]; del lines[start_index:]
+                instance_name = self._get_first_level_inductex_instance(elem)
+                instance_groups.setdefault(instance_name, []).extend(emitted_lines)
+                original_name = getattr(elem, "original_name", getattr(elem, "raw_name", elem.name))
+                print(f"NAME TRANSLATION [{instance_name}]: {original_name} -> {elem.name}")
+                continue
+            if hasattr(elem, "instances"): self._collect_inductex_instance_groups(elem, lines, instance_groups)
 
-            additional_net = new_internal_node()
-            second_additional_net = new_internal_node()
-
-            additional_net.connected_elements.extend([jname, lj_name])
-            second_additional_net.connected_elements.extend([prb_name, rs_name])
-
-            elem.listAdditionalNode.append(additional_net)
-            elem.listAdditionalNode.append(second_additional_net)
-
-            lines.append(
-                f"{jname:<{W_NAME}} "
-                f"{elem.net_in.GlobalName:<{W_NET}} "
-                f"{additional_net.GlobalName:<{W_NET}} "
-                f"{jj_value}"
-            )
-
-            lines.append(
-                f"{prb_name:<{W_NAME}} "
-                f"{elem.net_in.GlobalName:<{W_NET}} "
-                f"{second_additional_net.GlobalName:<{W_NET}}"
-            )
-
-            lines.append(
-                f"{lj_name:<{W_NAME}} "
-                f"{additional_net.GlobalName:<{W_NET}} "
-                f"{lp_net.GlobalName:<{W_NET}}"
-            )
-
-            lines.append(
-                f"{rs_name:<{W_NAME}} "
-                f"{second_additional_net.GlobalName:<{W_NET}} "
-                f"{lp_net.GlobalName:<{W_NET}} "
-                f"{rs_value}"
-            )
-
-        def reset_generated_state(self, original_node_count):
-            del self.list_nodes_top[original_node_count:]
-            self.counter_node = 0
-
-            def reset_cell(cell):
-                for elem in cell.instances:
-                    if hasattr(elem, "net_in"):
-                        for attr in ("listAdditionalNode", "list_additional_node"):
-                            nodes = getattr(elem, attr, None)
-                            if isinstance(nodes, list):
-                                nodes.clear()
-                    elif hasattr(elem, "instances"):
-                        reset_cell(elem)
-
-            reset_cell(self.circuit.TOP)
-
-
-        def emit_ib(elem):
-            ibname = str(elem.name)
-            ib_port_name = ibname
-            lib_name = "Lib" + ibname[2:]
-            rib_name = "Rib" + ibname[2:]
-
-            additional_net = new_internal_node()
-            second_additional_net = new_internal_node()
-                    
-            second_additional_net.connected_elements.append(lib_name) 
-            second_additional_net.connected_elements.append(rib_name)
-
-            
-            additional_net.connected_elements.append(ibname)
-            additional_net.connected_elements.append(lib_name)
-
-            elem.listAdditionalNode.append(additional_net)
-            elem.listAdditionalNode.append(second_additional_net)
-
-            W_NAME = 10
-            W_NET = 15
-
-            original_rib = 2600 / elem.Ib
-            rib_value = self.format_cir_value(
-                self.get_value(elem, "RealIB", original_rib)
-            )
-
-            lib_value = self.get_value(elem, "RealLIB", None)
-
-            lines.append(
-                f"{ib_port_name:<{W_NAME}} "
-                f"{str(elem.net_in.GlobalName):<{W_NET}} "
-                f"{str(additional_net.GlobalName):<{W_NET}}"
-            )
-
-            lib_line = (
-                f"{lib_name:<{W_NAME}} "
-                f"{str(additional_net.GlobalName):<{W_NET}} "
-                f"{str(second_additional_net.GlobalName):<{W_NET}}"
-            )
-
-            if self.use_extracted_values and lib_value is not None:
-                lib_line += f" {self.format_cir_value(lib_value)}"
-
-            lines.append(lib_line)
-
-            lines.append(
-                f"{rib_name:<{W_NAME}} "
-                f"{str(second_additional_net.GlobalName):<{W_NET}} "
-                f"{str(elem.net_out.GlobalName):<{W_NET}} "
-                f"{rib_value}"
-            )
-
-        def emit_r(elem):
-            """
-            Format demandé :
-
-            Prname net_in additional_net
-            Rname additional_net net_out Rvalue
-            """
-
-            rname = elem.name
-            pr_name = "PR" + rname[1:]
-
-            additional_net = new_internal_node()
-            additional_net.connected_elements.append(rname)
-            additional_net.connected_elements.append(pr_name)
-            elem.listAdditionalNode.append(additional_net)
-
-            W_NAME = 10
-            W_NET = 15
-
-            pr_name = "Pr" + rname[1:]
-
-            lines.append(
-                f"{pr_name:<{W_NAME}} "
-                f"{elem.net_in.GlobalName:<{W_NET}} "
-                f"{additional_net.GlobalName:<{W_NET}}"
-            )
-
-            r_value = self.get_value(elem, "RealR", elem.R)
-
-            lines.append(
-                f"{rname:<{W_NAME}} "
-                f"{additional_net.GlobalName:<{W_NET}} "
-                f"{elem.net_out.GlobalName:<{W_NET}} "
-                f"{self.format_cir_value(r_value)}"
-            )
-            
-        emitters = {
-            "L": emit_l,
-            "JJ": emit_jj,
-            "IB": emit_ib,
-            "R": emit_r,
-        }
-
-        instance_groups = {}
-
-        def get_first_level_instance(elem):
-            raw_name = str(getattr(elem, "original_name", getattr(elem, "raw_name", elem.name)))
-
-            for prefix in ("Xpc", "Xsj", "L", "R"):
-                if raw_name.lower().startswith(prefix.lower()):
-                    raw_name = raw_name[len(prefix):]
-                    break
-
-            path_parts = raw_name.split("|")
-            return path_parts[0] if len(path_parts) > 1 else str(getattr(self.circuit.TOP, "name", "TOP"))
-
-        def recursive_walk(cell):
-            for elem in cell.instances:
-                emitter = emitters.get(getattr(elem, "type", None))
-
-                if emitter is not None:
-                    start_index = len(lines)
-                    emitter(elem)
-                    emitted_lines = lines[start_index:]
-                    del lines[start_index:]
-
-                    instance_name = get_first_level_instance(elem)
-                    instance_groups.setdefault(instance_name, []).extend(emitted_lines)
-
-                    original_name = getattr(elem, "original_name", getattr(elem, "raw_name", elem.name))
-                    print(f"NAME TRANSLATION [{instance_name}]: {original_name} -> {elem.name}")
-                    continue
-
-                if hasattr(elem, "instances"):
-                    recursive_walk(elem)
-
-        recursive_walk(self.circuit.TOP)
-
+    def _append_inductex_instance_groups(self, lines, instance_groups):
         for instance_name, instance_lines in instance_groups.items():
-            lines.append(f"* --- INSTANCE {instance_name} ---")
-            lines.extend(instance_lines)
-            lines.append("")
+            lines.append(f"* --- INSTANCE {instance_name} ---"); lines.extend(instance_lines); lines.append("")
 
+    def read_inductex_file(self):
+        """Lit un fichier InductEx et construit la structure du circuit."""
+        lines, instance_groups = [], {}
+        self._collect_inductex_instance_groups(self.circuit.TOP, lines, instance_groups)
+        self._append_inductex_instance_groups(lines, instance_groups)
         return lines
 
-        
-        # =================================================
-        # === ICI : TRI DES LIGNES PAR CATÉGORIE ==========
-        # =================================================
-    
     def read_elem_connections(self, lines):
 
         ports = []
