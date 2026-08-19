@@ -187,7 +187,6 @@ function drawComponent(layer, element) {
   g.appendChild(image);
 
   if (componentType === "IB") {
-    const biasName = element.path || element.pid || element.id || "";
     drawComponentValueText(g, element.cir_name, element.x, element.y - halfSize - 8, drawConfig.nameFormat);
     drawComponentValueText(g, formatComponentValue(element), element.x, element.y - 18, { size: drawConfig.componentValueFontSize, fill: "#7c2d12", className: "bias-value" });
   }
@@ -285,8 +284,20 @@ function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
   const geometry = getJJPairGeometry(current, next, 25);
   const layoutInstance = getLayoutInstance(current);
 
-  current.forcedRotation = grounded ? 0 : reversed ? 270 : 90;
-  next.forcedRotation = grounded ? 90 : reversed ? 180 : 0;
+  if (grounded) {
+    current.forcedRotation = 0;
+  } else if (reversed) {
+    current.forcedRotation = 270;
+  } else {
+    current.forcedRotation = 90;
+  }
+  let nextRotation = 0;
+  if (grounded) {
+    nextRotation = 90;
+  } else if (reversed) {
+    nextRotation = 180;
+  }
+  next.forcedRotation = nextRotation;
 
   drawComponent(componentLayer, current);
   drawComponent(componentLayer, next);
@@ -296,7 +307,6 @@ function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
   if (value) {
     const centerX = (current.x + next.x) / 2;
     const centerY = (geometry.topMiddle.y + geometry.bottomMiddle.y) / 2 + drawConfig.jrValueOffsetY;
-    const resistorPath = `${(current.path || "").split("|")[0]}|R${(current.pid || "").match(/\d+/)?.[0] || ""}`;
 
     if (current.cir_name) {
       drawComponentValueText(labelLayer, current.cir_name, centerX, centerY + 10, drawConfig.nameFormat);
@@ -392,255 +402,208 @@ function drawSubcircuits(placed, componentLayer, wireLayer, labelLayer) {
   }
 }
 
-function drawTerminalStubs(wireLayer, labelLayer, dotLayer, placed, stubLength = 45, repairMissingSides = false
-) {
-  const netUseCounts = new Map();
-  const labeledNets = new Set();
-  const drawnDots = new Set();
+function getNetKey(component, net) {
+  return [getLayoutInstance(component), net,].join("|");
+}
 
-  function getNetKey(component, net) {
-    return [getLayoutInstance(component), net,].join("|");
+function buildNetUseCounts(placed) {
+  const counts = new Map();
+  for (const component of placed) {
+    if (isBiasElement(component) || getElementType(component) === "R") continue;
+    for (const net of [component.net_in, component.net_out]) {
+      if (!net || isGroundNet(net)) continue;
+      const key = getNetKey(component, net);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+function isTerminalNet(component, net, netUseCounts) {
+  if (!net || isGroundNet(net)) return false;
+  if (String(net).trim().toLowerCase() === "terminal") return true;
+  return (netUseCounts.get(getNetKey(component, net)) ?? 0) === 1;
+}
+
+function addTerminalSegment(segmentsByNet, net, a, b, options = {}) {
+  if (!net || !a || !b) return;
+  if (!segmentsByNet.has(net)) segmentsByNet.set(net, []);
+  segmentsByNet.get(net).push({ a: { x: a.x, y: a.y }, b: { x: b.x, y: b.y }, net, layoutInstance: options.layoutInstance ?? null, source: options.source ?? "wire" });
+}
+
+function pointLiesOnTerminalSegment(point, segment, epsilon = 0.5) {
+  const horizontal = Math.abs(segment.a.y - segment.b.y) < epsilon;
+  if (horizontal) return Math.abs(point.y - segment.a.y) < epsilon && point.x >= Math.min(segment.a.x, segment.b.x) - epsilon && point.x <= Math.max(segment.a.x, segment.b.x) + epsilon;
+
+  const vertical = Math.abs(segment.a.x - segment.b.x) < epsilon;
+  if (!vertical) return false;
+  return Math.abs(point.x - segment.a.x) < epsilon && point.y >= Math.min(segment.a.y, segment.b.y) - epsilon && point.y <= Math.max(segment.a.y, segment.b.y) + epsilon;
+}
+
+function closestPointOnTerminalSegment(point, segment, epsilon = 0.5) {
+  if (Math.abs(segment.a.y - segment.b.y) < epsilon) {
+    return { x: Math.max(Math.min(segment.a.x, segment.b.x), Math.min(Math.max(segment.a.x, segment.b.x), point.x)), y: segment.a.y };
   }
 
+  if (Math.abs(segment.a.x - segment.b.x) < epsilon) {
+    return { x: segment.a.x, y: Math.max(Math.min(segment.a.y, segment.b.y), Math.min(Math.max(segment.a.y, segment.b.y), point.y)) };
+  }
+  return null;
+}
+
+function collectTerminalWireSegments(wireLayer, segmentsByNet) {
+  for (const child of Array.from(wireLayer.children)) {
+    const net = child.dataset.net;
+    const kind = child.dataset.kind || "";
+    if (!net || kind.includes("terminal-stub")) continue;
+    for (const segment of extractWireSegmentsFromElement(child)) addTerminalSegment(segmentsByNet, net, segment.a, segment.b, { source: "svg" });
+  }
+}
+
+function collectJJTerminalSegments(placed, segmentsByNet) {
+  for (let index = 0; index < placed.length - 1; index++) {
+    const jj = placed[index];
+    const resistor = placed[index + 1];
+    if (!isJJResistorPair(jj, resistor)) continue;
+
+    const geometry = getJJPairGeometry(jj, resistor, 25);
+    const layoutInstance = getLayoutInstance(jj);
+    addTerminalSegment(segmentsByNet, jj.net_in, geometry.topAtJJ, geometry.topAtResistor, { source: "jr-input-rail", layoutInstance });
+    addTerminalSegment(segmentsByNet, jj.net_out, geometry.bottomAtJJ, geometry.bottomAtResistor, { source: "jr-output-rail", layoutInstance });
+    index++;
+  }
+}
+
+function getTerminalRepairCandidates(component, oppositePin, net, context) {
+  const componentLayout = getLayoutInstance(component);
+  let candidates = (context.segmentsByNet.get(net) || []).filter(segment => !segment.layoutInstance || segment.layoutInstance === componentLayout);
+  const awayFromOpposite = candidates.filter(segment => !oppositePin || !pointLiesOnTerminalSegment(oppositePin, segment, context.epsilon));
+  if (awayFromOpposite.length > 0) candidates = awayFromOpposite;
+  return candidates;
+}
+
+function findTerminalRepairTarget(outwardPoint, candidates, epsilon) {
+  let bestTarget = null;
+  let bestDistance = Infinity;
+
+  for (const segment of candidates) {
+    const target = closestPointOnTerminalSegment(outwardPoint, segment, epsilon);
+    if (!target) continue;
+    const distance = Math.abs(outwardPoint.x - target.x) + Math.abs(outwardPoint.y - target.y);
+    if (distance >= bestDistance) continue;
+    bestDistance = distance;
+    bestTarget = target;
+  }
+  return bestTarget;
+}
+
+function connectMissingTerminalSide(component, pin, oppositePin, net, side, context) {
+  if (!pin || !net || isGroundNet(net) || isTerminalNet(component, net, context.netUseCounts)) return;
+
+  const existing = context.segmentsByNet.get(net) || [];
+  if (existing.some(segment => pointLiesOnTerminalSegment(pin, segment, context.epsilon))) return;
+
+  const candidates = getTerminalRepairCandidates(component, oppositePin, net, context);
+  if (!candidates.length) return;
+
+  const direction = pin.x < component.x ? -1 : 1;
+  const outwardPoint = { x: pin.x + direction * context.stubLength, y: pin.y };
+  const bestTarget = findTerminalRepairTarget(outwardPoint, candidates, context.epsilon);
+  if (!bestTarget) return;
+
+  const routePoints = simplifyOrthogonalPoints([{ ...pin }, outwardPoint, { x: outwardPoint.x, y: bestTarget.y }, bestTarget]);
+  if (routePoints.length < 2) return;
+
+  drawPath(context.wireLayer, pin, bestTarget, { stroke: drawConfig.wireStroke, pathData: routePointsToPathData(routePoints), net, kind: `inductor-${side}-missing-connection` });
+
+  const layoutInstance = getLayoutInstance(component);
+  for (const segment of routePointsToSegments(routePoints)) addTerminalSegment(context.segmentsByNet, net, segment.a, segment.b, { source: "inductor-repair", layoutInstance });
+}
+
+function repairMissingTerminalSides(placed, context) {
+  context.segmentsByNet = new Map();
+  collectTerminalWireSegments(context.wireLayer, context.segmentsByNet);
+  collectJJTerminalSegments(placed, context.segmentsByNet);
 
   for (const component of placed) {
-    if (isBiasElement(component) || getElementType(component) === "R"
-    ) { continue; }
-
-    for (const net of [component.net_in, component.net_out,]) {
-      if (!net || isGroundNet(net)) { continue; }
-      const key = getNetKey(component, net);
-      netUseCounts.set(key,(netUseCounts.get(key) ?? 0) + 1);
-    }
+    if (getElementType(component) !== "L") continue;
+    connectMissingTerminalSide(component, component.inputPin, component.outputPin, component.net_in, "input", context);
+    connectMissingTerminalSide(component, component.outputPin, component.inputPin, component.net_out, "output", context);
   }
+}
 
-  function isTerminalNet(component, net) {
-    if (!net || isGroundNet(net)) { return false;}
-    if (String(net).trim().toLowerCase() === "terminal") { return true; }
+function drawTerminalDot(component, net, stubEnd, context) {
+  const layoutInstance = getLayoutInstance(component);
+  const dotKey = [layoutInstance, net, stubEnd.x.toFixed(3), stubEnd.y.toFixed(3)].join("|");
+  if (context.drawnDots.has(dotKey)) return;
 
-    const key = getNetKey(component, net);
+  context.drawnDots.add(dotKey);
+  drawDot(context.dotLayer, stubEnd, { radius: 5.5, fill: drawConfig.nodeFill, stroke: drawConfig.nodeStroke, className: "terminal-net-dot", net, layoutInstance, ownerId: component.id });
+}
 
-    return (netUseCounts.get(key) ?? 0) === 1;
-  }
+function drawTerminalNetLabel(component, pin, net, stubEnd, context) {
+  const labelKey = getNetKey(component, net);
+  if (context.labeledNets.has(labelKey)) return;
 
-  if (repairMissingSides) {
-    const epsilon = 0.5;
-    const segmentsByNet = new Map();
+  context.labeledNets.add(labelKey);
+  const labelX = (pin.x + stubEnd.x) / 2;
+  const labelY = pin.y - 9;
+  const label = drawComponentValueText(context.labelLayer, net, labelX, labelY - 15, { size: "11px", fill: "#7c2d12", className: "terminal-net-label" });
+  if (!label) return;
 
-    function addSegment(net, a, b, options = {}
-    ) {
-      if (!net || !a || !b
-      ) { return; }
+  label.dataset.net = net;
+  label.dataset.layoutInstance = getLayoutInstance(component);
+  label.dataset.ownerId = component.id || "";
+}
 
-      if ( !segmentsByNet.has(net) ) {
-        segmentsByNet.set(net, []);
-      }
+function drawTerminalStub(component, pin, net, side, context) {
+  if (!pin || !net) return null;
 
-      segmentsByNet.get(net).push({a: { x: a.x, y: a.y, }, b: { x: b.x, y: b.y, },
-          net, layoutInstance:options.layoutInstance ?? null, source: options.source ?? "wire",
-        });
-    }
+  const direction = pin.x < component.x ? -1 : 1;
+  const stubEnd = { x: pin.x + direction * context.stubLength, y: pin.y };
+  drawLine(context.wireLayer, context.labelLayer, component, pin, stubEnd, { net, kind: `inductor-${side}-terminal-stub`, stroke: drawConfig.wireStroke });
+  drawTerminalDot(component, net, stubEnd, context);
+  drawTerminalNetLabel(component, pin, net, stubEnd, context);
+  return stubEnd;
+}
 
-    function pointLiesOnSegment(point, segment) {
-      const horizontal = Math.abs(segment.a.y - segment.b.y) < epsilon;
-      if (horizontal) {
-        return ( Math.abs(point.y - segment.a.y) < epsilon &&
-          point.x >= Math.min(segment.a.x, segment.b.x) - epsilon &&
-          point.x <=  Math.max(segment.a.x, segment.b.x) + epsilon
-        );
-      }
+function drawTerminalSide(component, side, context) {
+  const isInput = side === "input";
+  const pin = isInput ? component.inputPin : component.outputPin;
+  const net = isInput ? component.net_in : component.net_out;
+  if (!isTerminalNet(component, net, context.netUseCounts)) return;
 
-      const vertical = Math.abs(segment.a.x - segment.b.x) < epsilon;
-
-      if (vertical) {
-        return (
-          Math.abs(point.x - segment.a.x) < epsilon &&
-          point.y >= Math.min(segment.a.y, segment.b.y) - epsilon &&
-          point.y <= Math.max(segment.a.y, segment.b.y) + epsilon
-        );
-      }
-      return false;
-    }
-
-    function closestPointOnSegment(point, segment) {
-      const horizontal = Math.abs(segment.a.y - segment.b.y) < epsilon;
-
-      if (horizontal) {
-        return {
-          x: Math.max(Math.min(segment.a.x, segment.b.x),
-              Math.min(Math.max(segment.a.x, segment.b.x),point.x)
-            ),
-          y: segment.a.y,
-        };
-      }
-
-      const vertical = Math.abs(segment.a.x - segment.b.x) < epsilon;
-      if (vertical) {
-        return {
-          x: segment.a.x,
-          y: Math.max(Math.min(segment.a.y, segment.b.y),
-              Math.min(Math.max(segment.a.y, segment.b.y),
-                point.y
-              )
-            ),
-        };
-      }
-      return null;
-    }
-
-    for (const child of Array.from(wireLayer.children)
-    ) {
-      const net = child.dataset.net;
-      const kind = child.dataset.kind || "";
-      if (!net) { continue; }
-      if (kind.includes("terminal-stub")) { continue; }
-      const segments = extractWireSegmentsFromElement(child);
-      for (const segment of segments) {
-        addSegment(net, segment.a, segment.b, { source: "svg", });
-      }
-    }
-
-    for (let index = 0; index < placed.length - 1; index++) {
-      const jj = placed[index];
-      const resistor = placed[index + 1];
-      if (!isJJResistorPair(jj, resistor)
-      ) { continue; }
-
-      const geometry = getJJPairGeometry(jj, resistor, 25);
-      const layoutInstance = getLayoutInstance(jj);
-      addSegment(jj.net_in, geometry.topAtJJ, geometry.topAtResistor,
-        { source: "jr-input-rail", layoutInstance, }
-      );
-      addSegment(jj.net_out, geometry.bottomAtJJ, geometry.bottomAtResistor,
-        { source: "jr-output-rail", layoutInstance, }
-      );
-      index++;
-    }
-
-    function sideAlreadyConnected(pin, net) {
-      const segments = segmentsByNet.get(net) || [];
-      return segments.some((segment) => pointLiesOnSegment(pin, segment));
-    }
-
-    function connectMissingSide(component, pin, oppositePin, net, side) {
-      if (!pin || !net || isGroundNet(net)
-      ) { return; }
-      if ( sTerminalNet(component, net)) { return; }
-      if (sideAlreadyConnected(pin, net)) { return; }
-
-      const componentLayout = getLayoutInstance(component);
-      const allSegments = segmentsByNet.get(net) || [];
-      let candidates = allSegments.filter((segment) => !segment.layoutInstance || segment.layoutInstance === componentLayout);
-      const segmentsAwayFromOppositePin = candidates.filter((segment) =>!oppositePin || !pointLiesOnSegment(oppositePin, segment));
-
-      if (segmentsAwayFromOppositePin.length > 0) { candidates = segmentsAwayFromOppositePin; }
-
-      if (candidates.length === 0) {return;}
-
-      const direction = pin.x < component.x ? -1 : 1;
-      const outwardPoint = { x: pin.x + direction * stubLength, y: pin.y,};
-      let bestTarget = null;
-      let bestDistance = Infinity;
-
-      for (const segment of candidates) {
-        const target = closestPointOnSegment(outwardPoint, segment);
-
-        if (!target) { continue; }
-        const distance = Math.abs(outwardPoint.x - target.x) + Math.abs(outwardPoint.y - target.y);
-
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestTarget = target;
-        }
-      }
-
-      if (!bestTarget) { return; }
-
-      const routePoints = simplifyOrthogonalPoints([{...pin,}, outwardPoint, { x: outwardPoint.x, y: bestTarget.y,}, bestTarget,]);
-
-      if (routePoints.length < 2) { return; }
-
-      drawPath(wireLayer, pin, bestTarget,
-        { stroke: drawConfig.wireStroke, pathData: routePointsToPathData(routePoints), net, kind:`inductor-${side}-missing-connection`,}
-      );
-
-      for (const segment of routePointsToSegments(routePoints)) {
-        addSegment(net, segment.a, segment.b, { source: "inductor-repair", layoutInstance: componentLayout,});
-      }
-    }
-
-    for (const component of placed) {
-      if (getElementType(component) !== "L"
-      ) { continue; }
-      connectMissingSide(component, component.inputPin, component.outputPin, component.net_in, "input");
-      connectMissingSide(component, component.outputPin, component.inputPin, component.net_out, "output");
-    }
-
+  const leadPoint = drawTerminalStub(component, pin, net, side, context);
+  if (isInput) {
+    component.inputLeadPoint = leadPoint;
+    component.inputNeedsLead = Boolean(leadPoint);
     return;
   }
 
+  component.outputLeadPoint = leadPoint;
+  component.outputNeedsLead = Boolean(leadPoint);
+}
 
-  function drawStub(component, pin, net, side) {
-    if (!pin || !net) { return null; }
-
-    const direction = pin.x < component.x ? -1 : 1;
-    const stubEnd = {x: pin.x + direction * stubLength, y: pin.y,};
-
-    drawLine(wireLayer, labelLayer, component, pin,stubEnd,
-      { net, kind: `inductor-${side}-terminal-stub`, stroke: drawConfig.wireStroke, }
-    );
-
-    const dotKey = [ getLayoutInstance(component), net, stubEnd.x.toFixed(3), stubEnd.y.toFixed(3),].join("|");
-
-    if (!drawnDots.has( dotKey)
-    ) {
-      drawnDots.add(dotKey);
-      drawDot(dotLayer,stubEnd,
-        {
-          radius: 5.5,
-          fill: drawConfig.nodeFill,
-          stroke: drawConfig.nodeStroke,
-          className: "terminal-net-dot",
-          net,
-          layoutInstance: getLayoutInstance(component),
-          ownerId: component.id,
-        }
-      );
-    }
-    const labelKey = getNetKey(component, net);
-
-    if (!labeledNets.has(labelKey)
-    ) {
-      labeledNets.add(labelKey);
-      const labelX = (pin.x + stubEnd.x) / 2;
-      const labelY = pin.y - 9;
-
-      const terminalLabel =
-        drawComponentValueText(labelLayer, net, labelX, labelY - 15,
-          { size: "11px", fill: "#7c2d12", className: "terminal-net-label", }
-        );
-      if (terminalLabel) {
-        terminalLabel.dataset.net = net;
-        terminalLabel.dataset.layoutInstance = getLayoutInstance(component);
-        terminalLabel.dataset.ownerId = component.id || "";
-      }
-    }
-    return stubEnd;
-  }
-
+function drawInductorTerminalStubs(placed, context) {
   for (const component of placed) {
-    if ( getElementType(component) !== "L" ) { continue;}
-
-    if ( isTerminalNet(component, component.net_in) ) {
-      component.inputLeadPoint = drawStub(component, component.inputPin, component.net_in, "input");
-      component.inputNeedsLead = Boolean(component.inputLeadPoint);
-    }
-
-    if (isTerminalNet(component, component.net_out)) {
-      component.outputLeadPoint = drawStub(component, component.outputPin, component.net_out, "output");
-      component.outputNeedsLead = Boolean(component.outputLeadPoint);
-    }
+    if (getElementType(component) !== "L") continue;
+    drawTerminalSide(component, "input", context);
+    drawTerminalSide(component, "output", context);
   }
+}
+
+function drawTerminalStubs(wireLayer, labelLayer, dotLayer, placed, stubLength = 45, repairMissingSides = false) {
+  const context = {
+    wireLayer, labelLayer, dotLayer, stubLength, epsilon: 0.5,
+    netUseCounts: buildNetUseCounts(placed), labeledNets: new Set(), drawnDots: new Set(), segmentsByNet: null,
+  };
+
+  if (repairMissingSides) {
+    repairMissingTerminalSides(placed, context);
+    return;
+  }
+
+  drawInductorTerminalStubs(placed, context);
 }
 
 window.addEventListener("DOMContentLoaded", () => {
