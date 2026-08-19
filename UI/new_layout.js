@@ -192,8 +192,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
       const producers = blocks.filter(block => block.id !== jrBlock.id && !isBiasElement(block.primary) && placements.has(block.id) && block.netOut === hostNet);
       const consumers = blocks.filter(block => block.id !== jrBlock.id && !isBiasElement(block.primary) && placements.has(block.id) && block.netIn === hostNet);
 
-      console.log("[JR INLINE CHECK]", { jr: jrBlock.primary?.id, hostNet, producers: producers.map(b => b.primary?.id), consumers: consumers.map(b => b.primary?.id) });
-
       let best = null;
       for (const producer of producers) {
         const pp = placements.get(producer.id);
@@ -210,7 +208,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
       const centerCol = (getPlacementRightColumn(best.pp) + best.cp.col) / 2;
       placements.set(jrBlock.id, { block: jrBlock, row: best.pp.row, col: centerCol, centerCol, span: 1, occupiesGrid: false, placementMode: "inline-grounded-jr", hostNet, hostProducerId: best.producer.id, hostConsumerId: best.consumer.id, pairSpacing: 70, rise: 25 });
 
-      console.log("[JR INLINE]", { jr: jrBlock.primary?.id, hostNet, producer: best.producer.primary?.id, consumer: best.consumer.primary?.id, row: best.pp.row, centerCol });
     }
   }
 
@@ -247,19 +244,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
       const reversed = forcedDirection !== null ? forcedDirection < 0 : block.inlineReversed === true || block.reverseForBoundary === true;
       const direction = forcedDirection ?? (reversed ? -1 : 1);
 
-      console.log("[PLACE BLOCK]", {
-        block: block.primary?.id,
-        row,
-        col: column,
-        rawIn: block.rawNetIn,
-        rawOut: block.rawNetOut,
-        netIn: block.netIn,
-        netOut: block.netOut,
-        forcedDirection,
-        reversed,
-        direction
-      });
-
       for (const element of block.elements) {
         element.electricalDirection = direction;
         element.layoutReversed = reversed;
@@ -288,9 +272,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
   function placePathSegments(path, inputTerminalNet = null, principalPath = false) {
     if (!Array.isArray(path) || !path.length) return;
 
-    console.group(`[PATH] terminal=${inputTerminalNet || "NONE"} principal=${principalPath}`);
-    console.log("[PATH BLOCKS]", path.map(b => ({ id: b.primary?.id, rawIn: b.rawNetIn, rawOut: b.rawNetOut, netIn: b.netIn, netOut: b.netOut, alreadyPlaced: placements.has(b.id) })));
-
     let index = 0, placedAnySegment = false, fixedRow = null;
 
     while (index < path.length) {
@@ -308,20 +289,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
 
       const firstBlock = segment[0];
       const startsAtTerminal = Boolean(segmentStart === 0 && inputTerminalNet && !predecessorPlacement);
-
-      console.log("[SEGMENT START]", {
-        inputTerminalNet,
-        segmentStart,
-        segmentEnd,
-        startsAtTerminal,
-        firstBlock: firstBlock?.primary?.id,
-        firstRawIn: firstBlock?.rawNetIn,
-        firstRawOut: firstBlock?.rawNetOut,
-        firstNetIn: firstBlock?.netIn,
-        firstNetOut: firstBlock?.netOut,
-        predecessor: predecessor?.primary?.id || null,
-        predecessorPlaced: Boolean(predecessorPlacement)
-      });
 
       if (startsAtTerminal) {
         if (firstBlock.rawNetIn === inputTerminalNet) {
@@ -344,7 +311,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
         if (!inputTerminalMap.has(inputTerminalNet)) {
           const proposedRow = getNextPrincipalRow();
           inputTerminalMap.set(inputTerminalNet, { net: inputTerminalNet, row: proposedRow, col: 0 });
-          console.log("[TERMINAL CREATED]", { terminal: inputTerminalNet, row: proposedRow, col: 0 });
         }
       }
 
@@ -356,7 +322,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
           predecessor = sharedOutputPredecessors[0];
           predecessorPlacement = placements.get(predecessor.id);
           firstBlock.inlineReversed = true;
-          console.log("[RECOVERED SHARED-OUTPUT PREDECESSOR]", { first: firstBlock.primary?.id, predecessor: predecessor.primary?.id });
         } else {
           const placedProducers = (producersByNet.get(firstBlock.netIn) || []).filter(candidate => candidate.id !== firstBlock.id && placements.has(candidate.id) && !isBiasElement(candidate.primary))
             .sort((a, b) => Math.abs((a.originalIndex ?? 0) - (firstBlock.originalIndex ?? 0)) - Math.abs((b.originalIndex ?? 0) - (firstBlock.originalIndex ?? 0)));
@@ -364,7 +329,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
           if (placedProducers.length) {
             predecessor = placedProducers[0];
             predecessorPlacement = placements.get(predecessor.id);
-            console.log("[RECOVERED NORMAL PREDECESSOR]", { first: firstBlock.primary?.id, predecessor: predecessor.primary?.id });
           }
         }
       }
@@ -390,12 +354,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
 
         if (startsAtTerminal) inputTerminalMap.set(inputTerminalNet, { net: inputTerminalNet, row: fixedRow, col: 0 });
 
-        console.log("[ROW CHOSEN]", {
-          terminal: inputTerminalNet,
-          row: fixedRow,
-          startsAtTerminal,
-          terminalRecord: inputTerminalNet ? inputTerminalMap.get(inputTerminalNet) : null
-        });
       }
 
       const row = fixedRow;
@@ -406,18 +364,10 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
         startColumn = getPlacementRightColumn(predecessorPlacement) + 2;
       }
 
-      console.log("[SEGMENT POSITION]", {
-        terminal: inputTerminalNet,
-        row,
-        startColumn,
-        startsAtTerminal,
-        blocks: segment.map(b => b.primary?.id)
-      });
 
       if (successorPlacement?.row === row) {
         const required = startColumn + segmentSpan + 1;
         if (successorPlacement.col < required) {
-          console.log("[SHIFTING SUCCESSOR]", { successor: successor.primary?.id, oldCol: successorPlacement.col, required });
           shiftColumnsFrom(successorPlacement.col, required - successorPlacement.col);
           successorPlacement = placements.get(successor.id);
         }
@@ -448,27 +398,11 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
     if (!placedAnySegment && firstPlacement && inputTerminalNet) inputTerminalMap.set(inputTerminalNet, { net: inputTerminalNet, row: firstPlacement.row, col: 0 });
     if (lastPlacement && !lastPlacement.mergeTargetId) ensureOutputTerminal(path.at(-1).netOut, lastPlacement.row);
 
-    console.log("[PATH RESULT]", {
-      terminal: inputTerminalNet,
-      terminalRecord: inputTerminalNet ? inputTerminalMap.get(inputTerminalNet) : null,
-      placements: path.map(b => ({ block: b.primary?.id, placement: placements.get(b.id), forcedDirection: b.forcedTerminalDirection }))
-    });
-
     console.groupEnd();
   }
   for (const inputNet of inputTerminalNets) {
     const paths = enumeratePathsFromNet(inputNet);
 
-    console.log("[TERMINAL PATHS]", {
-      terminal: inputNet,
-      paths: paths.map(path => path.map(b => ({
-        id: b.primary?.id,
-        rawIn: b.rawNetIn,
-        rawOut: b.rawNetOut,
-        netIn: b.netIn,
-        netOut: b.netOut
-      })))
-    });
     if (!paths.length) continue;
 
     const principalPath = paths.reduce((best, candidate) => candidate.filter(block => !isGroundedJRBlock(block)).length > best.filter(block => !isGroundedJRBlock(block)).length ? candidate : best, paths[0]);
@@ -505,16 +439,6 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
 
     const path = longestRemainingPath(remainingBlock), boundary = getBoundaryTerminalForPath(path);
 
-    console.log("[REMAINING PATH BOUNDARY CHECK]", {
-      path: path.map(b => b.primary?.id),
-      first: path[0]?.primary?.id,
-      last: path.at(-1)?.primary?.id,
-      firstRawIn: path[0]?.rawNetIn,
-      firstRawOut: path[0]?.rawNetOut,
-      lastRawIn: path.at(-1)?.rawNetIn,
-      lastRawOut: path.at(-1)?.rawNetOut,
-      boundary
-    });
 
     if (boundary?.side === "left") {
       boundary.block.forcedTerminalDirection = boundary.direction;

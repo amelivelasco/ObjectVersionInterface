@@ -209,10 +209,6 @@ function buildLayoutCellLayout(data) {
 
 function logForcedTerminalPlacement(element, placement, type) {
   if (!placement.terminalDirectionForced && !Number.isFinite(placement.terminalForcedDirection)) return;
-  console.log("[TERMINAL PLACEMENT REACHED DRAWING]", {
-    element: element.id, type, row: placement.row, col: placement.col, rawNetIn: element.net_in, rawNetOut: element.net_out,
-    terminalForcedDirection: placement.terminalForcedDirection, terminalDirectionForced: placement.terminalDirectionForced
-  });
 }
 
 function createPositionedElement(item, cell, offsetX, offsetY, layoutOrder) {
@@ -554,7 +550,6 @@ function autoOrientCellsTowardSharedTerminals(placed, placedCells, svg) {
   const orientations = buildCellOrientations(edges, terminalsByCell, cellMap);
   const results = applyCellOrientations(orientations, cellMap, placed, placedCells, svg);
 
-  console.table(results);
   return results;
 }
 

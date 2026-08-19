@@ -76,10 +76,6 @@ function alignSharedRowItem(item, rightPlan, lockedRows) {
 
   const occupyingTerminal = getRightTerminalOnRow(rightPlan, item.targetRow);
 
-  console.log("[ALIGN PRIORITY]", {
-    net: item.net, score: item.horizontalScore, fromRow: rightTerminal.row,
-    toRow: item.targetRow, displaced: occupyingTerminal?.net || null
-  });
 
   const oldRow = rightTerminal.row;
   swapRightPlanRows(rightPlan, oldRow, item.targetRow);
