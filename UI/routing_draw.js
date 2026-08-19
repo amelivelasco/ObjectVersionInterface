@@ -101,87 +101,85 @@ function getJJPairGeometry(jj, resistor, rise = 25, verticalGap = 70) {
   };
 }
 
-function collectNetTerminals(elements) {
-  const terminalsByNet = new Map();
+function addNetTerminal(terminalsByNet, net, terminal) {
+  if (!net || isGroundNet(net)) return;
+  if (!terminalsByNet.has(net)) terminalsByNet.set(net, []);
+  terminalsByNet.get(net).push(terminal);
+}
+
+function collectJJResistorPairs(elements) {
   const elementsInPairs = new Set();
   const pairs = [];
-
-  function addTerminal(net, terminal) {
-    if (!net) { return; }
-
-    if (isGroundNet(net)) { return; }
-
-    if (!terminalsByNet.has(net)) {
-      terminalsByNet.set(net, [] );
-    }
-
-    terminalsByNet.get(net).push(terminal);
-  }
 
   for (let index = 0; index < elements.length - 1; index++) {
     const current = elements[index];
     const next = elements[index + 1];
-
-    if (!isJJResistorPair(current, next)
-    ) { continue; }
+    if (!isJJResistorPair(current, next)) continue;
 
     const geometry = getJJPairGeometry(current, next, 25);
-    pairs.push({jj: current, resistor: next, geometry,});
+    pairs.push({ jj: current, resistor: next, geometry });
     elementsInPairs.add(current.id);
     elementsInPairs.add(next.id);
-
     index++;
   }
 
-    for (const pair of pairs) {
-      const layoutInstance = getLayoutInstance(pair.jj);
-      const horizontal = pair.geometry.orientation === "horizontal";
-      const inputPoint = horizontal ? pair.geometry.topAtJJ : pair.geometry.topMiddle;
-      const outputPoint = horizontal ? pair.geometry.bottomAtJJ : pair.geometry.bottomMiddle;
+  return { pairs, elementsInPairs };
+}
 
-      addTerminal(pair.jj.net_in, {
-        net: pair.jj.net_in, kind: "in", element: pair.jj, ownerId: `pair:${pair.jj.id}`,
-        layoutInstance, point: inputPoint, candidatePoints: [inputPoint],
-      });
+function addPairTerminals(pair, terminalsByNet) {
+  const layoutInstance = getLayoutInstance(pair.jj);
+  const horizontal = pair.geometry.orientation === "horizontal";
+  const inputPoint = horizontal ? pair.geometry.topAtJJ : pair.geometry.topMiddle;
+  const outputPoint = horizontal ? pair.geometry.bottomAtJJ : pair.geometry.bottomMiddle;
+  const ownerId = `pair:${pair.jj.id}`;
 
-      addTerminal(pair.jj.net_out, {
-        net: pair.jj.net_out, kind: "out", element: pair.jj, ownerId: `pair:${pair.jj.id}`,
-        layoutInstance, point: outputPoint, candidatePoints: [outputPoint],
-      });
-    }
+  addNetTerminal(terminalsByNet, pair.jj.net_in, {
+    net: pair.jj.net_in, kind: "in", element: pair.jj, ownerId, layoutInstance, point: inputPoint, candidatePoints: [inputPoint]
+  });
 
+  addNetTerminal(terminalsByNet, pair.jj.net_out, {
+    net: pair.jj.net_out, kind: "out", element: pair.jj, ownerId, layoutInstance, point: outputPoint, candidatePoints: [outputPoint]
+  });
+}
 
-    for (const element of elements) {
-        if (elementsInPairs.has(element.id)
-        ) {continue;}
+function addElementInputTerminal(element, layoutInstance, terminalsByNet) {
+  if (!element.net_in || !element.inputPin) return;
+  const inputRoutingPoint = getTerminalRoutingPoint({ element, kind: "in" }, element.inputPin);
 
-        if (getElementType(element) === "R") { continue; }
-        if (isBiasElement(element)) {continue;}
+  addNetTerminal(terminalsByNet, element.net_in, {
+    net: element.net_in, kind: "in", point: inputRoutingPoint, candidatePoints: [inputRoutingPoint],
+    element, ownerId: element.id, layoutInstance
+  });
+}
 
-        const layoutInstance = getLayoutInstance(element);
-        
-        if (element.net_in && element.inputPin
-        ) {
-          const inputRoutingPoint = getTerminalRoutingPoint({element, kind: "in", }, element.inputPin);
+function addElementOutputTerminal(element, layoutInstance, terminalsByNet) {
+  if (!element.net_out || !element.outputPin) return;
+  const outputRoutingPoint = getTerminalRoutingPoint({ element, kind: "out" }, element.outputPin);
 
-          addTerminal(
-            element.net_in,
-            {net: element.net_in, kind: "in", point: inputRoutingPoint, candidatePoints: [inputRoutingPoint,],
-              element, ownerId: element.id, layoutInstance,
-            }
-          );
-        }
+  addNetTerminal(terminalsByNet, element.net_out, {
+    net: element.net_out, kind: "out", point: outputRoutingPoint, candidatePoints: [outputRoutingPoint],
+    element, ownerId: element.id, layoutInstance
+  });
+}
 
-        if (element.net_out && element.outputPin
-        ) {
-          const outputRoutingPoint = getTerminalRoutingPoint({element, kind: "out", }, element.outputPin);
+function shouldSkipNetTerminalElement(element, elementsInPairs) {
+  return elementsInPairs.has(element.id) || getElementType(element) === "R" || isBiasElement(element);
+}
 
-          addTerminal(element.net_out,
-            {net: element.net_out, kind: "out", point: outputRoutingPoint, candidatePoints: [outputRoutingPoint,], 
-              element, ownerId: element.id, layoutInstance,}
-          );
-        }
-    }
+function addRegularElementTerminals(element, elementsInPairs, terminalsByNet) {
+  if (shouldSkipNetTerminalElement(element, elementsInPairs)) return;
+
+  const layoutInstance = getLayoutInstance(element);
+  addElementInputTerminal(element, layoutInstance, terminalsByNet);
+  addElementOutputTerminal(element, layoutInstance, terminalsByNet);
+}
+
+function collectNetTerminals(elements) {
+  const terminalsByNet = new Map();
+  const { pairs, elementsInPairs } = collectJJResistorPairs(elements);
+
+  for (const pair of pairs) addPairTerminals(pair, terminalsByNet);
+  for (const element of elements) addRegularElementTerminals(element, elementsInPairs, terminalsByNet);
 
   return terminalsByNet;
 }
@@ -224,150 +222,167 @@ function findBestTerminalConnection(firstTerminal, secondTerminal) {
 }
 
 
+function findBestTreeConnection(connected, remaining) {
+  let bestConnection = null;
+
+  for (const connectedTerminal of connected) {
+    for (let index = 0; index < remaining.length; index++) {
+      const candidate = remaining[index];
+      if (candidate.ownerId === connectedTerminal.ownerId) continue;
+
+      const pointConnection = findBestTerminalConnection(connectedTerminal, candidate);
+      if (!pointConnection) continue;
+
+      if (!bestConnection || pointConnection.distance < bestConnection.distance) {
+        bestConnection = {
+          from: connectedTerminal, to: candidate, fromPoint: pointConnection.firstPoint, toPoint: pointConnection.secondPoint,
+          remainingIndex: index, distance: pointConnection.distance
+        };
+      }
+    }
+  }
+
+  return bestConnection;
+}
+
+function setSelectedTreePoints(connection) {
+  if (!connection.from.selectedPoint) connection.from.selectedPoint = connection.fromPoint;
+  if (!connection.to.selectedPoint) connection.to.selectedPoint = connection.toPoint;
+}
+
+function getTerminalApproachData(terminal, point) {
+  const element = terminal.element;
+  const isInductor = element && getElementType(element) === "L";
+  let sideDirection = 0;
+  if (isInductor) {
+    sideDirection = point.x < element.x ? -1 : 1;
+  }
+  const clearance = 18;
+
+  return {
+    isInductor,
+    approachPoint: { x: isInductor ? point.x + sideDirection * clearance : point.x, y: point.y }
+  };
+}
+
+function canBuildFreeTerminalRoute(options) {
+  return Array.isArray(options.cellElements) && typeof buildShortestFreeRoute === "function" && typeof routePointsToPathData === "function";
+}
+
+function buildFreeTerminalRoute(connection, options, net) {
+  let routePoints = buildShortestFreeRoute(
+    connection.fromPoint, connection.toPoint, connection.from, connection.to,
+    options.cellElements, Array.isArray(options.routedSegments) ? options.routedSegments : [], net
+  );
+
+  if (!Array.isArray(routePoints) || routePoints.length < 2) return null;
+  routePoints = separateRouteFromJR(routePoints, net, options.jrRails || [], options.jrMargin ?? 12);
+  return { routePoints, pathData: routePointsToPathData(routePoints) };
+}
+
+function buildInductorTerminalPath(connection, fromData, toData) {
+  const { fromPoint, toPoint } = connection;
+  return [
+    `M ${fromPoint.x} ${fromPoint.y}`,
+    fromData.isInductor ? `H ${fromData.approachPoint.x}` : "",
+    `H ${toData.approachPoint.x}`,
+    `V ${toData.approachPoint.y}`,
+    toData.isInductor ? `H ${toPoint.x}` : ""
+  ].filter(Boolean).join(" ");
+}
+
+function getTerminalRouteData(connection, options, net, fromData, toData) {
+  if (canBuildFreeTerminalRoute(options)) return buildFreeTerminalRoute(connection, options, net);
+
+  const pathData = fromData.isInductor || toData.isInductor ? buildInductorTerminalPath(connection, fromData, toData) : undefined;
+  return { routePoints: null, pathData };
+}
+
+function warnUnroutableTerminalConnection(net, connection) {
+  console.warn(`Skipping unroutable connection for ${net}`, {
+    from: connection.fromPoint, to: connection.toPoint,
+    fromOwner: connection.from.ownerId, toOwner: connection.to.ownerId
+  });
+}
+
+function storeTerminalRouteSegments(routePoints, options, net) {
+  if (!routePoints || !Array.isArray(options.routedSegments) || typeof routePointsToSegments !== "function") return;
+  options.routedSegments.push(...routePointsToSegments(routePoints).map((segment) => ({ ...segment, net })));
+}
+
+function getTreeLabelPosition(routePoints, connection, fromData, toData) {
+  let labelX;
+  let labelY;
+
+  if (routePoints && typeof getLongestHorizontalSegment === "function") {
+    const labelSegment = getLongestHorizontalSegment(routePoints);
+    if (labelSegment) {
+      labelX = (labelSegment.a.x + labelSegment.b.x) / 2;
+      labelY = labelSegment.a.y;
+    }
+  }
+
+  if (!Number.isFinite(labelX) || !Number.isFinite(labelY)) {
+    const labelSegmentEndX = fromData.isInductor ? fromData.approachPoint.x : toData.approachPoint.x;
+    labelX = (connection.fromPoint.x + labelSegmentEndX) / 2;
+    labelY = connection.fromPoint.y;
+  }
+
+  return { labelX, labelY };
+}
+
+function drawTreeLabel(labelLayer, net, routePoints, connection, fromData, toData) {
+  const { labelX, labelY } = getTreeLabelPosition(routePoints, connection, fromData, toData);
+  drawLabel(labelLayer, net, labelX, labelY, { size: "8.5px", fill: "#334155" });
+}
+
+function drawTreeConnection(wireLayer, labelLayer, net, connection, options, labelWasDrawn) {
+  setSelectedTreePoints(connection);
+
+  const fromData = getTerminalApproachData(connection.from, connection.fromPoint);
+  const toData = getTerminalApproachData(connection.to, connection.toPoint);
+  const routeData = getTerminalRouteData(connection, options, net, fromData, toData);
+
+  if (!routeData && canBuildFreeTerminalRoute(options)) {
+    warnUnroutableTerminalConnection(net, connection);
+    return { drawn: false, labelWasDrawn };
+  }
+
+  const routePoints = routeData?.routePoints ?? null;
+  const pathData = routeData?.pathData;
+  const drawnFromPoint = routePoints?.[0] ?? connection.fromPoint;
+  const drawnToPoint = routePoints?.[routePoints.length - 1] ?? connection.toPoint;
+
+  drawPath(wireLayer, drawnFromPoint, drawnToPoint, { stroke: drawConfig.wireStroke, pathData, net, kind: "net-route" });
+  storeTerminalRouteSegments(routePoints, options, net);
+
+  if (!labelWasDrawn && options.drawLabel !== false) {
+    drawTreeLabel(labelLayer, net, routePoints, connection, fromData, toData);
+    labelWasDrawn = true;
+  }
+
+  return { drawn: true, labelWasDrawn };
+}
+
 function drawTerminalTree(wireLayer, labelLayer, net, terminals, options = {}) {
-  if (!Array.isArray(terminals) || terminals.length < 2) { return; }
+  if (!Array.isArray(terminals) || terminals.length < 2) return;
 
   const rootIndex = terminals.findIndex((terminal) => terminal.kind === "out");
-
   const root = rootIndex >= 0 ? terminals[rootIndex] : terminals[0];
   const connected = [root];
   const remaining = terminals.filter((terminal) => terminal !== root);
   let labelWasDrawn = false;
 
   while (remaining.length > 0) {
-    let bestConnection = null;
+    const bestConnection = findBestTreeConnection(connected, remaining);
+    if (!bestConnection) break;
 
-    for (const connectedTerminal of connected) {
-      for (let index = 0; index < remaining.length; index++
-      ) {
-        const candidate = remaining[index];
+    const result = drawTreeConnection(wireLayer, labelLayer, net, bestConnection, options, labelWasDrawn);
+    labelWasDrawn = result.labelWasDrawn;
 
-        if (candidate.ownerId === connectedTerminal.ownerId
-        ) { continue; }
-
-        const pointConnection = findBestTerminalConnection(connectedTerminal, candidate);
-
-        if (!pointConnection) { continue; }
-
-        if (!bestConnection || pointConnection.distance < bestConnection.distance) {
-          bestConnection = {
-            from: connectedTerminal,
-            to: candidate,
-            fromPoint: pointConnection.firstPoint,
-            toPoint: pointConnection.secondPoint,
-            remainingIndex: index,
-            distance: pointConnection.distance,
-          };
-        }
-      }
-    }
-
-    if (!bestConnection) { break; }
-
-    if (!bestConnection.from.selectedPoint) {
-      bestConnection.from.selectedPoint = bestConnection.fromPoint;
-    }
-
-    if (!bestConnection.to.selectedPoint
-    ) { bestConnection.to.selectedPoint = bestConnection.toPoint; }
-
-    const fromTerminal = bestConnection.from;
-    const toTerminal = bestConnection.to;
-    const fromElement = fromTerminal.element;
-    const toElement = toTerminal.element;
-    const fromPoint = bestConnection.fromPoint;
-    const toPoint = bestConnection.toPoint;
-    const fromIsInductor = fromElement && getElementType(fromElement) === "L";
-
-    const toIsInductor = toElement && getElementType(toElement) === "L";
-    const clearance = 18;
-    const fromSideDirection = fromIsInductor ? (fromPoint.x < fromElement.x ? -1 : 1) : 0;
-
-    const toSideDirection = toIsInductor ? (toPoint.x < toElement.x ? -1 : 1): 0;
-
-    const fromApproachPoint = {
-      x: fromIsInductor ? fromPoint.x + fromSideDirection * clearance : fromPoint.x,
-      y: fromPoint.y,
-    };
-
-    const toApproachPoint = {
-      x: toIsInductor ? toPoint.x + toSideDirection * clearance : toPoint.x,
-      y: toPoint.y,
-    };
-
-    let routePoints = null;
-    let pathData;
-
-    if (Array.isArray(options.cellElements) && typeof buildShortestFreeRoute === "function" &&
-      typeof routePointsToPathData === "function"
-    ) {
-      routePoints = buildShortestFreeRoute(fromPoint, toPoint, fromTerminal, toTerminal,
-                      options.cellElements, Array.isArray(options.routedSegments) ? options.routedSegments : [],net);
-
-      if (!Array.isArray(routePoints) || routePoints.length < 2
-      ) {
-        console.warn(
-          `Skipping unroutable connection for ${net}`,
-          { from: fromPoint, to: toPoint, fromOwner: fromTerminal.ownerId, toOwner: toTerminal.ownerId,}
-        );
-
-        remaining.splice(bestConnection.remainingIndex, 1);
-        continue;
-      }
-
-      routePoints = separateRouteFromJR(routePoints, net, options.jrRails || [], options.jrMargin ?? 12);
-
-      pathData = routePointsToPathData(routePoints );
-        
-    } else if (fromIsInductor || toIsInductor) {
-
-      pathData = [`M ${fromPoint.x} ${fromPoint.y}`, fromIsInductor ? `H ${fromApproachPoint.x}`: "",
-        `H ${toApproachPoint.x}`, `V ${toApproachPoint.y}`, toIsInductor ? `H ${toPoint.x}` : "",]
-        .filter(Boolean)
-        .join(" ");
-    }
-
-    const drawnFromPoint = routePoints?.[0] ?? fromPoint;
-
-    const drawnToPoint = routePoints?.[routePoints.length - 1] ?? toPoint;
-
-    drawPath(wireLayer, drawnFromPoint, drawnToPoint,
-      { stroke: drawConfig.wireStroke, pathData, net, kind: "net-route", }
-    );
-
-    if (routePoints && Array.isArray(options.routedSegments) &&
-      typeof routePointsToSegments === "function"
-    ) {
-      options.routedSegments.push(...routePointsToSegments(routePoints).map(
-          (segment) => ({...segment, net,})
-        )
-      );
-    }
-
-    if (!labelWasDrawn && options.drawLabel !== false
-    ) {
-      let labelX;
-      let labelY;
-
-      if (routePoints && typeof getLongestHorizontalSegment === "function"
-      ) {
-        const labelSegment = getLongestHorizontalSegment(routePoints);
-
-        if (labelSegment) {
-          labelX = (labelSegment.a.x + labelSegment.b.x) / 2;
-          labelY = labelSegment.a.y;
-        }
-      }
-
-      if (!Number.isFinite(labelX) || !Number.isFinite(labelY)
-      ) {
-        const labelSegmentEndX = fromIsInductor ? fromApproachPoint.x : toApproachPoint.x;
-        labelX = (fromPoint.x + labelSegmentEndX) / 2;
-        labelY = fromPoint.y;
-      }
-
-      drawLabel(labelLayer, net, labelX, labelY,{ size: "8.5px",fill: "#334155",});
-      labelWasDrawn = true;
+    if (!result.drawn) {
+      remaining.splice(bestConnection.remainingIndex, 1);
+      continue;
     }
 
     connected.push(bestConnection.to);
