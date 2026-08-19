@@ -45,9 +45,6 @@ def select_project(base_dir):
     if not netlist_path.exists(): raise FileNotFoundError(f"Netlist not found: {netlist_path}")
     if not layout_path.exists(): raise FileNotFoundError(f"Layout not found: {layout_path}")
 
-    print(f"PROJECT: {project_name}")
-    print(f"NETLIST: {netlist_path}")
-    print(f"LAYOUT:  {layout_path}")
     return netlist_path, layout_path
 
 def choose_project():

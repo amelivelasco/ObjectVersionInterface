@@ -235,10 +235,6 @@ $END
 
         xi_path.write_text(content, encoding="utf-8")
 
-        print("XI file:", xi_path.resolve())
-        print("  CIR:", cir_name)
-        print("  GDS:", gds_name)
-
         return xi_path
     
     def _instructor(self, head, tokens, filename, new_circuit, line_number):

@@ -103,16 +103,14 @@ class Circuit:
 
         def visit(cell, path): # Why do you need to define this method inside define_local_names? It can be a separate method.
             cell_path = f"{path}/{cell.name}_{cell.id}" if path else f"{cell.name}_{cell.id}"
-            print("cell",cell_path)  
             
 
             for inst in cell.instances: 
-                # ✅ Élément logique
+    
                 if hasattr(inst, "net_in"):
                     inst.Path_name = f"{cell_path}/{inst.name}"
-                    print(f"{inst.Path_name}")
 
-                # ✅ Sous-cell
+
                 else:
                     inst.Path_name = cell_path
                     visit(inst, cell_path)
@@ -228,14 +226,10 @@ class Circuit:
         one_conn = []
         two_conn = []
         three_plus_conn = []
-        print(len(self.list_nodes_top))
         for node in self.list_nodes_top:
-            print(node.GlobalName)
-            print(node.connected_elements)
             n = len(node.connected_elements)
             if n == 1:
                 one_conn.append(node)
-                print(len(one_conn))
             elif n == 2:
                 two_conn.append(node)
             elif n >= 3:

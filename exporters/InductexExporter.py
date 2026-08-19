@@ -56,7 +56,6 @@ class InductexExporter(BaseExporter):
                 node.GlobalName = self.counter_node
                 self.counter_node += 1
             if node.name == "GND!":
-                print("a")
                 node.GlobalName = gnd_number
     
     
@@ -151,7 +150,6 @@ class InductexExporter(BaseExporter):
                 instance_name = self._get_first_level_inductex_instance(elem)
                 instance_groups.setdefault(instance_name, []).extend(emitted_lines)
                 original_name = getattr(elem, "original_name", getattr(elem, "raw_name", elem.name))
-                print(f"NAME TRANSLATION [{instance_name}]: {original_name} -> {elem.name}")
                 continue
             if hasattr(elem, "instances"): self._collect_inductex_instance_groups(elem, lines, instance_groups)
 
@@ -214,7 +212,7 @@ class InductexExporter(BaseExporter):
 
         node_ib = find_ib(self.circuit.TOP)
         if node_ib is None:
-            print("Warning: no IB node found; skipping Ldc/Pdc.")
+
             return []
 
         new_node = Node(str(self.counter_node))
@@ -264,10 +262,6 @@ class InductexExporter(BaseExporter):
                 for line in auto_ground_lines:
                     file.write(line.rstrip() + "\n")
 
-        print(f"Complete InductEx file written: {output_path.resolve()}")
-        print(f"Translated lines: {len(translated_lines)}")
-        print(f"DC lines: {len(dc_lines)}")
-        print(f"Auto-ground lines: {len(auto_ground_lines)}")
 
         return str(output_path.resolve())
 

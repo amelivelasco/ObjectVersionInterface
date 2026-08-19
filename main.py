@@ -22,9 +22,6 @@ def main():
     schematic = Schematic(sp_file=original_netlist_path, map_file=ordered_elems_path)
     paths = schematic.build_run_paths(base_dir, original_netlist_path)
 
-    print("InductEx circuit folder:", paths["output_dir"].resolve())
-    print("New InductEx file:", paths["cir_output"].resolve())
-
     netlist_path, combined_layout_map = schematic.prepare_netlist(paths)
 
     parser = CDLParser()

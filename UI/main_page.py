@@ -173,8 +173,6 @@ class Schematic:
         current_components = []
         self._collect_ordered_components(circuit.TOP, first_level_layout_cells, top_cell_name, current_components)
         self._write_ordered_components(current_components, top_cell_name)
-        print(f"Ordered elements file overwritten: {self.map_file.resolve()}")
-        print(f"Current components written: {len(current_components)}")
         return current_components
                 
         
@@ -263,9 +261,6 @@ class Schematic:
 
     def _print_layout_cells(self, layout_cells):
         for cell in layout_cells:
-            print(f"\nLayout cell: {cell.layout_cell}")
-            print(f"Net in: {cell.net_in}")
-            print(f"Net out: {cell.net_out}")
             for element in cell.elements: print(f"  - {element.raw}")
 
     def read_ordered_components(self, spice_data):

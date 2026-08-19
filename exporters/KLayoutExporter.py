@@ -20,8 +20,6 @@ class KLayoutExporter(BaseExporter):
         
                  
     def find_layout_instance_by_pid(self, layout_cell, target_name):
-        print(f"\nSearching for: {target_name}")
-        print(f"Inside layout cell: {layout_cell.name}")
 
         found_names = []
 
@@ -31,19 +29,8 @@ class KLayoutExporter(BaseExporter):
 
             found_names.append((pid, cell_name))
 
-            print(
-                "  layout instance:",
-                f"pid={pid}",
-                f"cell={cell_name}"
-            )
-
             if str(pid).lower() == str(target_name).lower():
                 return klayout_inst
-
-        print(f"NOT FOUND: {target_name}")
-        print("Available layout instances were:")
-        for pid, cell_name in found_names:
-            print(f"  pid={pid}, main_cell_name={layout_cell.name} cell={cell_name}")
 
         return None
 
@@ -63,7 +50,6 @@ class KLayoutExporter(BaseExporter):
             if str(pid).lower() == str(first_level_pid).lower():
                 return layout_inst.cell.name
 
-        print(f"WARNING: first-level layout instance '{first_level_pid}' was not found inside '{self.layout_top.name}'")
         return None
     
 
@@ -73,7 +59,7 @@ class KLayoutExporter(BaseExporter):
         first_level_cells = {}
 
         def add_line(text=""):
-            print(text)
+
             report_lines.append(text)
 
         add_line("\n=== LAYOUT MAPPING AUDIT ===")
@@ -185,10 +171,6 @@ class KLayoutExporter(BaseExporter):
             encoding="utf-8",
         )
 
-        print(
-            f"\nMapping audit written to: "
-            f"{output_path}"
-        )
 
         return first_level_cells
 
@@ -268,7 +250,6 @@ class KLayoutExporter(BaseExporter):
     def _map_synthetic_instance(self, circuit_inst, synthetic_name):
         physical_names = self.combined_layout_map[synthetic_name]
         physical_instances, physical_transforms = [], []
-        print(f"COMBINED INSTANCE: {synthetic_name} -> {physical_names}")
 
         for physical_name in physical_names:
             found_inst, found_trans = self._find_physical_layout_instance(physical_name)
@@ -282,7 +263,6 @@ class KLayoutExporter(BaseExporter):
         circuit_inst.KLayoutInstance = physical_instances[0]
         circuit_inst.KLayoutCell = physical_instances[0].cell
         circuit_inst.global_trans = physical_transforms[0]
-        print(f"MAPPED SYNTHETIC {synthetic_name}: {[inst.property(102) for inst in physical_instances]}")
 
     def _get_layout_lookup_names(self, circuit_inst):
         lookup_names = [getattr(circuit_inst, "raw_name", circuit_inst.name)]
@@ -298,9 +278,6 @@ class KLayoutExporter(BaseExporter):
 
     def _map_regular_layout_instance(self, circuit_inst, layout_cell):
         lookup_names = self._get_layout_lookup_names(circuit_inst)
-        print("looking for circuit instance:", circuit_inst.name)
-        print("inside layout cell:", layout_cell.name)
-        print("lookup names:", lookup_names)
 
         layout_inst, global_trans = self._find_layout_instance(lookup_names)
         if layout_inst is None: raise RuntimeError(f"Instance '{circuit_inst.name}' not found in layout. Tried names: {lookup_names}")
@@ -308,7 +285,6 @@ class KLayoutExporter(BaseExporter):
         circuit_inst.KLayoutInstance = layout_inst
         circuit_inst.KLayoutCell = layout_inst.cell
         circuit_inst.global_trans = global_trans
-        print(f"FOUND: circuit={circuit_inst.name} <-> layout_property102={layout_inst.property(102)} layout_cell={layout_inst.cell.name}")
         return layout_inst
 
     def _sync_layout_cell(self, layout_cell, circuit_cell, layout_parent_inst=None):
@@ -325,7 +301,6 @@ class KLayoutExporter(BaseExporter):
                 self._sync_layout_cell(layout_inst.cell, circuit_inst, layout_inst)
 
     def integrating_layout(self):
-        print(f"SYNC TOP: circuit={self.circuit.TOP.name} <-> layout={self.layout_top.name}")
         self._sync_layout_cell(self.layout_top, self.circuit.TOP)
 
     def report_layout_mapping(self):
@@ -365,10 +340,6 @@ class KLayoutExporter(BaseExporter):
         center_trans = self.get_main_r2_center_trans(inst, r2_layer_number, r2_datatype)
 
         if center_trans is not None:
-            print(
-                f"{inst.name}: IB label centered from R2 geometry at "
-                f"({center_trans.disp.x}, {center_trans.disp.y})"
-            )
             return center_trans
 
         global_trans = getattr(inst, "global_trans", None)
@@ -389,12 +360,6 @@ class KLayoutExporter(BaseExporter):
 
         fallback = global_trans * pya.Trans(
             pya.Point(0, ib_res_length)
-        )
-
-        print(
-            f"{inst.name}: no R2 geometry found; "
-            f"using legacy IB offset at "
-            f"({fallback.disp.x}, {fallback.disp.y})"
         )
 
         return fallback
@@ -449,8 +414,6 @@ class KLayoutExporter(BaseExporter):
 
             other_bounds = self.get_element_global_bounds(other)
             if other_bounds is None or not self._bounds_touch_edge(other_bounds, edge_position, left, right, tolerance): continue
-
-            print(f"{elem.name}: {edge} edge touches {getattr(other, 'name', other)}")
             return True
 
         return False
@@ -535,11 +498,6 @@ class KLayoutExporter(BaseExporter):
             anchor.y,
         )
 
-        print(
-            f"{elem.name}: bbox={bbox.width()}x{bbox.height()}, "
-            f"sideways={sideways}, "
-            f"port={'vertical' if is_vertical else 'horizontal'}"
-        )
 
         return port_trans, edge_start, edge_end
 
@@ -604,7 +562,6 @@ class KLayoutExporter(BaseExporter):
         side = self._get_farthest_port_side(cell_is_sideways, center_x, center_y, neighbor_x, neighbor_y)
         text_trans, edge_start, edge_end = self._build_port_geometry(side, bounds, inset)
 
-        print(f"{elem.name}: size={right-left}x{top-bottom}, sideways={cell_is_sideways}, neighbor=({neighbor_x}, {neighbor_y}), selected_side={side}")
         return text_trans, edge_start, edge_end
 
     def mark_single_connection_nodes_in_layout(self):
@@ -685,7 +642,6 @@ class KLayoutExporter(BaseExporter):
             instance_path = "/".join(parts[:-1]) if len(parts) > 1 else str(getattr(self.circuit.TOP, "name", "TOP"))
             auto_ground_groups.setdefault(instance_path, []).append(f"{port_name:<10} {node_name:<15} 0")
 
-            print(f"Node {node.GlobalName} -> {elem.name} ==> écrit '{pname}'")
 
         auto_ground_lines = []
 
@@ -804,11 +760,6 @@ class KLayoutExporter(BaseExporter):
         closest_resistor_bbox = min(resistor_boxes, key=distance_squared)
         closest_resistor_center = global_trans * closest_resistor_bbox.center()
 
-        print(
-            f"{inst.name}: closest resistor center="
-            f"({closest_resistor_center.x}, {closest_resistor_center.y})"
-        )
-
         return pya.Trans(closest_resistor_center)
     
     def has_parallel_jj(self, elem):
@@ -846,7 +797,6 @@ class KLayoutExporter(BaseExporter):
             return None
 
         area, center = max(candidates, key=lambda candidate: candidate[0])
-        print(f"{elem.name}: R2 center=({center.x}, {center.y}), area={area}")
         return pya.Trans(center)
         
     def _get_instance_global_trans(self, inst, parent_trans):
@@ -877,7 +827,6 @@ class KLayoutExporter(BaseExporter):
         parallel_jj = self.has_parallel_jj(inst)
         label_trans = default_trans if parallel_jj else self.get_main_r2_center_trans(inst, 3, 0) or default_trans
         self.insert_managed_text(text=port_res, text_trans=label_trans, label_layer=self.label_layer)
-        print(f"{inst.name}: parallel_jj={parallel_jj}, final_label=({label_trans.disp.x}, {label_trans.disp.y})")
 
     def _write_component_name(self, inst, global_trans):
         inst_type = getattr(inst, "type", None)
@@ -927,8 +876,3 @@ class KLayoutExporter(BaseExporter):
 
         for shape in old_auto_geometry:
             shape.delete()
-
-        print(
-            f"Removed {len(old_texts)} old labels and "
-            f"{len(old_auto_geometry)} old generated port shapes."
-        )
