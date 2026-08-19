@@ -66,56 +66,61 @@ function getBlockTerminals(block) {
 }
 
 
-function buildBlockConnections(blocks) {
+function indexBlocksByNet(blocks) {
   const terminalsByBlock = new Map();
   const blocksByNet = new Map();
 
   for (const block of blocks) {
     const terminals = getBlockTerminals(block);
-
     terminalsByBlock.set(block.id, terminals);
 
     for (const net of terminals.all) {
-      if (!blocksByNet.has(net)) { blocksByNet.set(net, []); }
-
+      if (!blocksByNet.has(net)) blocksByNet.set(net, []);
       blocksByNet.get(net).push(block);
     }
   }
 
-  const edgeMap = new Map();
+  return { terminalsByBlock, blocksByNet };
+}
 
-  function addEdge(first, second, weight) {
-    const sortedIds = [first.id, second.id,].sort();
+function addBlockEdge(edgeMap, first, second, weight) {
+  const sortedIds = [first.id, second.id].sort((a, b) => String(a).localeCompare(String(b)));
+  const key = sortedIds.join("|");
 
-    const key = sortedIds.join("|");
+  if (!edgeMap.has(key)) edgeMap.set(key, { firstId: sortedIds[0], secondId: sortedIds[1], weight: 0 });
+  edgeMap.get(key).weight += weight;
+}
 
-    if (!edgeMap.has(key)) { edgeMap.set(key, {firstId: sortedIds[0], secondId: sortedIds[1], weight: 0,}); }
+function hasDirectBlockConnection(net, firstTerminals, secondTerminals) {
+  return (firstTerminals.outputs.has(net) && secondTerminals.inputs.has(net)) ||
+    (secondTerminals.outputs.has(net) && firstTerminals.inputs.has(net));
+}
 
-    edgeMap.get(key).weight += weight;
-  }
+function addBlockPairConnection(net, first, second, fanoutWeight, terminalsByBlock, edgeMap) {
+  const firstTerminals = terminalsByBlock.get(first.id);
+  const secondTerminals = terminalsByBlock.get(second.id);
+  const directConnection = hasDirectBlockConnection(net, firstTerminals, secondTerminals);
+  addBlockEdge(edgeMap, first, second, fanoutWeight * (directConnection ? 8 : 2));
+}
 
-  for (const [net, connectedBlocks] of blocksByNet) {
-    const uniqueBlocks = [...new Map(connectedBlocks.map((block) => [block.id, block])).values(),];
+function addNetBlockConnections(net, connectedBlocks, terminalsByBlock, edgeMap) {
+  const uniqueBlocks = [...new Map(connectedBlocks.map((block) => [block.id, block])).values()];
+  if (uniqueBlocks.length < 2) return;
 
-    if (uniqueBlocks.length < 2) { continue; }
+  const fanoutWeight = 1 / Math.max(1, uniqueBlocks.length - 1);
 
-    const fanoutWeight = 1 / Math.max(1, uniqueBlocks.length - 1);
-
-    for (let firstIndex = 0; firstIndex < uniqueBlocks.length; firstIndex++) {
-      for (let secondIndex = firstIndex + 1; secondIndex < uniqueBlocks.length; secondIndex++) {
-        const first = uniqueBlocks[firstIndex];
-        const second = uniqueBlocks[secondIndex];
-        const firstTerminals = terminalsByBlock.get(first.id);
-        const secondTerminals = terminalsByBlock.get(second.id);
-
-        const directConnection = ( firstTerminals.outputs.has(net) && secondTerminals.inputs.has(net) ) ||
-          ( secondTerminals.outputs.has(net) && firstTerminals.inputs.has(net) );
-
-        const weight = fanoutWeight * ( directConnection ? 8 : 2 );
-        addEdge(first, second, weight);
-      }
+  for (let firstIndex = 0; firstIndex < uniqueBlocks.length; firstIndex++) {
+    for (let secondIndex = firstIndex + 1; secondIndex < uniqueBlocks.length; secondIndex++) {
+      addBlockPairConnection(net, uniqueBlocks[firstIndex], uniqueBlocks[secondIndex], fanoutWeight, terminalsByBlock, edgeMap);
     }
   }
+}
+
+function buildBlockConnections(blocks) {
+  const { terminalsByBlock, blocksByNet } = indexBlocksByNet(blocks);
+  const edgeMap = new Map();
+
+  for (const [net, connectedBlocks] of blocksByNet) addNetBlockConnections(net, connectedBlocks, terminalsByBlock, edgeMap);
 
   return [...edgeMap.values()];
 }
@@ -152,12 +157,18 @@ function getBlockGridPositions(orderedBlocks, columns) {
 }
 
 function isPowerNet(net) {
-  const value = String(net || "").trim().toUpperCase().replace(/!+$/, "");
+  let value = String(net || "").trim().toUpperCase();
+  while (value.endsWith("!")) {
+    value = value.slice(0, -1);
+  }
   return value === "VDD" || value === "GND" || value === "GROUND" || value === "VSS" || value === "0";
 }
 
 function isGroundNet(net) {
-  const normalized = String(net || "").trim().toUpperCase().replace(/!+$/, "");
+  let normalized = String(net || "").trim().toUpperCase();
+  while (normalized.endsWith("!")) {
+    normalized = normalized.slice(0, -1);
+  }
 
   return (
     normalized === "GND" ||
