@@ -243,131 +243,90 @@ class KLayoutExporter(BaseExporter):
         return current_inst, global_trans
 
     
-    def integrating_layout(self): 
-        def go_through(layout_cell, circuit_cell, layout_parent_inst=None):
+    def _log_sync_context(self, layout_cell, circuit_cell, layout_parent_inst):
+        if layout_parent_inst is None: print(f"SYNC TOP: circuit={circuit_cell.name} <-> layout_cell={layout_cell.name}")
+        else: print(f"SYNC CELL: circuit={circuit_cell.name} <-> layout_inst_property102={layout_parent_inst.property(102)} (layout_cell={layout_cell.name})")
 
-            # Affichage du contexte
-            if layout_parent_inst is None:
-                print(
-                    f"SYNC TOP: circuit={circuit_cell.name} "
-                    f"<-> layout_cell={layout_cell.name}"
-                )
-            else:
-                print(
-                    f"SYNC CELL: circuit={circuit_cell.name} "
-                    f"<-> layout_inst_property102={layout_parent_inst.property(102)} "
-                    f"(layout_cell={layout_cell.name})"
-                )
+    def _get_synthetic_name(self, circuit_inst):
+        raw_name = str(getattr(circuit_inst, "raw_name", circuit_inst.name)).upper()
+        logical_name = str(circuit_inst.name).upper()
+        candidates = [raw_name, logical_name]
+        if raw_name.startswith("L") and not raw_name.startswith("LL"): candidates.append(f"L{raw_name}")
+        if logical_name.startswith("L") and not logical_name.startswith("LL"): candidates.append(f"L{logical_name}")
+        return next((name for name in candidates if name in getattr(self, "combined_layout_map", {})), None)
 
-            for circuit_inst in circuit_cell.instances:
+    def _find_physical_layout_instance(self, physical_name):
+        lookup_candidates = [physical_name]
+        if physical_name.startswith("LL"): lookup_candidates.append(physical_name[1:])
 
-                raw_name = str(getattr(circuit_inst, "raw_name", circuit_inst.name)).upper()
-                logical_name = str(circuit_inst.name).upper()
+        for lookup_name in lookup_candidates:
+            path_parts = self._raw_name_to_layout_path(lookup_name)
+            found_inst, found_trans = self.find_layout_instance_by_path(self.layout_top, path_parts)
+            if found_inst is not None: return found_inst, found_trans
+        return None, None
 
-                synthetic_candidates = [raw_name, logical_name]
-                if raw_name.startswith("L") and not raw_name.startswith("LL"): synthetic_candidates.append(f"L{raw_name}")
-                if logical_name.startswith("L") and not logical_name.startswith("LL"): synthetic_candidates.append(f"L{logical_name}")
+    def _map_synthetic_instance(self, circuit_inst, synthetic_name):
+        physical_names = self.combined_layout_map[synthetic_name]
+        physical_instances, physical_transforms = [], []
+        print(f"COMBINED INSTANCE: {synthetic_name} -> {physical_names}")
 
-                synthetic_name = next(
-                    (name for name in synthetic_candidates if name in getattr(self, "combined_layout_map", {})),
-                    None
-                )
+        for physical_name in physical_names:
+            found_inst, found_trans = self._find_physical_layout_instance(physical_name)
+            if found_inst is None:
+                raise RuntimeError(f"Synthetic '{synthetic_name}' maps to physical '{physical_name}', but that instance was not found in the GDS.")
+            physical_instances.append(found_inst); physical_transforms.append(found_trans)
 
-                if synthetic_name:
-                    physical_names = self.combined_layout_map[synthetic_name]
-                    physical_instances, physical_transforms = [], []
+        circuit_inst.KLayoutInstances = physical_instances
+        circuit_inst.KLayoutTransforms = physical_transforms
+        circuit_inst.combined_layout_names = physical_names
+        circuit_inst.KLayoutInstance = physical_instances[0]
+        circuit_inst.KLayoutCell = physical_instances[0].cell
+        circuit_inst.global_trans = physical_transforms[0]
+        print(f"MAPPED SYNTHETIC {synthetic_name}: {[inst.property(102) for inst in physical_instances]}")
 
-                    print(f"COMBINED INSTANCE: {synthetic_name} -> {physical_names}")
+    def _get_layout_lookup_names(self, circuit_inst):
+        lookup_names = [getattr(circuit_inst, "raw_name", circuit_inst.name)]
+        if lookup_names[0] != circuit_inst.name: lookup_names.append(circuit_inst.name)
+        return lookup_names
 
-                    for physical_name in physical_names:
-                        lookup_candidates = [physical_name]
-                        if physical_name.startswith("LL"): lookup_candidates.append(physical_name[1:])
+    def _find_layout_instance(self, lookup_names):
+        for lookup_name in lookup_names:
+            path_parts = self._raw_name_to_layout_path(lookup_name)
+            layout_inst, global_trans = self.find_layout_instance_by_path(self.layout_top, path_parts)
+            if layout_inst is not None: return layout_inst, global_trans
+        return None, None
 
-                        found_inst, found_trans = None, None
+    def _map_regular_layout_instance(self, circuit_inst, layout_cell):
+        lookup_names = self._get_layout_lookup_names(circuit_inst)
+        print("looking for circuit instance:", circuit_inst.name)
+        print("inside layout cell:", layout_cell.name)
+        print("lookup names:", lookup_names)
 
-                        for lookup_name in lookup_candidates:
-                            path_parts = self._raw_name_to_layout_path(lookup_name)
-                            found_inst, found_trans = self.find_layout_instance_by_path(self.layout_top, path_parts)
-                            if found_inst is not None: break
+        layout_inst, global_trans = self._find_layout_instance(lookup_names)
+        if layout_inst is None: raise RuntimeError(f"Instance '{circuit_inst.name}' not found in layout. Tried names: {lookup_names}")
 
-                        if found_inst is None:
-                            raise RuntimeError(
-                                f"Synthetic '{synthetic_name}' maps to physical '{physical_name}', "
-                                f"but that instance was not found in the GDS."
-                            )
+        circuit_inst.KLayoutInstance = layout_inst
+        circuit_inst.KLayoutCell = layout_inst.cell
+        circuit_inst.global_trans = global_trans
+        print(f"FOUND: circuit={circuit_inst.name} <-> layout_property102={layout_inst.property(102)} layout_cell={layout_inst.cell.name}")
+        return layout_inst
 
-                        physical_instances.append(found_inst)
-                        physical_transforms.append(found_trans)
+    def _sync_layout_cell(self, layout_cell, circuit_cell, layout_parent_inst=None):
+        self._log_sync_context(layout_cell, circuit_cell, layout_parent_inst)
 
-                    # Store BOTH real layout instances.
-                    circuit_inst.KLayoutInstances = physical_instances
-                    circuit_inst.KLayoutTransforms = physical_transforms
-                    circuit_inst.combined_layout_names = physical_names
+        for circuit_inst in circuit_cell.instances:
+            synthetic_name = self._get_synthetic_name(circuit_inst)
+            if synthetic_name:
+                self._map_synthetic_instance(circuit_inst, synthetic_name)
+                continue
 
-                    # Keep old singular attributes for code that still expects one instance.
-                    circuit_inst.KLayoutInstance = physical_instances[0]
-                    circuit_inst.KLayoutCell = physical_instances[0].cell
-                    circuit_inst.global_trans = physical_transforms[0]
+            layout_inst = self._map_regular_layout_instance(circuit_inst, layout_cell)
+            if hasattr(circuit_inst, "instances") and circuit_inst.instances:
+                self._sync_layout_cell(layout_inst.cell, circuit_inst, layout_inst)
 
-                    print(
-                        f"MAPPED SYNTHETIC {synthetic_name}: "
-                        f"{[inst.property(102) for inst in physical_instances]}"
-                    )
-
-                    continue
-
-                lookup_names = [getattr(circuit_inst, "raw_name", circuit_inst.name)]
-                if lookup_names[0] != circuit_inst.name:
-                    lookup_names.append(circuit_inst.name)
-
-                print("looking for circuit instance:", circuit_inst.name)
-                print("inside layout cell:", layout_cell.name)
-                print("lookup names:", lookup_names)
-
-                layout_inst = None
-                global_trans = None
-
-                for lookup_name in lookup_names:
-                    path_parts = self._raw_name_to_layout_path(lookup_name)
-
-                    layout_inst, global_trans = self.find_layout_instance_by_path(
-                        self.layout_top,
-                        path_parts
-                    )
-
-                    if layout_inst is not None:
-                        break
-
-                if layout_inst is None:
-                    raise RuntimeError(
-                        f"Instance '{circuit_inst.name}' not found in layout. "
-                        f"Tried names: {lookup_names}"
-                    )
-
-                circuit_inst.KLayoutInstance = layout_inst
-                circuit_inst.KLayoutCell = layout_inst.cell
-                circuit_inst.global_trans = global_trans
-
-                print(
-                    f"FOUND: circuit={circuit_inst.name} "
-                    f"<-> layout_property102={layout_inst.property(102)} "
-                    f"layout_cell={layout_inst.cell.name}"
-                )
-
-                
-                if hasattr(circuit_inst, "instances") and circuit_inst.instances:
-                    go_through(
-                        layout_inst.cell,      # IMPORTANT : on passe la CELL
-                        circuit_inst,
-                        layout_parent_inst=layout_inst
-                    )
-
-        print(
-            f"SYNC TOP: circuit={self.circuit.TOP.name} "
-            f"<-> layout={self.layout_top.name}"
-        )
-
-        go_through(self.layout_top, self.circuit.TOP)
+    def integrating_layout(self):
+        print(f"SYNC TOP: circuit={self.circuit.TOP.name} <-> layout={self.layout_top.name}")
+        self._sync_layout_cell(self.layout_top, self.circuit.TOP)
 
     def report_layout_mapping(self):
         def walk(cell, path=""):
@@ -384,26 +343,22 @@ class KLayoutExporter(BaseExporter):
                     walk(inst, current_path)
         walk(self.circuit.TOP)
         
+    def _shape_matches_port(self, shape, layer_index, label_layer, pname, port_tag, anchor, property_id):
+        if str(shape.property(property_id)) == port_tag: return True
+        if layer_index == label_layer and shape.is_text() and shape.text.string == pname: return True
+        if anchor is None or layer_index != self.term_layer or not (shape.is_path() or shape.is_box()): return False
+        bbox = shape.bbox()
+        return bbox.left <= anchor.x <= bbox.right and bbox.bottom <= anchor.y <= bbox.top
+
     def delete_old_port(self, pname, label_layer, anchor=None):
         property_id, port_tag = 9001, f"AUTO_PORT:{pname}"
 
         for layer_index in (self.term_layer, label_layer):
-            to_delete = []
-
-            for shape in self.layout_top.shapes(layer_index).each():
-                tagged = str(shape.property(property_id)) == port_tag
-                same_text = layer_index == label_layer and shape.is_text() and shape.text.string == pname
-
-                same_geometry = False
-                if anchor is not None and layer_index == self.term_layer and (shape.is_path() or shape.is_box()):
-                    bbox = shape.bbox()
-                    same_geometry = bbox.left <= anchor.x <= bbox.right and bbox.bottom <= anchor.y <= bbox.top
-
-                if tagged or same_text or same_geometry:
-                    to_delete.append(shape)
-
-            for shape in to_delete:
-                shape.delete()
+            to_delete = [
+                shape for shape in self.layout_top.shapes(layer_index).each()
+                if self._shape_matches_port(shape, layer_index, label_layer, pname, port_tag, anchor, property_id)
+            ]
+            for shape in to_delete: shape.delete()
 
     def get_ib_center_trans(self, inst, r2_layer_number=3, r2_datatype=0):
         """Return the real global center of an IB resistor, with the old formula as fallback."""
@@ -469,48 +424,34 @@ class KLayoutExporter(BaseExporter):
             max(point.y for point in corners),
         )
         
+    def _walk_leaf_instances(self, cell):
+        for other in cell.instances:
+            if hasattr(other, "instances") and other.instances:
+                yield from self._walk_leaf_instances(other)
+            else:
+                yield other
+
+    def _bounds_touch_edge(self, bounds, edge_position, left, right, tolerance):
+        other_left, other_bottom, other_right, other_top = bounds
+        horizontal_overlap = other_right >= left - tolerance and other_left <= right + tolerance
+        edge_touched = other_bottom - tolerance <= edge_position <= other_top + tolerance
+        return horizontal_overlap and edge_touched
+
     def instance_edge_touches_another(self, elem, edge="bottom", tolerance=500):
         bounds = self.get_element_global_bounds(elem)
-        if bounds is None:
-            return False
+        if bounds is None: return False
 
         left, bottom, right, top = bounds
         edge_position = bottom if edge == "bottom" else top
 
-        def walk(cell):
-            for other in cell.instances:
-                if hasattr(other, "instances") and other.instances:
-                    yield from walk(other)
-                else:
-                    yield other
-
-        for other in walk(self.circuit.TOP):
-            if other is elem:
-                continue
+        for other in self._walk_leaf_instances(self.circuit.TOP):
+            if other is elem: continue
 
             other_bounds = self.get_element_global_bounds(other)
-            if other_bounds is None:
-                continue
+            if other_bounds is None or not self._bounds_touch_edge(other_bounds, edge_position, left, right, tolerance): continue
 
-            other_left, other_bottom, other_right, other_top = other_bounds
-
-            horizontal_overlap = (
-                other_right >= left - tolerance
-                and other_left <= right + tolerance
-            )
-
-            edge_touched = (
-                other_bottom - tolerance
-                <= edge_position
-                <= other_top + tolerance
-            )
-
-            if horizontal_overlap and edge_touched:
-                print(
-                    f"{elem.name}: {edge} edge touches "
-                    f"{getattr(other, 'name', other)}"
-                )
-                return True
+            print(f"{elem.name}: {edge} edge touches {getattr(other, 'name', other)}")
+            return True
 
         return False
 
@@ -602,113 +543,68 @@ class KLayoutExporter(BaseExporter):
 
         return port_trans, edge_start, edge_end
 
+    def _node_name(self, value):
+        return str(getattr(value, "GlobalName", getattr(value, "name", value)))
+
+    def _get_connected_elements(self, elem, opposite_name):
+        connected = []
+        for other in self._walk_leaf_instances(self.circuit.TOP):
+            if other is elem: continue
+            other_net_in = self._node_name(getattr(other, "net_in", ""))
+            other_net_out = self._node_name(getattr(other, "net_out", ""))
+            if opposite_name in {other_net_in, other_net_out}: connected.append(other)
+        return connected
+
+    def _get_neighbor_centers(self, elements):
+        centers = []
+        for other in elements:
+            bounds = self.get_element_global_bounds(other)
+            if bounds is None: continue
+            left, bottom, right, top = bounds
+            centers.append(((left + right) // 2, (bottom + top) // 2))
+        return centers
+
+    def _get_closest_neighbor_center(self, centers, center_x, center_y):
+        if not centers: return center_x, center_y
+        return min(centers, key=lambda point: (point[0] - center_x) ** 2 + (point[1] - center_y) ** 2)
+
+    def _get_farthest_port_side(self, cell_is_sideways, center_x, center_y, neighbor_x, neighbor_y):
+        if cell_is_sideways: return "right" if neighbor_x <= center_x else "left"
+        return "top" if neighbor_y <= center_y else "bottom"
+
+    def _build_port_geometry(self, side, bounds, inset):
+        left, bottom, right, top = bounds
+        center_x, center_y = (left + right) // 2, (bottom + top) // 2
+
+        if side in ("left", "right"):
+            x = left + inset if side == "left" else right - inset
+            anchor = pya.Point(x, center_y)
+            return pya.Trans(1, False, anchor.x, anchor.y), pya.Point(x, bottom), pya.Point(x, top)
+
+        y = top - inset if side == "top" else bottom + inset
+        anchor = pya.Point(center_x, y)
+        return pya.Trans(0, False, anchor.x, anchor.y), pya.Point(left, y), pya.Point(right, y)
+
     def get_port_farthest_from_connected_cell(self, elem, port_node, inset=260):
         bounds = self.get_element_global_bounds(elem)
-        if bounds is None:
-            return None
+        if bounds is None: return None
 
         left, bottom, right, top = bounds
         center_x, center_y = (left + right) // 2, (bottom + top) // 2
         cell_is_sideways = (right - left) >= (top - bottom)
 
-        def node_name(value):
-            return str(getattr(value, "GlobalName", getattr(value, "name", value)))
+        port_name = self._node_name(port_node)
+        net_in, net_out = getattr(elem, "net_in", None), getattr(elem, "net_out", None)
+        opposite_node = net_out if port_name == self._node_name(net_in) else net_in
+        opposite_name = self._node_name(opposite_node)
 
-        port_name = node_name(port_node)
-        net_in = getattr(elem, "net_in", None)
-        net_out = getattr(elem, "net_out", None)
+        connected_elements = self._get_connected_elements(elem, opposite_name)
+        neighbor_centers = self._get_neighbor_centers(connected_elements)
+        neighbor_x, neighbor_y = self._get_closest_neighbor_center(neighbor_centers, center_x, center_y)
+        side = self._get_farthest_port_side(cell_is_sideways, center_x, center_y, neighbor_x, neighbor_y)
+        text_trans, edge_start, edge_end = self._build_port_geometry(side, bounds, inset)
 
-        opposite_node = net_out if port_name == node_name(net_in) else net_in
-        opposite_name = node_name(opposite_node)
-
-        connected_elements = []
-
-        def walk(cell):
-            for other in cell.instances:
-                if hasattr(other, "instances") and other.instances:
-                    yield from walk(other)
-                else:
-                    yield other
-
-        # Find elements sharing the opposite electrical node.
-        for other in walk(self.circuit.TOP):
-            if other is elem:
-                continue
-
-            other_net_in = node_name(getattr(other, "net_in", ""))
-            other_net_out = node_name(getattr(other, "net_out", ""))
-
-            if opposite_name in {other_net_in, other_net_out}:
-                connected_elements.append(other)
-
-        neighbor_centers = []
-
-        for other in connected_elements:
-            other_bounds = self.get_element_global_bounds(other)
-            if other_bounds is None:
-                continue
-
-            other_left, other_bottom, other_right, other_top = other_bounds
-            neighbor_centers.append((
-                (other_left + other_right) // 2,
-                (other_bottom + other_top) // 2,
-            ))
-
-        if neighbor_centers:
-            neighbor_x, neighbor_y = min(
-                neighbor_centers,
-                key=lambda point: (
-                    (point[0] - center_x) ** 2
-                    + (point[1] - center_y) ** 2
-                ),
-            )
-        else:
-            neighbor_x, neighbor_y = center_x, center_y
-
-        if cell_is_sideways:
-            # Wide cell: port must be vertical.
-            # Neighbor on left -> port on right, and vice versa.
-            side = "right" if neighbor_x <= center_x else "left"
-        else:
-            # Tall cell: port must be horizontal.
-            # Neighbor below -> port on top, and vice versa.
-            side = "top" if neighbor_y <= center_y else "bottom"
-
-        if side == "left":
-            x = left + inset
-            edge_start = pya.Point(x, bottom)
-            edge_end = pya.Point(x, top)
-            anchor = pya.Point(x, center_y)
-            text_trans = pya.Trans(1, False, anchor.x, anchor.y)
-
-        elif side == "right":
-            x = right - inset
-            edge_start = pya.Point(x, bottom)
-            edge_end = pya.Point(x, top)
-            anchor = pya.Point(x, center_y)
-            text_trans = pya.Trans(1, False, anchor.x, anchor.y)
-
-        elif side == "top":
-            y = top - inset
-            edge_start = pya.Point(left, y)
-            edge_end = pya.Point(right, y)
-            anchor = pya.Point(center_x, y)
-            text_trans = pya.Trans(0, False, anchor.x, anchor.y)
-
-        else:
-            y = bottom + inset
-            edge_start = pya.Point(left, y)
-            edge_end = pya.Point(right, y)
-            anchor = pya.Point(center_x, y)
-            text_trans = pya.Trans(0, False, anchor.x, anchor.y)
-
-        print(
-            f"{elem.name}: size={right-left}x{top-bottom}, "
-            f"sideways={cell_is_sideways}, "
-            f"neighbor=({neighbor_x}, {neighbor_y}), "
-            f"selected_side={side}"
-        )
-
+        print(f"{elem.name}: size={right-left}x{top-bottom}, sideways={cell_is_sideways}, neighbor=({neighbor_x}, {neighbor_y}), selected_side={side}")
         return text_trans, edge_start, edge_end
 
     def mark_single_connection_nodes_in_layout(self):
@@ -843,7 +739,7 @@ class KLayoutExporter(BaseExporter):
             print(f"Cell {self.layout_top.name} est vide, rien à recouvrir.")
             return
 
-        xmin, xmax, ymin, ymax = bbox.left, bbox.right, bbox.bottom, bbox.top
+        xmax, ymin, ymax =  bbox.right, bbox.bottom, bbox.top
 
         path_width = 10
         banner_length = 500
@@ -953,89 +849,58 @@ class KLayoutExporter(BaseExporter):
         print(f"{elem.name}: R2 center=({center.x}, {center.y}), area={area}")
         return pya.Trans(center)
         
+    def _get_instance_global_trans(self, inst, parent_trans):
+        if hasattr(inst, "global_trans"): return inst.global_trans
+        layout_inst = getattr(inst, "KLayoutInstance", None)
+        if layout_inst is None:
+            print(f"WARNING: no KLayout instance for {getattr(inst, 'name', inst)}"); return None
+        return parent_trans * layout_inst.trans
+
+    def _write_jj_name(self, inst, global_trans):
+        self.insert_managed_text(text=f"{inst.name} M2 M1", text_trans=global_trans, label_layer=self.label_layer)
+        resistor_center_trans = self.get_closest_resistor_center_trans(inst, r2_layer_number=3, r2_datatype=0)
+        if resistor_center_trans is not None:
+            self.insert_managed_text(text=f"Prb{inst.name[1:]} M2 R2", text_trans=resistor_center_trans, label_layer=self.label_layer)
+        inst.global_trans = global_trans
+
+    def _write_ib_name(self, inst, global_trans):
+        inst.global_trans = global_trans
+        label_trans = self.get_ib_center_trans(inst, r2_layer_number=3, r2_datatype=0)
+        if label_trans is not None:
+            self.insert_managed_text(text=f"{inst.name} M2 R2", text_trans=label_trans, label_layer=self.label_layer)
+
+    def _write_resistor_name(self, inst, global_trans):
+        inst.global_trans = global_trans
+        port_res = f"P{inst.name} M2 R2"
+        res_length = int(((inst.R * 10) / 2) * 1000 + 1000)
+        default_trans = global_trans * pya.Trans(pya.Point(0, res_length))
+        parallel_jj = self.has_parallel_jj(inst)
+        label_trans = default_trans if parallel_jj else self.get_main_r2_center_trans(inst, 3, 0) or default_trans
+        self.insert_managed_text(text=port_res, text_trans=label_trans, label_layer=self.label_layer)
+        print(f"{inst.name}: parallel_jj={parallel_jj}, final_label=({label_trans.disp.x}, {label_trans.disp.y})")
+
+    def _write_component_name(self, inst, global_trans):
+        inst_type = getattr(inst, "type", None)
+        if inst_type == "JJ": self._write_jj_name(inst, global_trans); return True
+        if inst_type == "IB": self._write_ib_name(inst, global_trans); return True
+        if inst_type == "R": self._write_resistor_name(inst, global_trans); return True
+        if inst_type == "L":
+            inst.global_trans = global_trans; return True
+        return False
+
+    def _write_names_recursive(self, cell, parent_trans):
+        for inst in cell.instances:
+            global_trans = self._get_instance_global_trans(inst, parent_trans)
+            if global_trans is None: continue
+            if self._write_component_name(inst, global_trans): continue
+            if hasattr(inst, "instances"): self._write_names_recursive(inst, global_trans)
+
     def write_cell_names(self):
         """Écrit les noms des composants dans la cellule supérieure sur le layer 52/0."""
-
         self.label_layer = self.layout.layer(52, 0)
         self.term_layer = self.layout.layer(45, 0)
-
         self.clear_old_labels()
-
-        def recursive_name(cell, parent_trans):
-            for inst in cell.instances:
-                if hasattr(inst, "global_trans"):
-                    global_trans = inst.global_trans
-                else:
-                    layout_inst = getattr(inst, "KLayoutInstance", None)
-
-                    if layout_inst is None:
-                        print(f"WARNING: no KLayout instance for {getattr(inst, 'name', inst)}")
-                        continue
-
-                    global_trans = parent_trans * layout_inst.trans
-
-                inst_type = getattr(inst, "type", None)
-
-                if inst_type == "JJ":
-                    port_j = f"{inst.name} M2 M1"
-
-                    self.insert_managed_text(
-                        text=port_j,
-                        text_trans=global_trans,
-                        label_layer=self.label_layer,
-                    )
-
-                    port_parallel = f"Prb{inst.name[1:]} M2 R2"
-
-                    resistor_center_trans = self.get_closest_resistor_center_trans(
-                        inst,
-                        r2_layer_number=3,
-                        r2_datatype=0,
-                    )
-
-                    if resistor_center_trans is not None:
-                        self.insert_managed_text(
-                            text=port_parallel,
-                            text_trans=resistor_center_trans,
-                            label_layer=self.label_layer,
-                        )
-
-                    inst.global_trans = global_trans
-
-                elif inst_type == "IB":
-                    inst.global_trans = global_trans
-                    port_ib = f"{inst.name} M2 R2"
-
-                    label_trans = self.get_ib_center_trans(
-                        inst,
-                        r2_layer_number=3,
-                        r2_datatype=0,
-                    )
-
-                    if label_trans is not None:
-                        self.insert_managed_text(
-                            text=port_ib,
-                            text_trans=label_trans,
-                            label_layer=self.label_layer,
-                        )
-
-                elif inst_type == "R":
-                    inst.global_trans = global_trans
-                    port_res = f"P{inst.name} M2 R2"
-                    res_length = int(((inst.R * 10) / 2) * 1000 + 1000)
-                    default_trans = global_trans * pya.Trans(pya.Point(0, res_length))
-                    parallel_jj = self.has_parallel_jj(inst)
-                    label_trans = default_trans if parallel_jj else self.get_main_r2_center_trans(inst, 3, 0) or default_trans
-                    self.insert_managed_text(text=port_res, text_trans=label_trans, label_layer=self.label_layer)
-                    print(f"{inst.name}: parallel_jj={parallel_jj}, final_label=({label_trans.disp.x}, {label_trans.disp.y})")
-
-                elif inst_type == "L":
-                    inst.global_trans = global_trans
-
-                elif hasattr(inst, "instances"):
-                    recursive_name(inst, global_trans)
-
-        recursive_name(self.circuit.TOP, pya.Trans())
+        self._write_names_recursive(self.circuit.TOP, pya.Trans())
         self.layout.write(str(self.layout_path))
 
     def clear_old_labels(self):
