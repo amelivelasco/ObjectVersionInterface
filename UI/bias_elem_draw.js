@@ -184,224 +184,192 @@ function findBiasInductorTarget(bias, placed) {
   return candidates[0];
 }
 
+function getExistingRoutedSegments(wireLayer) {
+  const routedSegments = [];
+  for (const child of wireLayer.children) {
+    const childNet = child.dataset.net;
+    routedSegments.push(...extractWireSegmentsFromElement(child).map((segment) => ({ ...segment, net: childNet || "__existing_wire__" })));
+  }
+  return routedSegments;
+}
+
+function getBiasTargetData(bias, cellElements, layoutInstance) {
+  const target = findBiasInductorTarget(bias, cellElements);
+  if (!target) return null;
+
+  const connectsToInput = target.net_in === bias.net_out;
+  const rawTargetPin = connectsToInput ? target.inputPin : target.outputPin;
+  if (!rawTargetPin) return null;
+
+  const targetTerminal = {
+    net: bias.net_out, kind: connectsToInput ? "in" : "out", element: target,
+    ownerId: target.id, layoutInstance
+  };
+
+  return { target, targetTerminal, targetPoint: getTerminalRoutingPoint(targetTerminal, rawTargetPin) };
+}
+
+function pointsAreSame(first, second) {
+  return Math.abs(first.x - second.x) < 0.5 && Math.abs(first.y - second.y) < 0.5;
+}
+
+function createBiasTerminal(bias, start, layoutInstance) {
+  return {
+    net: bias.net_out, kind: "out", point: start, candidatePoints: [start],
+    element: bias, ownerId: bias.id, layoutInstance
+  };
+}
+
+function routeBiasToInductor(bias, cellElements, wireLayer, layoutInstance) {
+  const targetData = getBiasTargetData(bias, cellElements, layoutInstance);
+  if (!targetData) return null;
+
+  const { target, targetTerminal, targetPoint } = targetData;
+  const start = { ...bias.biasNetJoin };
+  if (pointsAreSame(start, targetPoint)) return null;
+
+  const routedSegments = getExistingRoutedSegments(wireLayer);
+  const biasTerminal = createBiasTerminal(bias, start, layoutInstance);
+  const routePoints = buildShortestFreeRoute(start, targetPoint, biasTerminal, targetTerminal, cellElements, routedSegments, bias.net_out);
+
+  if (!Array.isArray(routePoints) || routePoints.length < 2) {
+    console.warn(`No legal route found for bias ${bias.id}`, { net: bias.net_out, start, targetPoint, target: target.id });
+    return null;
+  }
+
+  return routePoints;
+}
+
+function drawBiasRoute(wireLayer, bias, routePoints) {
+  drawPath(wireLayer, routePoints[0], routePoints.at(-1), {
+    stroke: drawConfig.wireStroke, pathData: routePointsToPathData(routePoints),
+    net: bias.net_out, kind: "bias-net-join"
+  });
+}
+
+function connectBiasStubToInductor(bias, wireLayer, placed) {
+  const layoutInstance = getLayoutInstance(bias);
+  const cellElements = placed.filter((element) => getLayoutInstance(element) === layoutInstance);
+  const routePoints = routeBiasToInductor(bias, cellElements, wireLayer, layoutInstance);
+  if (routePoints) drawBiasRoute(wireLayer, bias, routePoints);
+}
+
 function connectBiasStubsToInductors(wireLayer, labelLayer, placed) {
   for (const bias of placed) {
-    if (!isBiasElement(bias) || !bias.biasNetJoin || !bias.net_out
-    ) { continue; }
-
-    if (bias.biasSnappedToNet) { continue;}
-
-    const layoutInstance = getLayoutInstance(bias);
-
-    const cellElements =
-      placed.filter((element) => getLayoutInstance(element) === layoutInstance);
-
-    const target = findBiasInductorTarget(bias, cellElements);
-
-    if (!target) {continue;}
-    const connectsToInput = target.net_in === bias.net_out;
-    const targetKind = connectsToInput ? "in" : "out";
-    const rawTargetPin = connectsToInput ? target.inputPin : target.outputPin;
-    if (!rawTargetPin) { continue; }
-    const targetTerminal = {
-      net: bias.net_out,
-      kind: targetKind,
-      element: target,
-      ownerId: target.id,
-      layoutInstance,
-    };
-
-    const targetPoint = getTerminalRoutingPoint(targetTerminal, rawTargetPin);
-
-    const start = {...bias.biasNetJoin,};
-
-    if (Math.abs(start.x - targetPoint.x) < 0.5 && Math.abs(start.y - targetPoint.y) < 0.5
-    ) { continue; }
-
-    const routedSegments = [];
-
-    for (const child of wireLayer.children
-    ) {
-      const childNet = child.dataset.net
-      routedSegments.push(...extractWireSegmentsFromElement(child).map(
-          (segment) => ({ ...segment, net: childNet ||  "__existing_wire__",})
-        )
-      );
-    }
-
-    const biasTerminal = { net: bias.net_out, kind: "out", point: start, candidatePoints: [start,], element: bias, ownerId: bias.id, layoutInstance, };
-
-    const routePoints =
-      buildShortestFreeRoute(start, targetPoint, biasTerminal, targetTerminal, cellElements, routedSegments, bias.net_out);
-
-    if (!Array.isArray(routePoints) || routePoints.length < 2
-    ) {
-      console.warn(
-        `No legal route found for bias ${bias.id}`,
-        { net: bias.net_out, start, targetPoint, target: target.id, }
-      );
-      continue;
-    }
-
-    drawPath(wireLayer, routePoints[0],routePoints.at(-1),
-      {
-        stroke: drawConfig.wireStroke,
-        pathData: routePointsToPathData(routePoints),
-        net: bias.net_out,
-        kind: "bias-net-join",
-      }
-    );
+    if (!isBiasElement(bias) || !bias.biasNetJoin || !bias.net_out || bias.biasSnappedToNet) continue;
+    connectBiasStubToInductor(bias, wireLayer, placed);
   }
+}
+function getBiasJRObstacles(bias, placed, layoutInstance) {
+  const cellElements = placed.filter((element) => getLayoutInstance(element) === layoutInstance);
+  return buildRoutingObstacleBoxes(cellElements, new Set([bias.id]), 8).filter((box) => box.isJRPair);
+}
+
+function getBiasCandidateOffsets(spacing) {
+  return [0, -spacing, spacing, -spacing * 2, spacing * 2, -spacing * 3, spacing * 3];
+}
+
+function biasCandidateHitsJR(candidateX, candidateY, frontPin, joinPoint, halfSize, jrObstacleBoxes) {
+  const overlapsJRPair = jrObstacleBoxes.some((box) => !(candidateX + halfSize <= box.left || candidateX - halfSize >= box.right ||
+    candidateY + halfSize <= box.top || candidateY - halfSize >= box.bottom));
+  const stubCrossesJRPair = jrObstacleBoxes.some((box) => axisAlignedSegmentHitsBox(frontPin, joinPoint, box));
+  return overlapsJRPair || stubCrossesJRPair;
+}
+
+function createBiasSnapCandidate(candidateX, netY, context) {
+  const candidateY = netY - context.halfSize - context.gap;
+  const frontPin = { x: candidateX, y: netY - context.gap };
+  const joinPoint = { x: candidateX, y: netY };
+
+  if (biasCandidateHitsJR(candidateX, candidateY, frontPin, joinPoint, context.halfSize, context.jrObstacleBoxes)) return null;
+  if (!isBiasPositionFree(context.bias, candidateX, candidateY, context.placed)) return null;
+
+  const movement = Math.abs(context.originalX - candidateX) + Math.abs(context.originalY - candidateY);
+  return { x: candidateX, y: candidateY, rotation: 0, frontPin, joinPoint, score: movement };
+}
+
+function findBestBiasPositionOnSegment(segment, currentBest, context) {
+  if (Math.abs(segment.a.y - segment.b.y) >= 0.5) return currentBest;
+
+  const minimumX = Math.min(segment.a.x, segment.b.x);
+  const maximumX = Math.max(segment.a.x, segment.b.x);
+  const netY = segment.a.y;
+  const projectedX = Math.max(minimumX, Math.min(context.originalX, maximumX));
+  const testedPositions = new Set();
+  let best = currentBest;
+
+  for (const offset of context.offsets) {
+    const candidateX = Math.max(minimumX, Math.min(projectedX + offset, maximumX));
+    const positionKey = candidateX.toFixed(3);
+    if (testedPositions.has(positionKey)) continue;
+
+    testedPositions.add(positionKey);
+    const candidate = createBiasSnapCandidate(candidateX, netY, context);
+    if (candidate && (!best || candidate.score < best.score)) best = candidate;
+  }
+
+  return best;
+}
+
+function findBestBiasSnapPosition(wireLayer, context) {
+  let best = null;
+
+  for (const child of wireLayer.children) {
+    const childNet = child.dataset.net;
+    const childKind = child.dataset.kind || "";
+    if (childNet !== context.bias.net_out || childKind.startsWith("bias-")) continue;
+
+    for (const segment of extractWireSegmentsFromElement(child)) {
+      best = findBestBiasPositionOnSegment(segment, best, context);
+    }
+  }
+
+  return best;
+}
+
+function resetUnsnappedBias(bias) {
+  bias.biasRotation = 0;
+  bias.biasSnappedToNet = false;
+}
+
+function applyBiasSnapPosition(bias, best) {
+  bias.x = best.x;
+  bias.y = best.y;
+  bias.biasRotation = 0;
+  bias.biasFrontPin = { ...best.frontPin };
+  bias.biasNetJoin = { ...best.joinPoint };
+  bias.outputPin = { ...best.joinPoint, net: bias.net_out };
+  bias.biasNetSegment = null;
+  bias.biasSnappedToNet = true;
+  bias.biasPlacementLocked = true;
+}
+
+function snapSingleBiasElement(bias, wireLayer, placed, config) {
+  bias.biasPlacementLocked = false;
+
+  const layoutInstance = getLayoutInstance(bias);
+  const context = {
+    bias, placed, halfSize: config.halfSize, gap: config.gap, offsets: config.offsets,
+    originalX: bias.x, originalY: bias.y, jrObstacleBoxes: getBiasJRObstacles(bias, placed, layoutInstance)
+  };
+
+  const best = findBestBiasSnapPosition(wireLayer, context);
+  if (!best) {
+    resetUnsnappedBias(bias);
+    return;
+  }
+
+  applyBiasSnapPosition(bias, best);
 }
 
 function snapBiasElementsToNearestNet(wireLayer, placed) {
   const halfSize = drawConfig.imageSize / 2;
   const gap = Math.max(6, drawConfig.biasOutputGap ?? 12);
   const spacing = drawConfig.biasPlacementSpacing || 35;
+  const config = { halfSize, gap, offsets: getBiasCandidateOffsets(spacing) };
 
   for (const bias of placed) {
-    if (!isBiasElement(bias) || !bias.net_out) {
-      continue;
-    }
-
-    bias.biasPlacementLocked = false;
-
-    const originalX = bias.x;
-    const originalY = bias.y;
-    const layoutInstance = getLayoutInstance(bias);
-
-    const cellElements = placed.filter(
-      (element) =>
-        getLayoutInstance(element) === layoutInstance
-    );
-
-    const jrObstacleBoxes = buildRoutingObstacleBoxes(cellElements, new Set([bias.id]), 8).filter((box) => box.isJRPair);
-
-    let best = null;
-
-    for (const child of wireLayer.children) {
-      const childNet = child.dataset.net;
-      const childKind = child.dataset.kind || "";
-
-      if (childNet !== bias.net_out || childKind.startsWith("bias-")) {
-        continue;
-      }
-
-      const segments = extractWireSegmentsFromElement(child);
-
-      for (const segment of segments) {
-
-        const horizontal = Math.abs(segment.a.y - segment.b.y) < 0.5;
-
-        if (!horizontal) {
-          continue;
-        }
-
-        const minimumX = Math.min(segment.a.x, segment.b.x);
-        const maximumX = Math.max(segment.a.x, segment.b.x);
-        const netY = segment.a.y;
-
-        const projectedX = Math.max(minimumX, Math.min(originalX, maximumX));
-
-        const offsets = [
-          0,
-          -spacing,
-          spacing,
-          -spacing * 2,
-          spacing * 2,
-          -spacing * 3,
-          spacing * 3,
-        ];
-
-        const testedPositions = new Set();
-
-        for (const offset of offsets) {
-          const candidateX = Math.max(minimumX, Math.min(projectedX + offset, maximumX));
-          const positionKey = candidateX.toFixed(3);
-
-          if (testedPositions.has(positionKey)) {
-            continue;
-          }
-
-          testedPositions.add(positionKey);
-
-          const candidateY = netY - halfSize - gap;
-
-          const frontPin = {x: candidateX, y: netY - gap,};
-
-          const joinPoint = {x: candidateX, y: netY,};
-
-          const overlapsJRPair = jrObstacleBoxes.some(
-            (box) =>
-              !(
-                candidateX + halfSize <= box.left ||
-                candidateX - halfSize >= box.right ||
-                candidateY + halfSize <= box.top ||
-                candidateY - halfSize >= box.bottom
-              )
-          );
-
-          const stubCrossesJRPair = jrObstacleBoxes.some(
-            (box) =>
-              axisAlignedSegmentHitsBox(frontPin, joinPoint, box)
-          );
-
-          if (overlapsJRPair || stubCrossesJRPair) {
-            continue;
-          }
-
-          const isFree = isBiasPositionFree(bias, candidateX, candidateY, placed);
-
-          if (!isFree) {
-            continue;
-          }
-
-          const movement = Math.abs(originalX - candidateX) + Math.abs(originalY - candidateY);
-
-          if (!best || movement < best.score) {
-            best = {
-              x: candidateX,
-              y: candidateY,
-              rotation: 0,
-              frontPin,
-              joinPoint,
-              score: movement,
-            };
-          }
-        }
-      }
-    }
-
-    if (!best) {
-      bias.biasRotation = 0;
-      bias.biasSnappedToNet = false;
-      continue;
-    }
-
-    bias.x = best.x;
-    bias.y = best.y;
-
-    // Downward arrow.
-    bias.biasRotation = 0;
-
-    // Arrow tip above the wire.
-    bias.biasFrontPin = {
-      ...best.frontPin,
-    };
-
-    // Connection point on the wire.
-    bias.biasNetJoin = {
-      ...best.joinPoint,
-    };
-
-    bias.outputPin = {
-      ...best.joinPoint,
-      net: bias.net_out,
-    };
-
-    bias.biasNetSegment = null;
-    bias.biasSnappedToNet = true;
-    bias.biasPlacementLocked = true;
+    if (!isBiasElement(bias) || !bias.net_out) continue;
+    snapSingleBiasElement(bias, wireLayer, placed, config);
   }
 }
-
