@@ -41,6 +41,15 @@ function measureLayoutCell(elements) {
   };
 }
 
+function getCellNameFamily(cell) {
+  return String(cell.display_name || cell.layout_cell || "")
+    .replace(/\([^()]*\)\s*$/, "")
+    .trimEnd()
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+}
+
 function buildLayoutCellLayout(data) {
   const elementMap = createElementMap(data.elements || []);
 
@@ -81,14 +90,6 @@ function buildLayoutCellLayout(data) {
   const marginY = drawConfig.layoutCellMarginY;
   const gapX = drawConfig.layoutCellGapX;
   const gapY = drawConfig.layoutCellGapY;
-
-  function getCellNameFamily(cell) {
-    return String(cell.display_name || cell.layout_cell || "")
-      .replace(/\s*\([^()]*\)\s*$/, "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .toUpperCase();
-  }
 
   const cellsByFamily = new Map();
 
@@ -206,210 +207,135 @@ function buildLayoutCellLayout(data) {
 }
 
 
-function placeElementsInsideLayoutCell(cell) {
-  const layout = cell.localLayout || getLocalCellLayout(cell.elements);
-  const half = drawConfig.imageSize / 2;
-  const padding = drawConfig.layoutCellPadding;
+function logForcedTerminalPlacement(element, placement, type) {
+  if (!placement.terminalDirectionForced && !Number.isFinite(placement.terminalForcedDirection)) return;
+  console.log("[TERMINAL PLACEMENT REACHED DRAWING]", {
+    element: element.id, type, row: placement.row, col: placement.col, rawNetIn: element.net_in, rawNetOut: element.net_out,
+    terminalForcedDirection: placement.terminalForcedDirection, terminalDirectionForced: placement.terminalDirectionForced
+  });
+}
 
-  const offsetX = cell.x + padding - layout.minX;
-  const offsetY = cell.y + padding - layout.anchorMinY;
+function createPositionedElement(item, cell, offsetX, offsetY, layoutOrder) {
+  const { element, placement, memberIndex, type } = item;
+  const x = item.x + offsetX;
+  const y = item.y + offsetY;
+  const rowFlipped180 = placement.rowFlipped180 === true;
+  const direction = rowFlipped180 ? -1 : 1;
+  const pinOffset = getPinOffsetForElement(element);
+  const isInductor = type === "L";
 
+  return {
+    ...element, x, y, row: placement.row, col: placement.centerCol ?? placement.col + memberIndex, direction, layoutOrder,
+    inputPin: { x: isInductor ? x - pinOffset : x - direction * pinOffset, y, net: element.net_in },
+    outputPin: { x: isInductor ? x + pinOffset : x + direction * pinOffset, y, net: element.net_out },
+    placementMode: placement.placementMode || null, parentLayoutCell: cell.layout_instance || cell.id,
+    parentLayoutCellType: cell.layout_cell, instancePath: cell.instance_path, rowFlipped180
+  };
+}
+
+function applyInlineGroundedJR(positionedElement, placement) {
+  positionedElement.inlineGroundedJR = true;
+  positionedElement.inlineJRHostNet = placement.hostNet;
+  positionedElement.inlineJRHostProducerId = placement.hostProducerId;
+  positionedElement.inlineJRHostConsumerId = placement.hostConsumerId;
+}
+
+function applyInlineJRBias(positionedElement, placement, offsetY, half) {
+  const hostWireY = placement.row * drawConfig.layoutCellElementGapY + offsetY;
+  const { x, y } = positionedElement;
+
+  positionedElement.inlineJRBias = true;
+  positionedElement.biasRotation = 0;
+  positionedElement.biasPlacementLocked = true;
+  positionedElement.biasSnappedToNet = true;
+  positionedElement.biasNetSegment = null;
+  positionedElement.biasFrontPin = { x, y: y + half };
+  positionedElement.biasNetJoin = { x, y: hostWireY };
+  positionedElement.outputPin = { x, y: hostWireY, net: positionedElement.net_out };
+  positionedElement.biasTarget = placement.hostJRId;
+}
+
+function applyPlacementMode(positionedElement, placement, offsetY, half) {
+  if (placement.placementMode === "inline-grounded-jr") applyInlineGroundedJR(positionedElement, placement);
+  if (placement.placementMode === "inline-jr-bias") applyInlineJRBias(positionedElement, placement, offsetY, half);
+}
+
+function placeLayoutItems(layout, cell, offsetX, offsetY, half) {
   const placed = [];
   let layoutOrder = 0;
 
   for (const item of layout.local) {
-    const { element, placement, memberIndex, type } = item;
+    const { element, placement, type } = item;
+    logForcedTerminalPlacement(element, placement, type);
 
-    if (placement.terminalDirectionForced || Number.isFinite(placement.terminalForcedDirection)) {
-      console.log("[TERMINAL PLACEMENT REACHED DRAWING]", {
-        element: element.id,
-        type,
-        row: placement.row,
-        col: placement.col,
-        rawNetIn: element.net_in,
-        rawNetOut: element.net_out,
-        terminalForcedDirection: placement.terminalForcedDirection,
-        terminalDirectionForced: placement.terminalDirectionForced
-      });
-}
-
-    const x = item.x + offsetX;
-    const y = item.y + offsetY;
-
-    const rowFlipped180 = placement.rowFlipped180 === true;
-    const direction = rowFlipped180 ? -1 : 1;
-    const pinOffset = getPinOffsetForElement(element);
-    const isInductor = type === "L";
-
-    const positionedElement = {
-      ...element,
-      x,
-      y,
-      row: placement.row,
-      col: placement.centerCol ?? placement.col + memberIndex,
-      direction,
-      layoutOrder: layoutOrder++,
-
-      inputPin: {
-        x: isInductor
-          ? x - pinOffset
-          : x - direction * pinOffset,
-        y,
-        net: element.net_in
-      },
-
-      outputPin: {
-        x: isInductor
-          ? x + pinOffset
-          : x + direction * pinOffset,
-        y,
-        net: element.net_out
-      },
-
-      placementMode: placement.placementMode || null,
-      parentLayoutCell: cell.layout_instance || cell.id,
-      parentLayoutCellType: cell.layout_cell,
-      instancePath: cell.instance_path,
-
-      /*
-       * Crucial:
-       * this flag exists ONLY on the selected row.
-       */
-      rowFlipped180
-    };
-
-    if (placement.placementMode === "inline-grounded-jr") {
-      positionedElement.inlineGroundedJR = true;
-      positionedElement.inlineJRHostNet = placement.hostNet;
-      positionedElement.inlineJRHostProducerId = placement.hostProducerId;
-      positionedElement.inlineJRHostConsumerId = placement.hostConsumerId;
-    }
-
-    if (placement.placementMode === "inline-jr-bias") {
-      const hostWireY =
-        placement.row *
-        drawConfig.layoutCellElementGapY +
-        offsetY;
-
-      positionedElement.inlineJRBias = true;
-      positionedElement.biasRotation = 0;
-      positionedElement.biasPlacementLocked = true;
-      positionedElement.biasSnappedToNet = true;
-      positionedElement.biasNetSegment = null;
-      positionedElement.biasFrontPin = {
-        x,
-        y: y + half
-      };
-      positionedElement.biasNetJoin = {
-        x,
-        y: hostWireY
-      };
-      positionedElement.outputPin = {
-        x,
-        y: hostWireY,
-        net: positionedElement.net_out
-      };
-      positionedElement.biasTarget = placement.hostJRId;
-    }
-
+    const positionedElement = createPositionedElement(item, cell, offsetX, offsetY, layoutOrder++);
+    applyPlacementMode(positionedElement, placement, offsetY, half);
     placed.push(positionedElement);
   }
 
-  for (let i = 0; i < placed.length; i++) {
-    const element = placed[i];
+  return placed;
+}
 
-    if (getElementType(element) !== "L")
-      continue;
+function findNormalPreviousInductorElement(element, placed) {
+  return placed.filter((candidate) => candidate !== element && candidate.row === element.row && candidate.x < element.x)
+    .sort((a, b) => b.x - a.x)[0] || null;
+}
+
+function findFlippedPreviousInductorElement(element, placed) {
+  return placed.filter((candidate) => candidate !== element && candidate.row === element.row && candidate.x > element.x)
+    .sort((a, b) => a.x - b.x)[0] || null;
+}
+
+function setInductorDirection(element, direction, pinOffset, layoutReversed) {
+  element.direction = direction;
+  element.inputPin = { x: element.x - direction * pinOffset, y: element.y, net: element.net_in };
+  element.outputPin = { x: element.x + direction * pinOffset, y: element.y, net: element.net_out };
+  element.electricalDirection = direction;
+  element.layoutReversed = layoutReversed;
+}
+
+function positionNormalInductor(element, placed, pinOffset) {
+  const previous = findNormalPreviousInductorElement(element, placed);
+  const reversed = Boolean(previous && element.net_out && previous.net_out === element.net_out);
+  const direction = reversed ? -1 : 1;
+  setInductorDirection(element, direction, pinOffset, reversed);
+}
+
+function positionFlippedInductor(element, placed, pinOffset) {
+  const originalPrevious = findFlippedPreviousInductorElement(element, placed);
+  const originallyReversed = Boolean(originalPrevious && element.net_out && originalPrevious.net_out === element.net_out);
+  const originalDirection = originallyReversed ? -1 : 1;
+  const direction = -originalDirection;
+  setInductorDirection(element, direction, pinOffset, direction < 0);
+}
+
+function adjustInductorDirections(placed) {
+  for (const element of placed) {
+    if (getElementType(element) !== "L") continue;
 
     const pinOffset = getPinOffsetForElement(element);
-
-    if (!element.rowFlipped180) {
-      const previous = placed
-        .filter(candidate =>
-          candidate !== element &&
-          candidate.row === element.row &&
-          candidate.x < element.x
-        )
-        .sort((a, b) => b.x - a.x)[0] || null;
-
-      const reversed = Boolean(
-        previous &&
-        element.net_out &&
-        previous.net_out === element.net_out
-      );
-
-      const direction = reversed ? -1 : 1;
-
-      element.direction = direction;
-
-      element.inputPin = {
-        x: element.x - direction * pinOffset,
-        y: element.y,
-        net: element.net_in
-      };
-
-      element.outputPin = {
-        x: element.x + direction * pinOffset,
-        y: element.y,
-        net: element.net_out
-      };
-
-      element.electricalDirection = direction;
-      element.layoutReversed = reversed;
-
-      continue;
-    }
-
-    const originalPrevious = placed
-      .filter(candidate =>
-        candidate !== element &&
-        candidate.row === element.row &&
-        candidate.x > element.x
-      )
-      .sort((a, b) => a.x - b.x)[0] || null;
-
-    const originallyReversed = Boolean(
-      originalPrevious &&
-      element.net_out &&
-      originalPrevious.net_out === element.net_out
-    );
-
-
-    const originalDirection =
-      originallyReversed ? -1 : 1;
-
-    const direction = -originalDirection;
-
-    element.direction = direction;
-
-    element.inputPin = {
-      x: element.x - direction * pinOffset,
-      y: element.y,
-      net: element.net_in
-    };
-
-    element.outputPin = {
-      x: element.x + direction * pinOffset,
-      y: element.y,
-      net: element.net_out
-    };
-
-    element.electricalDirection = direction;
-    element.layoutReversed = direction < 0;
+    if (!element.rowFlipped180) positionNormalInductor(element, placed, pinOffset);
+    else positionFlippedInductor(element, placed, pinOffset);
   }
+}
 
-  console.log("[FINAL TERMINAL ELEMENTS]", placed.filter(e => e.terminalDirectionForced).map(e => ({
-    id: e.id,
-    row: e.row,
-    col: e.col,
-    netIn: e.net_in,
-    netOut: e.net_out,
-    direction: e.direction,
-    electricalDirection: e.electricalDirection,
-    inputPin: e.inputPin,
-    outputPin: e.outputPin
+function logFinalTerminalElements(placed) {
+  console.log("[FINAL TERMINAL ELEMENTS]", placed.filter((e) => e.terminalDirectionForced).map((e) => ({
+    id: e.id, row: e.row, col: e.col, netIn: e.net_in, netOut: e.net_out, direction: e.direction,
+    electricalDirection: e.electricalDirection, inputPin: e.inputPin, outputPin: e.outputPin
   })));
-  
+}
+
+function placeElementsInsideLayoutCell(cell) {
+  const layout = cell.localLayout || getLocalCellLayout(cell.elements);
+  const half = drawConfig.imageSize / 2;
+  const padding = drawConfig.layoutCellPadding;
+  const offsetX = cell.x + padding - layout.minX;
+  const offsetY = cell.y + padding - layout.anchorMinY;
+
+  const placed = placeLayoutItems(layout, cell, offsetX, offsetY, half);
+  adjustInductorDirections(placed);
+  logFinalTerminalElements(placed);
   return placed;
 }
 
@@ -466,68 +392,83 @@ function drawLayoutCellBoundaries(layer, placedCells) {
   }
 }
 
-function autoOrientCellsTowardSharedTerminals(placed, placedCells, svg) {
-  const cellMap = new Map(placedCells.map(cell => [cell.layout_instance || cell.id, cell]));
+function addSharedTerminal(element, net, point, cellMap, terminalsByCell) {
+  net = String(net || "").trim();
+  if (!net || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y) || isGroundNet(net) || net === "VDD") return;
+
+  const cellId = getLayoutInstance(element);
+  if (!cellMap.has(cellId)) return;
+  if (!terminalsByCell.has(cellId)) terminalsByCell.set(cellId, new Map());
+
+  const terminalsByNet = terminalsByCell.get(cellId);
+  if (!terminalsByNet.has(net)) terminalsByNet.set(net, []);
+  terminalsByNet.get(net).push({ x: point.x, y: point.y });
+}
+
+function collectSharedTerminals(placed, cellMap) {
   const terminalsByCell = new Map();
 
-  function addTerminal(element, net, point) {
-    net = String(net || "").trim();
-    if (!net || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y) || isGroundNet(net) || net === "VDD") return;
-
-    const cellId = getLayoutInstance(element);
-    if (!cellMap.has(cellId)) return;
-    if (!terminalsByCell.has(cellId)) terminalsByCell.set(cellId, new Map());
-
-    const terminalsByNet = terminalsByCell.get(cellId);
-    if (!terminalsByNet.has(net)) terminalsByNet.set(net, []);
-
-    terminalsByNet.get(net).push({ x: point.x, y: point.y });
-  }
-
   for (const element of placed) {
-    if (element.inputNeedsLead && element.inputLeadPoint) addTerminal(element, element.net_in, element.inputLeadPoint);
-    if (element.outputNeedsLead && element.outputLeadPoint) addTerminal(element, element.net_out, element.outputLeadPoint);
+    if (element.inputNeedsLead && element.inputLeadPoint) addSharedTerminal(element, element.net_in, element.inputLeadPoint, cellMap, terminalsByCell);
+    if (element.outputNeedsLead && element.outputLeadPoint) addSharedTerminal(element, element.net_out, element.outputLeadPoint, cellMap, terminalsByCell);
   }
 
-  function transformedPoint(cellId, point, mirrored) {
-    if (!mirrored) return point;
-    const cell = cellMap.get(cellId);
-    const centerX = cell.x + cell.width / 2;
-    return { x: centerX * 2 - point.x, y: point.y };
-  }
+  return terminalsByCell;
+}
 
-  function scorePair(firstCellId, secondCellId, firstMirrored, secondMirrored) {
-    const firstNets = terminalsByCell.get(firstCellId);
-    const secondNets = terminalsByCell.get(secondCellId);
-    if (!firstNets || !secondNets) return { score: Infinity, shared: 0 };
+function transformCellPoint(cellId, point, mirrored, cellMap) {
+  if (!mirrored) return point;
+  const cell = cellMap.get(cellId);
+  const centerX = cell.x + cell.width / 2;
+  return { x: centerX * 2 - point.x, y: point.y };
+}
 
-    let score = 0, shared = 0;
+function getClosestSharedTerminalDistance(firstPoints, secondPoints, context) {
+  let bestDistance = Infinity;
 
-    for (const [net, firstPoints] of firstNets) {
-      const secondPoints = secondNets.get(net);
-      if (!secondPoints?.length) continue;
+  for (const firstPoint of firstPoints) {
+    const transformedFirst = transformCellPoint(context.firstCellId, firstPoint, context.firstMirrored, context.cellMap);
 
-      let bestDistance = Infinity;
-
-      for (const firstPoint of firstPoints) {
-        const transformedFirst = transformedPoint(firstCellId, firstPoint, firstMirrored);
-
-        for (const secondPoint of secondPoints) {
-          const transformedSecond = transformedPoint(secondCellId, secondPoint, secondMirrored);
-          const distance = Math.abs(transformedFirst.x - transformedSecond.x) + Math.abs(transformedFirst.y - transformedSecond.y);
-          bestDistance = Math.min(bestDistance, distance);
-        }
-      }
-
-      if (Number.isFinite(bestDistance)) {
-        score += bestDistance;
-        shared++;
-      }
+    for (const secondPoint of secondPoints) {
+      const transformedSecond = transformCellPoint(context.secondCellId, secondPoint, context.secondMirrored, context.cellMap);
+      const distance = Math.abs(transformedFirst.x - transformedSecond.x) + Math.abs(transformedFirst.y - transformedSecond.y);
+      bestDistance = Math.min(bestDistance, distance);
     }
-
-    return { score, shared };
   }
 
+  return bestDistance;
+}
+
+function scoreCellPair(firstCellId, secondCellId, firstMirrored, secondMirrored, terminalsByCell, cellMap) {
+  const firstNets = terminalsByCell.get(firstCellId);
+  const secondNets = terminalsByCell.get(secondCellId);
+  if (!firstNets || !secondNets) return { score: Infinity, shared: 0 };
+
+  let score = 0;
+  let shared = 0;
+
+  for (const [net, firstPoints] of firstNets) {
+    const secondPoints = secondNets.get(net);
+    if (!secondPoints?.length) continue;
+
+    const bestDistance = getClosestSharedTerminalDistance(firstPoints, secondPoints, {
+      firstCellId, secondCellId, firstMirrored, secondMirrored, cellMap
+    });
+
+    if (!Number.isFinite(bestDistance)) continue;
+    score += bestDistance;
+    shared++;
+  }
+
+  return { score, shared };
+}
+
+function getCellCenterDistance(firstCell, secondCell) {
+  return Math.abs((firstCell.x + firstCell.width / 2) - (secondCell.x + secondCell.width / 2)) +
+    Math.abs((firstCell.y + firstCell.height / 2) - (secondCell.y + secondCell.height / 2));
+}
+
+function buildSharedTerminalEdges(terminalsByCell, cellMap) {
   const cellIds = [...terminalsByCell.keys()];
   const edges = [];
 
@@ -535,55 +476,63 @@ function autoOrientCellsTowardSharedTerminals(placed, placedCells, svg) {
     for (let secondIndex = firstIndex + 1; secondIndex < cellIds.length; secondIndex++) {
       const firstCellId = cellIds[firstIndex];
       const secondCellId = cellIds[secondIndex];
-      const result = scorePair(firstCellId, secondCellId, false, false);
-
+      const result = scoreCellPair(firstCellId, secondCellId, false, false, terminalsByCell, cellMap);
       if (!result.shared) continue;
 
       const firstCell = cellMap.get(firstCellId);
       const secondCell = cellMap.get(secondCellId);
-      const centerDistance = Math.abs((firstCell.x + firstCell.width / 2) - (secondCell.x + secondCell.width / 2)) +
-        Math.abs((firstCell.y + firstCell.height / 2) - (secondCell.y + secondCell.height / 2));
-
-      edges.push({ firstCellId, secondCellId, shared: result.shared, centerDistance });
+      edges.push({ firstCellId, secondCellId, shared: result.shared, centerDistance: getCellCenterDistance(firstCell, secondCell) });
     }
   }
 
-  edges.sort((first, second) => second.shared - first.shared || first.centerDistance - second.centerDistance);
+  return edges.sort((first, second) => second.shared - first.shared || first.centerDistance - second.centerDistance);
+}
 
+function findBestOrientationCombination(firstCellId, secondCellId, allowedFirst, allowedSecond, terminalsByCell, cellMap) {
+  let best = null;
+
+  for (const firstMirrored of allowedFirst) {
+    for (const secondMirrored of allowedSecond) {
+      const result = scoreCellPair(firstCellId, secondCellId, firstMirrored, secondMirrored, terminalsByCell, cellMap);
+      if (!best || result.score < best.score) best = { firstMirrored, secondMirrored, ...result };
+    }
+  }
+
+  return best;
+}
+
+function orientUnknownCell(edge, orientations, terminalsByCell, cellMap) {
+  const firstKnown = orientations.has(edge.firstCellId);
+  const secondKnown = orientations.has(edge.secondCellId);
+
+  if (!firstKnown && !secondKnown) {
+    const best = findBestOrientationCombination(edge.firstCellId, edge.secondCellId, [false, true], [false, true], terminalsByCell, cellMap);
+    orientations.set(edge.firstCellId, best.firstMirrored);
+    orientations.set(edge.secondCellId, best.secondMirrored);
+    return;
+  }
+
+  if (firstKnown && !secondKnown) {
+    const firstOrientation = orientations.get(edge.firstCellId);
+    const best = findBestOrientationCombination(edge.firstCellId, edge.secondCellId, [firstOrientation], [false, true], terminalsByCell, cellMap);
+    orientations.set(edge.secondCellId, best.secondMirrored);
+    return;
+  }
+
+  if (!firstKnown && secondKnown) {
+    const secondOrientation = orientations.get(edge.secondCellId);
+    const best = findBestOrientationCombination(edge.firstCellId, edge.secondCellId, [false, true], [secondOrientation], terminalsByCell, cellMap);
+    orientations.set(edge.firstCellId, best.firstMirrored);
+  }
+}
+
+function buildCellOrientations(edges, terminalsByCell, cellMap) {
   const orientations = new Map();
+  for (const edge of edges) orientUnknownCell(edge, orientations, terminalsByCell, cellMap);
+  return orientations;
+}
 
-  function bestCombination(firstCellId, secondCellId, allowedFirst, allowedSecond) {
-    let best = null;
-
-    for (const firstMirrored of allowedFirst) {
-      for (const secondMirrored of allowedSecond) {
-        const result = scorePair(firstCellId, secondCellId, firstMirrored, secondMirrored);
-        if (!best || result.score < best.score) best = { firstMirrored, secondMirrored, ...result };
-      }
-    }
-
-    return best;
-  }
-
-  for (const edge of edges) {
-    const firstKnown = orientations.has(edge.firstCellId);
-    const secondKnown = orientations.has(edge.secondCellId);
-
-    if (!firstKnown && !secondKnown) {
-      const best = bestCombination(edge.firstCellId, edge.secondCellId, [false, true], [false, true]);
-      orientations.set(edge.firstCellId, best.firstMirrored);
-      orientations.set(edge.secondCellId, best.secondMirrored);
-    } else if (firstKnown && !secondKnown) {
-      const firstOrientation = orientations.get(edge.firstCellId);
-      const best = bestCombination(edge.firstCellId, edge.secondCellId, [firstOrientation], [false, true]);
-      orientations.set(edge.secondCellId, best.secondMirrored);
-    } else if (!firstKnown && secondKnown) {
-      const secondOrientation = orientations.get(edge.secondCellId);
-      const best = bestCombination(edge.firstCellId, edge.secondCellId, [false, true], [secondOrientation]);
-      orientations.set(edge.firstCellId, best.firstMirrored);
-    }
-  }
-
+function applyCellOrientations(orientations, cellMap, placed, placedCells, svg) {
   const results = [];
 
   for (const [cellId, shouldMirror] of orientations) {
@@ -592,144 +541,171 @@ function autoOrientCellsTowardSharedTerminals(placed, placedCells, svg) {
     const changed = shouldMirror !== currentlyMirrored;
 
     if (changed) rotateCellInstance180(cellId, placed, placedCells, svg);
-
-    results.push({
-      cell: cellId,
-      orientation: shouldMirror ? "MIRRORED" : "NORMAL",
-      changed,
-    });
+    results.push({ cell: cellId, orientation: shouldMirror ? "MIRRORED" : "NORMAL", changed });
   }
+
+  return results;
+}
+
+function autoOrientCellsTowardSharedTerminals(placed, placedCells, svg) {
+  const cellMap = new Map(placedCells.map((cell) => [cell.layout_instance || cell.id, cell]));
+  const terminalsByCell = collectSharedTerminals(placed, cellMap);
+  const edges = buildSharedTerminalEdges(terminalsByCell, cellMap);
+  const orientations = buildCellOrientations(edges, terminalsByCell, cellMap);
+  const results = applyCellOrientations(orientations, cellMap, placed, placedCells, svg);
 
   console.table(results);
   return results;
 }
 
-function rotateCellInstance180(layoutInstance, placed, placedCells, svg) {
-  const cell = placedCells.find(cell => cell.layout_instance === layoutInstance || cell.id === layoutInstance);
+function keepTextReadable(wrapper) {
+  const texts = [...wrapper.querySelectorAll("text")];
+
+  for (const text of texts) {
+    if (text.parentElement?.dataset?.readableMirroredText === "true") continue;
+
+    try {
+      const box = text.getBBox();
+      const textCenterX = box.x + box.width / 2;
+      const counterMirror = createSvgElement("g", {
+        transform: `matrix(-1 0 0 1 ${textCenterX * 2} 0)`,
+        "data-readable-mirrored-text": "true",
+      });
+
+      text.parentNode.insertBefore(counterMirror, text);
+      counterMirror.appendChild(text);
+    } catch {
+      // Ignore text elements without measurable SVG geometry.
+    }
+  }
+}
+
+function mirrorGeometry(value, centerX, visited = new Set()) {
+  if (!value || typeof value !== "object" || visited.has(value)) return;
+  visited.add(value);
+  if (Number.isFinite(value.x)) value.x = centerX * 2 - value.x;
+
+  for (const [key, child] of Object.entries(value)) {
+    if (key === "x" || key === "image" || key === "raw") continue;
+    if (child && typeof child === "object") mirrorGeometry(child, centerX, visited);
+  }
+}
+
+function getRotationBounds(cellElements) {
+  const columns = cellElements.map((element) => element.col).filter(Number.isFinite);
+  const orders = cellElements.map((element) => element.layoutOrder).filter(Number.isFinite);
+
+  return {
+    minimumColumn: columns.length ? Math.min(...columns) : 0, maximumColumn: columns.length ? Math.max(...columns) : 0,
+    minimumOrder: orders.length ? Math.min(...orders) : 0, maximumOrder: orders.length ? Math.max(...orders) : 0
+  };
+}
+
+function rotatePlacedElement180(element, centerX, bounds) {
+  mirrorGeometry(element, centerX);
+
+  if (Number.isFinite(element.col)) element.col = bounds.minimumColumn + bounds.maximumColumn - element.col;
+  if (Number.isFinite(element.layoutOrder)) element.layoutOrder = bounds.minimumOrder + bounds.maximumOrder - element.layoutOrder;
+
+  const direction = Number(element.direction ?? 1);
+  const electricalDirection = Number(element.electricalDirection ?? direction);
+
+  element.direction = direction < 0 ? 1 : -1;
+  element.electricalDirection = electricalDirection < 0 ? 1 : -1;
+  element.layoutReversed = !element.layoutReversed;
+  element.cellRotated180 = !element.cellRotated180;
+
+  if (Number.isFinite(element.forcedRotation)) element.forcedRotation = (180 - element.forcedRotation + 360) % 360;
+  else element.forcedRotation = 180;
+
+  if (Number.isFinite(element.biasRotation)) element.biasRotation = (180 - element.biasRotation + 360) % 360;
+}
+
+function nodeBelongsToCell(node, cell, layoutInstance) {
+  if (node.classList?.contains("layout-cell")) return false;
+  if (node.dataset?.cellRotation === layoutInstance) return false;
+
+  try {
+    const box = node.getBBox();
+    const nodeCenterX = box.x + box.width / 2;
+    const nodeCenterY = box.y + box.height / 2;
+    return nodeCenterX >= cell.x && nodeCenterX <= cell.x + cell.width &&
+      nodeCenterY >= cell.y && nodeCenterY <= cell.y + cell.height;
+  } catch {
+    return false;
+  }
+}
+
+function getRotatableLayerNodes(layer, cell, layoutInstance) {
+  return [...layer.children].filter((node) => nodeBelongsToCell(node, cell, layoutInstance));
+}
+
+function wrapRotatedLayerNodes(layer, selected, centerX, layoutInstance) {
+  if (!selected.length) return;
+
+  const wrapper = createSvgElement("g", {
+    transform: `matrix(-1 0 0 1 ${centerX * 2} 0)`,
+    "data-cell-rotation": layoutInstance
+  });
+
+  layer.insertBefore(wrapper, selected[0]);
+  for (const node of selected) wrapper.appendChild(node);
+  keepTextReadable(wrapper);
+}
+
+function rotateSvgCellContent(svg, cell, layoutInstance, centerX) {
+  const layers = [...svg.children].filter((child) => child.tagName?.toLowerCase() === "g");
+
+  for (const layer of layers) {
+    const selected = getRotatableLayerNodes(layer, cell, layoutInstance);
+    wrapRotatedLayerNodes(layer, selected, centerX, layoutInstance);
+  }
+}
+
+function findCellRotationData(layoutInstance, placed, placedCells) {
+  const cell = placedCells.find((candidate) => candidate.layout_instance === layoutInstance || candidate.id === layoutInstance);
   if (!cell) {
     console.warn(`Cell instance not found: ${layoutInstance}`);
-    return false;
+    return null;
   }
 
-  const cellElements = placed.filter(element => getLayoutInstance(element) === layoutInstance);
+  const cellElements = placed.filter((element) => getLayoutInstance(element) === layoutInstance);
   if (!cellElements.length) {
     console.warn(`No placed elements found for: ${layoutInstance}`);
-    return false;
+    return null;
   }
 
+  return { cell, cellElements };
+}
+
+function rotateCellInstance180(layoutInstance, placed, placedCells, svg) {
+  const rotationData = findCellRotationData(layoutInstance, placed, placedCells);
+  if (!rotationData) return false;
+
+  const { cell, cellElements } = rotationData;
   const centerX = cell.x + cell.width / 2;
+  const bounds = getRotationBounds(cellElements);
 
-  function mirrorGeometry(value, visited = new Set()) {
-    if (!value || typeof value !== "object" || visited.has(value)) return;
-    visited.add(value);
-
-    if (Number.isFinite(value.x)) value.x = centerX * 2 - value.x;
-
-    for (const [key, child] of Object.entries(value)) {
-      if (key === "x" || key === "image" || key === "raw") continue;
-      if (child && typeof child === "object") mirrorGeometry(child, visited);
-    }
-  }
-
-  function keepTextReadable(wrapper) {
-    const texts = [...wrapper.querySelectorAll("text")];
-
-    for (const text of texts) {
-      if (text.parentElement?.dataset?.readableMirroredText === "true") continue;
-
-      try {
-        const box = text.getBBox();
-        const textCenterX = box.x + box.width / 2;
-        const counterMirror = createSvgElement("g", {
-          transform: `matrix(-1 0 0 1 ${textCenterX * 2} 0)`,
-          "data-readable-mirrored-text": "true",
-        });
-
-        text.parentNode.insertBefore(counterMirror, text);
-        counterMirror.appendChild(text);
-      } catch {
-        // Ignore text elements without measurable SVG geometry.
-      }
-    }
-  }
-
-  const columns = cellElements.map(element => element.col).filter(Number.isFinite);
-  const orders = cellElements.map(element => element.layoutOrder).filter(Number.isFinite);
-  const minimumColumn = columns.length ? Math.min(...columns) : 0;
-  const maximumColumn = columns.length ? Math.max(...columns) : 0;
-  const minimumOrder = orders.length ? Math.min(...orders) : 0;
-  const maximumOrder = orders.length ? Math.max(...orders) : 0;
-
-  for (const element of cellElements) {
-    mirrorGeometry(element);
-
-    if (Number.isFinite(element.col)) element.col = minimumColumn + maximumColumn - element.col;
-    if (Number.isFinite(element.layoutOrder)) element.layoutOrder = minimumOrder + maximumOrder - element.layoutOrder;
-
-    const direction = Number(element.direction ?? 1);
-    const electricalDirection = Number(element.electricalDirection ?? direction);
-
-    element.direction = direction < 0 ? 1 : -1;
-    element.electricalDirection = electricalDirection < 0 ? 1 : -1;
-    element.layoutReversed = !element.layoutReversed;
-    element.cellRotated180 = !element.cellRotated180;
-
-    if (Number.isFinite(element.forcedRotation)) element.forcedRotation = (180 - element.forcedRotation + 360) % 360;
-    else element.forcedRotation = 180;
-
-    if (Number.isFinite(element.biasRotation)) element.biasRotation = (180 - element.biasRotation + 360) % 360;
-  }
-
-  for (const layer of [...svg.children].filter(child => child.tagName?.toLowerCase() === "g")) {
-    const selected = [...layer.children].filter(node => {
-      if (node.classList?.contains("layout-cell")) return false;
-      if (node.dataset?.cellRotation === layoutInstance) return false;
-
-      try {
-        const box = node.getBBox();
-        const nodeCenterX = box.x + box.width / 2;
-        const nodeCenterY = box.y + box.height / 2;
-
-        return nodeCenterX >= cell.x && nodeCenterX <= cell.x + cell.width &&
-          nodeCenterY >= cell.y && nodeCenterY <= cell.y + cell.height;
-      } catch {
-        return false;
-      }
-    });
-
-    if (!selected.length) continue;
-
-    const wrapper = createSvgElement("g", {
-      transform: `matrix(-1 0 0 1 ${centerX * 2} 0)`,
-      "data-cell-rotation": layoutInstance,
-    });
-
-    layer.insertBefore(wrapper, selected[0]);
-    for (const node of selected) wrapper.appendChild(node);
-
-    keepTextReadable(wrapper);
-  }
+  for (const element of cellElements) rotatePlacedElement180(element, centerX, bounds);
+  rotateSvgCellContent(svg, cell, layoutInstance, centerX);
 
   cell.rotated180 = !cell.rotated180;
 
   console.log(`[CELL MIRRORED RIGHT-TO-LEFT] ${layoutInstance}`, {
-    centerX,
-    components: cellElements.length,
-    readableTitles: true,
+    centerX, components: cellElements.length, readableTitles: true
   });
 
   return true;
 }
 
+function getJRMembers(block) {
+  const jj = block.elements.find(e => getElementType(e) === "JJ"), resistor = block.elements.find(e => getElementType(e) === "R");
+  return jj && resistor && isJJResistorPair(jj, resistor) ? { jj, resistor } : null;
+}
 
 function getLocalCellLayout(elements, existingPlan = null) {
   const plan = existingPlan || buildSequentialTerminalPlan(elements), half = drawConfig.imageSize / 2, local = [];
   const getX = col => col * drawConfig.layoutCellElementGapX, getY = row => row * drawConfig.layoutCellElementGapY;
-
-  function getJRMembers(block) {
-    const jj = block.elements.find(e => getElementType(e) === "JJ"), resistor = block.elements.find(e => getElementType(e) === "R");
-    return jj && resistor && isJJResistorPair(jj, resistor) ? { jj, resistor } : null;
-  }
 
   const ordered = [...plan.placements.values()].sort((a, b) => a.row - b.row || a.col - b.col || (a.block.originalIndex ?? Infinity) - (b.block.originalIndex ?? Infinity));
 

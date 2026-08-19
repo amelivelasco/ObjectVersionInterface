@@ -52,19 +52,19 @@ def main():
         / "MultiplexerAmeli.custom_compiler.gds"
     )
 
-    # netlist_path = (
-    #     base_dir
-    #     / "Circuit_Projects"
-    #     / "NDROmCells"
-    #     / "Netlist.sp"
-    # )
+    netlist_path = (
+        base_dir
+        / "Circuit_Projects"
+        / "NDROmCells"
+        / "Netlist.sp"
+    )
        
-    # layout_path = (
-    #     base_dir 
-    #     / "Circuit_Projects"
-    #     / "NDROmCells"
-    #     / "BIG_Cellname.gds"
-    # )
+    layout_path = (
+        base_dir 
+        / "Circuit_Projects"
+        / "NDROmCells"
+        / "BIG_Cellname.gds"
+    )
 
     # netlist_path = (
     #     base_dir
@@ -94,19 +94,19 @@ def main():
     #     / "Layout.gds"
     # )
     
-    netlist_path = (
-        base_dir
-        / "Circuit_Projects"
-        / "NDROMDrivers"
-        / "Netlist.sp"
-    )
+    # netlist_path = (
+    #     base_dir
+    #     / "Circuit_Projects"
+    #     / "NDROMDrivers"
+    #     / "Netlist.sp"
+    # )
 
-    layout_path = (
-        base_dir 
-        / "Circuit_Projects"
-        / "NDROMDrivers"
-        / "NDROMDrivers.custom_compiler.gds"
-    )
+    # layout_path = (
+    #     base_dir 
+    #     / "Circuit_Projects"
+    #     / "NDROMDrivers"
+    #     / "NDROMDrivers.custom_compiler.gds"
+    # )
 
     # netlist_path = (
     #     base_dir
