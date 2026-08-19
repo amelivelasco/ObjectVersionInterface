@@ -6,6 +6,7 @@ from exporters.KLayoutExporter import KLayoutExporter
 from exporters.InductexExporter import InductexExporter
 from exporters.SpiceExporter import SpiceExporter
 from parser.cdl_parser import CDLParser
+from project_list import select_project
 import os
 import re
 import subprocess
@@ -18,125 +19,18 @@ def read_custom_compiler_cell_name(sp_path):
 
 def show_file_in_vscode(file_path: Path):
     file_path = file_path.resolve()
+    command = ["cmd", "/c", "code", "--reuse-window", str(file_path)] if os.name == "nt" else ["code", "--reuse-window", str(file_path)]
+    options = {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)} if os.name == "nt" else {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
 
     try:
-        if os.name == "nt":
-            subprocess.Popen(
-                ["cmd", "/c", "code", "--reuse-window", str(file_path)],
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
-        else:
-            subprocess.Popen(
-                ["code", "--reuse-window", str(file_path)],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+        subprocess.Popen(command, **options)
     except OSError as error:
         print(f"Could not open generated file in VS Code: {error}")
 
 
 def main():
     base_dir = Path(__file__).resolve().parent
-
-    netlist_path = (
-        base_dir
-        / "Circuit_Projects"
-        / "MultiplexerAmeli"
-        / "BasicCellsHomemade_MultiplexerAmeli.sp"
-    )
-       
-    layout_path = (
-        base_dir 
-        / "Circuit_Projects"
-        / "MultiplexerAmeli"
-        / "MultiplexerAmeli.custom_compiler.gds"
-    )
-
-    netlist_path = (
-        base_dir
-        / "Circuit_Projects"
-        / "NDROmCells"
-        / "Netlist.sp"
-    )
-       
-    layout_path = (
-        base_dir 
-        / "Circuit_Projects"
-        / "NDROmCells"
-        / "BIG_Cellname.gds"
-    )
-
-    # netlist_path = (
-    #     base_dir
-    #     / "Circuit_Projects"  
-    #     / "NDROMWires" 
-    #     / "LayoutDone_NDROMDrivers.sp"
-    # )
-       
-    # layout_path = (
-    #     base_dir 
-    #     / "Circuit_Projects"
-    #     / "NDROMWires"
-    #     / "NDROMDrivers.custom_compiler.gds"
-    # )
-
-    # netlist_path = (
-    #     base_dir
-    #     / "Circuit_Projects"
-    #     / "Splitter" / "Splitter"
-    #     / "Netlist.sp"
-    # )
-
-    # layout_path = (
-    #     base_dir
-    #     / "Circuit_Projects"
-    #     / "Splitter" / "Splitter"
-    #     / "Layout.gds"
-    # )
-    
-    # netlist_path = (
-    #     base_dir
-    #     / "Circuit_Projects"
-    #     / "NDROMDrivers"
-    #     / "Netlist.sp"
-    # )
-
-    # layout_path = (
-    #     base_dir 
-    #     / "Circuit_Projects"
-    #     / "NDROMDrivers"
-    #     / "NDROMDrivers.custom_compiler.gds"
-    # )
-
-    # netlist_path = (
-    #     base_dir
-    #     / "Circuit_Projects"
-    #     / "VFHalf"
-    #     / "LayoutDone_VFHalf.sp"
-    # )
-    
-    # layout_path = (
-    #     base_dir 
-    #     / "Circuit_Projects"
-    #     / "VFHalf" 
-    #     / "VFHalf.custom_compiler.gds"
-    # )
-
-    # netlist_path = (
-    #     base_dir
-    #     / "Circuit_Projects"
-    #     / "NDROMDrivers 1 (1)"
-    #     / "NDROMDrivers"
-    #     / "LayoutDone_NDROMDrivers.sp"
-    # )
-    
-    # layout_path = (
-    #     base_dir 
-    #     / "Circuit_Projects"
-    #     / "NDROMDrivers 1 (1)" 
-    #     / "NDROMDrivers"
-    #     / "NDROMDrivers.custom_compiler.gds"
-    # )
+    netlist_path, layout_path = select_project(base_dir)
     
     
     ordered_elems_path = (
