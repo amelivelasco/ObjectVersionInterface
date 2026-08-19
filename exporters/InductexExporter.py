@@ -149,7 +149,6 @@ class InductexExporter(BaseExporter):
                 start_index = len(lines); emitter(elem, lines); emitted_lines = lines[start_index:]; del lines[start_index:]
                 instance_name = self._get_first_level_inductex_instance(elem)
                 instance_groups.setdefault(instance_name, []).extend(emitted_lines)
-                original_name = getattr(elem, "original_name", getattr(elem, "raw_name", elem.name))
                 continue
             if hasattr(elem, "instances"): self._collect_inductex_instance_groups(elem, lines, instance_groups)
 
