@@ -97,11 +97,136 @@ You can select the circuit project directly from the command line using either t
 python main.py --project splitter
 ```
 
+or:
+
 ```bash
 python main.py -p vfhalf
 ```
 
 Replace `splitter` or `vfhalf` with the name of the project you want to run.
+
+### Generated InductEx Files
+
+When a project is executed, the program automatically creates a new folder inside the selected project's directory. The generated folder uses the original project folder name with `_Inductex` appended to it.
+
+For example:
+
+```text
+Circuit_Projects/
+└── VFHalf/
+    ├── LayoutDone_VFHalf.sp
+    ├── VFHalf.custom_compiler.gds
+    ├── VFHalf.xi
+    └── VFHalf_Inductex/
+        └── *.cir
+```
+
+The generated InductEx-compatible `.cir` files are stored inside this new `_Inductex` folder.
+
+After generating the circuit file, the program also automatically opens the newly created `.cir` file so that it can be inspected or used directly with InductEx.
+
+In addition, each execution creates, or updates if it already exists, a `.xi` file in the root directory of the selected project.
+
+For example:
+
+```text
+Circuit_Projects/VFHalf/VFHalf.xi
+```
+
+This means that running:
+
+```bash
+python main.py -p vfhalf
+```
+
+will process the files associated with `vfhalf`, generate the corresponding InductEx files inside the project's `_Inductex` output folder, open the newly generated `.cir` file, and create or update the project's `.xi` file.
+
+### Adding a New Project
+
+To add a new circuit project, first create a new folder inside:
+
+```text
+Circuit_Projects/
+```
+
+Add the project's SPICE netlist (`.sp`) and layout file (`.gds`) inside this folder.
+
+For example:
+
+```text
+Circuit_Projects/
+└── MyProject/
+    ├── Netlist.sp
+    └── Layout.gds
+```
+
+Next, open:
+
+```text
+project_list.py
+```
+
+Add the new project to the `PROJECTS` dictionary by providing the relative paths to the `.sp` and `.gds` files.
+
+For example:
+
+```python
+PROJECTS = {
+    "multiplexer": {
+        "netlist": "Circuit_Projects/MultiplexerAmeli/BasicCellsHomemade_MultiplexerAmeli.sp",
+        "layout": "Circuit_Projects/MultiplexerAmeli/MultiplexerAmeli.custom_compiler.gds",
+    },
+
+    "ndrom_cells": {
+        "netlist": "Circuit_Projects/NDROmCells/Netlist.sp",
+        "layout": "Circuit_Projects/NDROmCells/BIG_Cellname.gds",
+    },
+
+    "ndrom_wires": {
+        "netlist": "Circuit_Projects/NDROMWires/LayoutDone_NDROMDrivers.sp",
+        "layout": "Circuit_Projects/NDROMWires/NDROMDrivers.custom_compiler.gds",
+    },
+
+    "splitter": {
+        "netlist": "Circuit_Projects/Splitter/Splitter/Netlist.sp",
+        "layout": "Circuit_Projects/Splitter/Splitter/Layout.gds",
+    },
+
+    "ndrom_drivers": {
+        "netlist": "Circuit_Projects/NDROMDrivers/Netlist.sp",
+        "layout": "Circuit_Projects/NDROMDrivers/NDROMDrivers.custom_compiler.gds",
+    },
+
+    "vfhalf": {
+        "netlist": "Circuit_Projects/VFHalf/LayoutDone_VFHalf.sp",
+        "layout": "Circuit_Projects/VFHalf/VFHalf.custom_compiler.gds",
+    },
+
+    "ndrom_drivers_old": {
+        "netlist": "Circuit_Projects/NDROMDrivers 1 (1)/NDROMDrivers/LayoutDone_NDROMDrivers.sp",
+        "layout": "Circuit_Projects/NDROMDrivers 1 (1)/NDROMDrivers/NDROMDrivers.custom_compiler.gds",
+    },
+
+    "my_project": {
+        "netlist": "Circuit_Projects/MyProject/Netlist.sp",
+        "layout": "Circuit_Projects/MyProject/Layout.gds",
+    },
+}
+```
+
+The dictionary key becomes the project name used from the command line. For example:
+
+```bash
+python main.py --project my_project
+```
+
+or:
+
+```bash
+python main.py -p my_project
+```
+
+Make sure the paths in `project_list.py` exactly match the location and filenames of the files inside `Circuit_Projects/`.
 
 ## 4. Start the local web server
 
@@ -147,13 +272,13 @@ Another example:
 python -m http.server 3000
 ```
 
-and open:
+Then open:
 
 ```text
 http://localhost:3000/UI/main_page.html
 ```
 
-## Typical workflow
+## Typical Workflow
 
 ### Linux
 
@@ -161,7 +286,7 @@ Terminal 1:
 
 ```bash
 source .venv/bin/activate
-python main.py
+python main.py -p vfhalf
 ```
 
 Terminal 2:
@@ -183,7 +308,7 @@ Terminal 1:
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
-python main.py
+python main.py -p vfhalf
 ```
 
 Terminal 2:
