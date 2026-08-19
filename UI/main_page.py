@@ -122,56 +122,49 @@ class Schematic:
         instance_path = self.get_instance_path(component)
         return f"{instance_path}::{component.layout_cell}" if instance_path else str(component.layout_cell)
         
-    def refresh_ordered_components_file(self, circuit, first_level_layout_cells, top_cell_name=None):
-        current_components = []
-        top_cell_name = top_cell_name or str(circuit.TOP.name)
+    def _get_component_value(self, elem):
+        for attribute in ("L", "Ic", "Ib", "R"):
+            if hasattr(elem, attribute): return getattr(elem, attribute)
+        return None
 
-        def get_value(elem):
-            for attribute in ("L", "Ic", "Ib", "R"):
-                if hasattr(elem, attribute): return getattr(elem, attribute)
-            return None
+    def _resolve_layout_cell(self, raw, logical_path, first_level_layout_cells, top_cell_name):
+        layout_cell = first_level_layout_cells.get(raw)
+        if layout_cell is not None: return layout_cell
+        if len([part for part in logical_path.split("/") if part]) > 1: raise RuntimeError(f"No first-level layout-cell mapping for hierarchical component raw={raw}, path={logical_path}")
+        return top_cell_name
 
-        def walk(cell):
-            for elem in cell.instances:
-                if hasattr(elem, "instances") and elem.instances:
-                    walk(elem)
-                    continue
+    def _create_ordered_component(self, elem, first_level_layout_cells, top_cell_name):
+        raw = str(getattr(elem, "raw_name", getattr(elem, "original_name", elem.name)))
+        cir_name = str(elem.name)
+        layout_inst = getattr(elem, "KLayoutInstance", None)
+        pid = layout_inst.property(102) if layout_inst is not None else None
+        logical_path = self.get_logical_path(type("_C", (), {"raw": raw})())
+        layout_cell = self._resolve_layout_cell(raw, logical_path, first_level_layout_cells, top_cell_name)
+        net_in = getattr(getattr(elem, "net_in", None), "name", None)
+        net_out = getattr(getattr(elem, "net_out", None), "name", None)
 
-                raw = str(getattr(elem, "raw_name", getattr(elem, "original_name", elem.name)))
-                cir_name = str(elem.name)
-                layout_inst = getattr(elem, "KLayoutInstance", None)
-                pid = layout_inst.property(102) if layout_inst is not None else None
+        return CircuitComponent(raw=raw, cir_name=cir_name, path=logical_path, pid=pid, layout_cell=layout_cell, net_in=net_in, net_out=net_out,
+                                target_value=getattr(elem, "target_value", None), extracted_value=getattr(elem, "extracted_value", self._get_component_value(elem)))
 
-                logical_path = self.get_logical_path(type("_C", (), {"raw": raw})())
-                parts = [part for part in logical_path.split("/") if part]
-                has_parent_instance = len(parts) > 1
+    def _collect_ordered_components(self, cell, first_level_layout_cells, top_cell_name, components):
+        for elem in cell.instances:
+            if hasattr(elem, "instances") and elem.instances:
+                self._collect_ordered_components(elem, first_level_layout_cells, top_cell_name, components)
+                continue
+            components.append(self._create_ordered_component(elem, first_level_layout_cells, top_cell_name))
 
-                layout_cell = first_level_layout_cells.get(raw)
-
-                if layout_cell is None:
-                    if has_parent_instance:
-                        raise RuntimeError(f"No first-level layout-cell mapping for hierarchical component raw={raw}, path={logical_path}")
-                    layout_cell = top_cell_name
-
-                net_in = getattr(getattr(elem, "net_in", None), "name", None)
-                net_out = getattr(getattr(elem, "net_out", None), "name", None)
-
-                current_components.append(CircuitComponent(
-                    raw=raw, cir_name=cir_name, path=logical_path, pid=pid, layout_cell=layout_cell,
-                    net_in=net_in, net_out=net_out,
-                    target_value=getattr(elem, "target_value", None),
-                    extracted_value=getattr(elem, "extracted_value", get_value(elem)),
-                ))
-
-        walk(circuit.TOP)
-
+    def _write_ordered_components(self, components, top_cell_name):
         self.map_file.parent.mkdir(parents=True, exist_ok=True)
-
         with self.map_file.open("w", encoding="utf-8") as file:
             file.write(f"generated_at: {datetime.now(timezone.utc).isoformat()}\n")
             file.write(f"cell_name: {top_cell_name}\n")
-            for component in current_components: file.write(f"{component}\n")
+            for component in components: file.write(f"{component}\n")
 
+    def refresh_ordered_components_file(self, circuit, first_level_layout_cells, top_cell_name=None):
+        top_cell_name = top_cell_name or str(circuit.TOP.name)
+        current_components = []
+        self._collect_ordered_components(circuit.TOP, first_level_layout_cells, top_cell_name, current_components)
+        self._write_ordered_components(current_components, top_cell_name)
         print(f"Ordered elements file overwritten: {self.map_file.resolve()}")
         print(f"Current components written: {len(current_components)}")
         return current_components
@@ -228,84 +221,52 @@ class Schematic:
             )
         
 
-    def read_ordered_components(self, spice_data):
-        if not self.map_file.exists():
-            raise FileNotFoundError(
-                f"Ordered elements file not found: {self.map_file}"
-            )
+    def _build_net_lookup(self, spice_data):
+        return {element["id"]: {"net_in": element.get("net_in"), "net_out": element.get("net_out"), "value": element.get("value")} for element in spice_data["elements"]}
 
-        net_lookup = {
-            element["id"]: {
-                "net_in": element.get("net_in"),
-                "net_out": element.get("net_out"),
-                "value": element.get("value"),
-            }
-            for element in spice_data["elements"]
-        }
+    def _parse_ordered_component_line(self, line, line_number, net_lookup):
+        parsed = self.parse_mapping_line(line)
+        if parsed is None: raise ValueError(f"Invalid mapping line {line_number}: {line}")
 
+        raw = parsed["raw"]
+        fallback = net_lookup.get(raw, {})
+        net_in = parsed["net_in"] if parsed["net_in"] is not None else fallback.get("net_in")
+        net_out = parsed["net_out"] if parsed["net_out"] is not None else fallback.get("net_out")
+
+        component = CircuitComponent(raw=raw, cir_name=parsed["cir_name"], path=parsed["path"], pid=parsed["pid"], layout_cell=parsed["layout_cell"],
+                                    net_in=net_in, net_out=net_out, target_value=parsed["target_value"], extracted_value=parsed["extracted_value"])
+        component.original_index = line_number
+        return component
+
+    def _read_ordered_component_lines(self, net_lookup):
         ordered_components = []
-        source_index = 0
-
         with self.map_file.open("r", encoding="utf-8") as file:
             for line_number, line in enumerate(file, start=1):
                 line = line.strip()
+                if not line or line.startswith(("generated_at:", "cell_name:")): continue
+                component = self._parse_ordered_component_line(line, line_number, net_lookup)
+                self.insert_component_by_net(ordered_components, component)
+        return ordered_components
 
-                if not line or line.startswith(("generated_at:", "cell_name:")): 
-                    continue
-
-                parsed = self.parse_mapping_line(line)
-
-                if parsed is None:
-                    raise ValueError(
-                        f"Invalid mapping line {line_number}: {line}"
-                    )
-
-                raw = parsed["raw"]
-                fallback = net_lookup.get(raw, {})
-
-                net_in = parsed["net_in"]
-                if net_in is None:
-                    net_in = fallback.get("net_in")
-
-                net_out = parsed["net_out"]
-                if net_out is None:
-                    net_out = fallback.get("net_out")
-
-                value = parsed["target_value"]
-                if value is None:
-                    value = fallback.get("target_value")
-
-                component = CircuitComponent(
-                    raw=raw, cir_name=parsed["cir_name"], path=parsed["path"], pid=parsed["pid"],
-                    layout_cell=parsed["layout_cell"], net_in=net_in, net_out=net_out,
-                    target_value=parsed["target_value"], extracted_value=parsed["extracted_value"],
-                )
-
-                # Preserve where the component appeared in the source file.
-                component.original_index = line_number
-
-                self.insert_component_by_net(
-                    ordered_components,
-                    component,
-                )
-        # Build the layout-cell groups after the components
-        # have been placed in their final order.
+    def _build_layout_cells_from_components(self, ordered_components):
         layout_cells = []
+        for component in ordered_components: self.handle_layout_cell(layout_cells, component)
+        return layout_cells
 
-        for component in ordered_components:
-            self.handle_layout_cell(
-                layout_cells,
-                component,
-            )
-
+    def _print_layout_cells(self, layout_cells):
         for cell in layout_cells:
             print(f"\nLayout cell: {cell.layout_cell}")
             print(f"Net in: {cell.net_in}")
             print(f"Net out: {cell.net_out}")
+            for element in cell.elements: print(f"  - {element.raw}")
 
-            for element in cell.elements:
-                print(f"  - {element.raw}")
+    def read_ordered_components(self, spice_data):
+        if not self.map_file.exists(): raise FileNotFoundError(f"Ordered elements file not found: {self.map_file}")
 
+        net_lookup = self._build_net_lookup(spice_data)
+        ordered_components = self._read_ordered_component_lines(net_lookup)
+        layout_cells = self._build_layout_cells_from_components(ordered_components)
+        self._print_layout_cells(layout_cells)
         return ordered_components
     
     @staticmethod
