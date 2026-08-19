@@ -4,6 +4,14 @@ import re
 import json
 from UI.layout_instance import LayoutInstance
 from UI.circuit_component import CircuitComponent
+from exporters.KLayoutExporter import KLayoutExporter
+from exporters.InductexExporter import InductexExporter
+from exporters.SpiceExporter import SpiceExporter
+from parser.cdl_parser import CDLParser
+from datetime import datetime, timezone
+from pathlib import Path
+import os
+import subprocess
 
 
 class Schematic:
@@ -421,6 +429,171 @@ class Schematic:
                     layout_element_ids,
                         })
         return layout_cells_data
+    
+    def show_file_in_vscode(self, file_path: Path):
+        file_path = file_path.resolve()
+        command = ["cmd", "/c", "code", "--reuse-window", str(file_path)] if os.name == "nt" else ["code", "--reuse-window", str(file_path)]
+        options = {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)} if os.name == "nt" else {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+
+        try:
+            subprocess.Popen(command, **options)
+        except OSError as error:
+            print(f"Could not open generated file in VS Code: {error}")
+    
+    def walk_leaf_elements(self, cell):
+        for elem in cell.instances:
+            if hasattr(elem, "instances"):
+                yield from self.walk_leaf_elements(elem)
+            else:
+                yield elem
+
+    def build_sol_name_map(self, sp_path):
+        map_circuit = CDLParser().parse(sp_path)
+        map_circuit.assign_cell_ids(); map_circuit.define_local_names()
+        original_names = {id(elem): str(getattr(elem, "raw_name", elem.name)).upper() for elem in self.walk_leaf_elements(map_circuit.TOP)}
+        map_circuit.rename_all_elements_by_type()
+        name_map = {}
+
+        for elem in self.walk_leaf_elements(map_circuit.TOP):
+            raw_name, sol_name = original_names[id(elem)], str(elem.name).upper()
+            name_map[raw_name] = sol_name
+            if raw_name.startswith("L") and not raw_name.startswith("LL"): name_map[f"L{raw_name}"] = sol_name
+            if elem.type == "JJ": name_map[f"XSJ{raw_name}"] = sol_name
+            if elem.type == "IB": name_map[f"XPC{raw_name}"] = sol_name
+
+        print("\n=== ORIGINAL SP -> SOL NAME MAP ===")
+        for original, sol_name in name_map.items(): print(f"{original} -> {sol_name}")
+        print("====================================\n")
+        return name_map
+
+    def get_next_cir_output_path(self, output_dir):
+        version = 1
+        while (output_dir / f"BIG_Cell_inductex_V{version}.cir").exists(): version += 1
+        return output_dir / f"BIG_Cell_inductex_V{version}.cir"
+
+    def build_run_paths(self, base_dir, netlist_path):
+        output_dir = netlist_path.parent / f"{netlist_path.stem}_Inductex"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        return {
+            "original_netlist": netlist_path,
+            "output_dir": output_dir,
+            "cir_output": self.get_next_cir_output_path(output_dir),
+            "sol": netlist_path.parent / "sol.txt",
+            "extracted_sp": netlist_path.parent / "Netlist_from_sol.sp",
+            "ordered_elems": base_dir / "ordered_elems.txt",
+            "circuit_data": base_dir / "UI" / "circuit_data.js",
+        }
+
+    def prepare_netlist(self, paths):
+        original_netlist = paths["original_netlist"]
+        if not original_netlist.exists(): raise FileNotFoundError(f"Original SPICE netlist not found: {original_netlist.resolve()}")
+        if not paths["sol"].exists():
+            print("No sol.txt found. Using original SP:", original_netlist.resolve())
+            return original_netlist, {}
+
+        print("InductEx solution found:", paths["sol"].resolve())
+        name_map = self.build_sol_name_map(original_netlist)
+        combined_layout_map = SpiceExporter.create_sp_from_sol(
+            sol_path=paths["sol"], source_sp=original_netlist, output_sp=paths["extracted_sp"], name_map=name_map
+        )
+
+        print("Netlist updated while preserving original SP format:", paths["extracted_sp"].resolve())
+        self.show_file_in_vscode(paths["extracted_sp"])
+        return paths["extracted_sp"], combined_layout_map
+
+    def component_value(self, elem):
+        attributes = {"JJ": "Ic", "IB": "Ib", "L": "L", "R": "R"}
+        attribute = attributes.get(getattr(elem, "type", None))
+        return getattr(elem, attribute, None) if attribute else None
+
+    def attach_original_values(self, original_circuit, extracted_circuit, has_sol):
+        original_elements = list(self.walk_leaf_elements(original_circuit.TOP))
+        extracted_elements = list(self.walk_leaf_elements(extracted_circuit.TOP))
+
+        for original, extracted in zip(original_elements, extracted_elements):
+            extracted.target_value = self.component_value(original)
+            extracted.extracted_value = self.component_value(extracted) if has_sol else None
+
+    def save_original_component_names(self, cell):
+        for elem in self.walk_leaf_elements(cell):
+            if hasattr(elem, "net_in"): elem.original_name = getattr(elem, "raw_name", elem.name)
+
+    def setup_exporters(self, circuit, layout_path, output_dir, combined_layout_map, sol_path):
+        klayout_exp = KLayoutExporter(circuit, layout_path)
+        inductex_exp = InductexExporter(circuit)
+        klayout_exp.combined_layout_map = combined_layout_map
+        if sol_path.exists(): inductex_exp.sol_values = SpiceExporter.parse_sol_file(sol_path)
+        klayout_exp.output_dir = str(output_dir); inductex_exp.output_dir = str(output_dir)
+        inductex_exp.list_top_nodes(circuit.TOP)
+        return klayout_exp, inductex_exp
+
+
+    def prepare_layout_mapping(self, circuit, klayout_exp):
+        klayout_exp.integrating_layout()
+        first_level_layout_cells = klayout_exp.report_mapping_audit()
+        klayout_exp.report_layout_mapping()
+        circuit.assign_cell_ids(); circuit.define_local_names()
+        self.save_original_component_names(circuit.TOP)
+        circuit.rename_all_elements_by_type()
+        klayout_exp.write_cell_names()
+        return first_level_layout_cells
+    
+    def validate_generated_cir(self, generated_cir_path, expected_path):
+        if generated_cir_path != expected_path.resolve():
+            raise RuntimeError(f"The .cir file was generated in the wrong location.\nExpected: {expected_path.resolve()}\nActual: {generated_cir_path}")
+        if not generated_cir_path.exists(): raise RuntimeError(f"InductEx file was not generated: {generated_cir_path}")
+
+        cir_content = generated_cir_path.read_text(encoding="utf-8")
+        expected_header = "* === TRANSLATED CIRCUIT CONNECTIONS ==="
+        if not cir_content.startswith(expected_header):
+            raise RuntimeError(
+                "The generated .cir file is still using the old output format.\n"
+                f"File: {generated_cir_path}\nExpected first line: {expected_header}\nActual beginning:\n{cir_content[:500]}"
+            )
+        return cir_content
+    
+    def generate_inductex_files(self, parser, klayout_exp, inductex_exp, context):
+        layout_path, paths, top_cell_name = context["layout_path"], context["paths"], context["top_cell_name"]
+        generated_cir_path = Path(inductex_exp.export_complete_cir(
+            klayout_exporter=klayout_exp, output_path=paths["cir_output"]
+        )).resolve()
+
+        parser.create_or_update_xi(
+            xi_path=paths["original_netlist"].parent / f"{top_cell_name}.xi",
+            cir_path=generated_cir_path, gds_path=layout_path, cell_name=top_cell_name
+        )
+
+        cir_content = self.validate_generated_cir(generated_cir_path, paths["cir_output"])
+        print("New InductEx run saved at:", generated_cir_path)
+        self.show_file_in_vscode(generated_cir_path)
+        self.print_cir_report(generated_cir_path, cir_content)
+        return generated_cir_path
+    
+
+    def generate_schematic_files(self, parser, circuit, netlist_path, paths, first_level_layout_cells, top_cell_name):
+        self.sp_file = Path(netlist_path)
+        spice_data = parser.circuit_to_schematic_data(circuit)
+
+        self.refresh_ordered_components_file(circuit=circuit, first_level_layout_cells=first_level_layout_cells, top_cell_name=top_cell_name)
+        ordered_components = self.read_ordered_components(spice_data)
+
+        generated_at = datetime.now(timezone.utc).isoformat()
+        with paths["ordered_elems"].open("w", encoding="utf-8") as file:
+            file.write(f"generated_at: {generated_at}\n")
+            file.write(f"cell_name: {top_cell_name}\n")
+            for component in ordered_components: file.write(f"{component}\n")
+
+        print("ordered_elems.txt rewritten at:", paths["ordered_elems"].resolve())
+        self.write_circuit_data(ordered_components=ordered_components, output_file=paths["circuit_data"], top_cell_name=top_cell_name)
+        print("circuit_data.js regenerated at:", paths["circuit_data"].resolve())
+
+    def print_cir_report(self, generated_cir_path, cir_content):
+        translated_line_count = sum(1 for line in cir_content.splitlines() if line.strip() and not line.lstrip().startswith("*"))
+        print("LATEST INDUCTEX FILE:", generated_cir_path)
+        print("FILE SIZE:", generated_cir_path.stat().st_size, "bytes")
+        print("CONNECTION LINES:", translated_line_count)
+        print("FIRST 500 CHARACTERS:")
+        print(cir_content[:500])
 
 
     def write_circuit_data(self, ordered_components, output_file, top_cell_name=None):
