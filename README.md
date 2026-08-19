@@ -89,6 +89,20 @@ python3 main.py
 
 The program will ask you to select the circuit project to run.
 
+### Running a Project
+
+You can select the circuit project directly from the command line using either the long `--project` option or the short `-p` option.
+
+```bash
+python main.py --project splitter
+```
+
+```bash
+python main.py -p vfhalf
+```
+
+Replace `splitter` or `vfhalf` with the name of the project you want to run.
+
 ## 4. Start the local web server
 
 Open a second terminal in the project root and activate the virtual environment if needed.
