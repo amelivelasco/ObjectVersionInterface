@@ -7,62 +7,50 @@ function isSharedOutputConflict(terminals) {
   return distinctInputNets.size > 1;
 }
 
-function extractWireSegmentsFromElement(element) {
+function extractLineSegment(element) {
+  return {
+    a: { x: Number(element.getAttribute("x1")), y: Number(element.getAttribute("y1")) },
+    b: { x: Number(element.getAttribute("x2")), y: Number(element.getAttribute("y2")) }
+  };
+}
+
+function getNextPathPoint(command, tokens, state) {
+  if (command === "M" || command === "L") return { x: Number(tokens[state.index++]), y: Number(tokens[state.index++]) };
+  if (command === "H") return { x: Number(tokens[state.index++]), y: state.current.y };
+  if (command === "V") return { x: state.current.x, y: Number(tokens[state.index++]) };
+  return null;
+}
+
+function updatePathCommand(tokens, state) {
+  if (!/^[MLHV]$/i.test(tokens[state.index])) return;
+  state.command = tokens[state.index].toUpperCase();
+  state.index++;
+}
+
+function extractPathSegments(element) {
   const segments = [];
-
-  if (element.tagName?.toLowerCase() === "line") {
-    segments.push({
-      a: {
-        x: Number(element.getAttribute("x1")),
-        y: Number(element.getAttribute("y1")),
-      },
-      b: {
-        x: Number(element.getAttribute("x2")),
-        y: Number(element.getAttribute("y2")),
-      },
-    });
-
-    return segments;
-  }
-
-  if (element.tagName?.toLowerCase() !== "path") { return segments; }
-
   const tokens = element.getAttribute("d")?.match(/[MLHV]|-?\d*\.?\d+(?:e[-+]?\d+)?/gi) || [];
+  const state = { index: 0, command: null, current: null };
 
-  let index = 0;
-  let command = null;
-  let current = null;
+  while (state.index < tokens.length) {
+    updatePathCommand(tokens, state);
+    if (!state.command) break;
 
-  while (index < tokens.length) {
-    if (/^[MLHV]$/i.test(tokens[index])) {
-      command = tokens[index].toUpperCase();
-      index++;
-    }
+    const next = getNextPathPoint(state.command, tokens, state);
+    if (!next) break;
 
-    if (!command) { break; }
-
-    let next = null;
-
-    if (command === "M" || command === "L") {
-      next = { x: Number(tokens[index++]), y: Number(tokens[index++]), };
-    } else if (command === "H") {
-      next = { x: Number(tokens[index++]), y: current.y,
-      };
-    } else if (command === "V") {
-      next = {  x: current.x, y: Number(tokens[index++]),
-      };
-    }
-
-    if (!next) { break; }
-
-    if (current && command !== "M") {
-      segments.push({a: { ...current }, b: { ...next },});
-    }
-
-    current = next;
+    if (state.current && state.command !== "M") segments.push({ a: { ...state.current }, b: { ...next } });
+    state.current = next;
   }
 
   return segments;
+}
+
+function extractWireSegmentsFromElement(element) {
+  const tagName = element.tagName?.toLowerCase();
+  if (tagName === "line") return [extractLineSegment(element)];
+  if (tagName !== "path") return [];
+  return extractPathSegments(element);
 }
 
 function buildRoutingObstacleBoxes(elements, excludedIds = new Set(), padding = 10) {
@@ -182,51 +170,43 @@ function axisAlignedSegmentHitsBox(first, second, box) {
   return true;
 }
 
-function getWireRelation(first, second) {
-  const epsilon = 0.5;
+function getParallelWireOverlap(first, second, horizontal, epsilon) {
+  const firstFixed = horizontal ? first.a.y : first.a.x;
+  const secondFixed = horizontal ? second.a.y : second.a.x;
+  if (Math.abs(firstFixed - secondFixed) >= epsilon) return null;
 
-  const firstHorizontal = Math.abs(first.a.y - first.b.y) < epsilon;
-  const secondHorizontal = Math.abs(second.a.y - second.b.y) < epsilon;
+  const firstStart = horizontal ? first.a.x : first.a.y;
+  const firstEnd = horizontal ? first.b.x : first.b.y;
+  const secondStart = horizontal ? second.a.x : second.a.y;
+  const secondEnd = horizontal ? second.b.x : second.b.y;
 
-  if (firstHorizontal && secondHorizontal) {
-    if (Math.abs(first.a.y - second.a.y) >= epsilon
-    ) { return null; }
+  const overlap = Math.min(Math.max(firstStart, firstEnd), Math.max(secondStart, secondEnd)) -
+    Math.max(Math.min(firstStart, firstEnd), Math.min(secondStart, secondEnd));
 
-    const overlap =
-      Math.min(Math.max(first.a.x, first.b.x), Math.max(second.a.x, second.b.x)) - Math.max(
-        Math.min(first.a.x, first.b.x), Math.min(second.a.x, second.b.x)
-      );
+  return overlap > epsilon ? "overlap" : null;
+}
 
-    return overlap > epsilon ? "overlap" : null;
-  }
-
-  if (!firstHorizontal && !secondHorizontal) {
-    if (Math.abs(first.a.x - second.a.x) >= epsilon) {
-      return null;
-    }
-
-    const overlap =
-      Math.min(Math.max(first.a.y, first.b.y), Math.max(second.a.y, second.b.y)) -
-      Math.max(Math.min(first.a.y, first.b.y), Math.min(second.a.y, second.b.y));
-
-    return overlap > epsilon ? "overlap" : null;
-  }
-
+function wiresCross(first, second, firstHorizontal, epsilon) {
   const horizontal = firstHorizontal ? first : second;
   const vertical = firstHorizontal ? second : first;
-
   const crossingX = vertical.a.x;
   const crossingY = horizontal.a.y;
 
-  const crossesHorizontalInterior =
-    crossingX > Math.min(horizontal.a.x, horizontal.b.x) + epsilon &&
+  const crossesHorizontalInterior = crossingX > Math.min(horizontal.a.x, horizontal.b.x) + epsilon &&
     crossingX < Math.max(horizontal.a.x, horizontal.b.x) - epsilon;
-
-  const crossesVerticalInterior =
-    crossingY > Math.min(vertical.a.y, vertical.b.y) + epsilon &&
+  const crossesVerticalInterior = crossingY > Math.min(vertical.a.y, vertical.b.y) + epsilon &&
     crossingY < Math.max(vertical.a.y, vertical.b.y) - epsilon;
 
-  return (crossesHorizontalInterior && crossesVerticalInterior) ? "cross" : null;
+  return crossesHorizontalInterior && crossesVerticalInterior ? "cross" : null;
+}
+
+function getWireRelation(first, second) {
+  const epsilon = 0.5;
+  const firstHorizontal = Math.abs(first.a.y - first.b.y) < epsilon;
+  const secondHorizontal = Math.abs(second.a.y - second.b.y) < epsilon;
+
+  if (firstHorizontal === secondHorizontal) return getParallelWireOverlap(first, second, firstHorizontal, epsilon);
+  return wiresCross(first, second, firstHorizontal, epsilon);
 }
 
 function getWirePenalty(first, second, routedSegments) {
@@ -370,99 +350,98 @@ function getGNDObstacleBox(x, y, size = 20, padding = 5) {
 }
 
 
-function addParallelChannelMidpoints(routedSegments, xValues, yValues, wireClearance) {
-  const epsilon = 0.5;
-  const maximumChannelGap = 80;
-  const maximumNeighbors = 6;
+function collectParallelSegments(routedSegments, epsilon) {
   const horizontalSegments = [];
   const verticalSegments = [];
 
   for (const segment of routedSegments) {
-    if (!segment?.a || !segment?.b) { continue; }
-    const horizontal = Math.abs(segment.a.y - segment.b.y ) < epsilon;
+    if (!segment?.a || !segment?.b) continue;
+
+    const horizontal = Math.abs(segment.a.y - segment.b.y) < epsilon;
     const vertical = Math.abs(segment.a.x - segment.b.x) < epsilon;
 
     if (horizontal) {
-      horizontalSegments.push({
-        y: segment.a.y,
-        minX: Math.min(segment.a.x, segment.b.x),
-        maxX: Math.max(segment.a.x, segment.b.x),
-      });
+      horizontalSegments.push({ y: segment.a.y, minX: Math.min(segment.a.x, segment.b.x), maxX: Math.max(segment.a.x, segment.b.x) });
     } else if (vertical) {
-      verticalSegments.push({
-        x: segment.a.x,
-        minY: Math.min(segment.a.y, segment.b.y),
-        maxY: Math.max(segment.a.y, segment.b.y),
-      });
+      verticalSegments.push({ x: segment.a.x, minY: Math.min(segment.a.y, segment.b.y), maxY: Math.max(segment.a.y, segment.b.y) });
     }
   }
 
   horizontalSegments.sort((first, second) => first.y - second.y);
   verticalSegments.sort((first, second) => first.x - second.x);
+  return { horizontalSegments, verticalSegments };
+}
 
+function addHorizontalChannelForSegment(firstIndex, segments, xValues, yValues, addedMiddleY, config) {
+  const first = segments[firstIndex];
+  const finalNeighborIndex = Math.min(segments.length, firstIndex + config.maximumNeighbors + 1);
+
+  for (let secondIndex = firstIndex + 1; secondIndex < finalNeighborIndex; secondIndex++) {
+    const second = segments[secondIndex];
+    const gap = second.y - first.y;
+    if (gap > config.maximumChannelGap) break;
+    if (gap < config.wireClearance * 2) continue;
+
+    const overlapStart = Math.max(first.minX, second.minX);
+    const overlapEnd = Math.min(first.maxX, second.maxX);
+    if (overlapEnd - overlapStart < config.epsilon) continue;
+
+    const middleY = Number(((first.y + second.y) / 2).toFixed(3));
+    if (!addedMiddleY.has(middleY)) {
+      addedMiddleY.add(middleY);
+      yValues.push(middleY);
+    }
+
+    xValues.push(overlapStart, overlapEnd);
+    break;
+  }
+}
+
+function addHorizontalChannelMidpoints(segments, xValues, yValues, addedMiddleY, config) {
+  for (let firstIndex = 0; firstIndex < segments.length; firstIndex++) {
+    addHorizontalChannelForSegment(firstIndex, segments, xValues, yValues, addedMiddleY, config);
+  }
+}
+
+function addVerticalChannelForSegment(firstIndex, segments, xValues, yValues, addedMiddleX, config) {
+  const first = segments[firstIndex];
+  const finalNeighborIndex = Math.min(segments.length, firstIndex + config.maximumNeighbors + 1);
+
+  for (let secondIndex = firstIndex + 1; secondIndex < finalNeighborIndex; secondIndex++) {
+    const second = segments[secondIndex];
+    const gap = second.x - first.x;
+    if (gap > config.maximumChannelGap) break;
+    if (gap < config.wireClearance * 2) continue;
+
+    const overlapStart = Math.max(first.minY, second.minY);
+    const overlapEnd = Math.min(first.maxY, second.maxY);
+    if (overlapEnd - overlapStart < config.epsilon) continue;
+
+    const middleX = Number(((first.x + second.x) / 2).toFixed(3));
+    if (!addedMiddleX.has(middleX)) {
+      addedMiddleX.add(middleX);
+      xValues.push(middleX);
+    }
+
+    yValues.push(overlapStart, overlapEnd);
+    break;
+  }
+}
+
+function addVerticalChannelMidpoints(segments, xValues, yValues, addedMiddleX, config) {
+  for (let firstIndex = 0; firstIndex < segments.length; firstIndex++) {
+    addVerticalChannelForSegment(firstIndex, segments, xValues, yValues, addedMiddleX, config);
+  }
+}
+
+function addParallelChannelMidpoints(routedSegments, xValues, yValues, wireClearance) {
+  const config = { epsilon: 0.5, maximumChannelGap: 80, maximumNeighbors: 6, wireClearance };
+  const { horizontalSegments, verticalSegments } = collectParallelSegments(routedSegments, config.epsilon);
   const addedMiddleX = new Set();
   const addedMiddleY = new Set();
 
-  for (let firstIndex = 0; firstIndex < horizontalSegments.length; firstIndex++ ) {
-    const first = horizontalSegments[firstIndex];
-
-    const finalNeighborIndex = Math.min(horizontalSegments.length, firstIndex + maximumNeighbors + 1);
-
-    for (let secondIndex = firstIndex + 1; secondIndex < finalNeighborIndex; secondIndex++
-    ) {
-      const second = horizontalSegments[secondIndex];
-      const gap = second.y - first.y;
-      if (gap > maximumChannelGap) { break; }
-
-      if (gap < wireClearance * 2) {continue;}
-      const overlapStart = Math.max(first.minX, second.minX);
-      const overlapEnd = Math.min(first.maxX, second.maxX);
-      if (overlapEnd - overlapStart < epsilon
-      ) { continue; }
-
-      const middleY = Number(((first.y + second.y  ) / 2).toFixed(3));
-
-      if (!addedMiddleY.has(middleY)
-      ) {addedMiddleY.add(middleY);
-        yValues.push( middleY);
-      }
-      xValues.push(overlapStart, overlapEnd);
-
-      break;
-    }
-  }
-
-  for (let firstIndex = 0; firstIndex < verticalSegments.length; firstIndex++ ) {
-    const first = verticalSegments[firstIndex];
-    const finalNeighborIndex = Math.min(verticalSegments.length, firstIndex + maximumNeighbors + 1 );
-
-    for (let secondIndex = firstIndex + 1; secondIndex < finalNeighborIndex; secondIndex++) {
-      const second = verticalSegments[secondIndex];
-      const gap = second.x - first.x;
-
-      if (gap > maximumChannelGap
-      ) { break; }
-
-      if (gap < wireClearance * 2) { continue; }
-
-      const overlapStart = Math.max(first.minY, second.minY);
-      const overlapEnd = Math.min(first.maxY, second.maxY);
-
-      if (overlapEnd - overlapStart <epsilon
-      ) { continue; }
-
-      const middleX = Number(((first.x + second.x) / 2).toFixed(3));
-
-      if (!addedMiddleX.has( middleX)
-      ) {addedMiddleX.add(middleX);
-        xValues.push(middleX);
-      }
-
-      yValues.push(overlapStart, overlapEnd);
-
-      break;
-    }
-  }
+  addHorizontalChannelMidpoints(horizontalSegments, xValues, yValues, addedMiddleY, config);
+  addVerticalChannelMidpoints(verticalSegments, xValues, yValues, addedMiddleX, config);
 }
 
 function getClosestInterCellPair(terminals) {
@@ -481,331 +460,374 @@ function getClosestInterCellPair(terminals) {
   return best;
 }
 
-function drawInterCellConnections(svg, externalWireLayer, placed, clearance = 14) {
-  const epsilon = 0.5;
-  const halfSize = drawConfig.imageSize / 2;
-  const terminalsByNet = new Map();
-  const terminalKeys = new Set();
+function addInterCellTerminal(element, net, point, side, context) {
+  net = String(net || "").trim();
+  if (!net || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y) || isGroundNet(net) || net === "VDD") return;
 
-  function addTerminal(element, net, point, side) {
-    net = String(net || "").trim();
-    if (!net || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y) || isGroundNet(net) || net === "VDD") return;
+  const layoutInstance = getLayoutInstance(element);
+  const key = `${layoutInstance}|${net}|${point.x.toFixed(3)}|${point.y.toFixed(3)}`;
+  if (context.terminalKeys.has(key)) return;
 
-    const layoutInstance = getLayoutInstance(element);
-    const key = `${layoutInstance}|${net}|${point.x.toFixed(3)}|${point.y.toFixed(3)}`;
-    if (terminalKeys.has(key)) return;
+  context.terminalKeys.add(key);
+  if (!context.terminalsByNet.has(net)) context.terminalsByNet.set(net, []);
+  context.terminalsByNet.get(net).push({ net, layoutInstance, ownerId: element.id || element.raw || "", side, point: { x: point.x, y: point.y } });
+}
 
-    terminalKeys.add(key);
-    if (!terminalsByNet.has(net)) terminalsByNet.set(net, []);
-
-    terminalsByNet.get(net).push({
-      net,
-      layoutInstance,
-      ownerId: element.id || element.raw || "",
-      side,
-      point: { x: point.x, y: point.y },
-    });
-  }
+function collectInterCellTerminals(placed) {
+  const context = { terminalsByNet: new Map(), terminalKeys: new Set() };
 
   for (const element of placed) {
-    if (element.inputNeedsLead && element.inputLeadPoint) addTerminal(element, element.net_in, element.inputLeadPoint, "input");
-    if (element.outputNeedsLead && element.outputLeadPoint) addTerminal(element, element.net_out, element.outputLeadPoint, "output");
+    if (element.inputNeedsLead && element.inputLeadPoint) addInterCellTerminal(element, element.net_in, element.inputLeadPoint, "input", context);
+    if (element.outputNeedsLead && element.outputLeadPoint) addInterCellTerminal(element, element.net_out, element.outputLeadPoint, "output", context);
   }
 
-  const componentBoxes = placed.map(element => ({
-    left: element.x - halfSize - 4,
-    right: element.x + halfSize + 4,
-    top: element.y - halfSize - 4,
-    bottom: element.y + halfSize + 4,
-    ownerId: element.id || element.raw || "",
+  return context.terminalsByNet;
+}
+
+function buildInterCellComponentBoxes(placed, halfSize) {
+  return placed.map((element) => ({
+    left: element.x - halfSize - 4, right: element.x + halfSize + 4,
+    top: element.y - halfSize - 4, bottom: element.y + halfSize + 4,
+    ownerId: element.id || element.raw || ""
   }));
+}
 
-  function transformRenderedPoint(edge, point) {
-    const edgeMatrix = edge.getScreenCTM();
-    const layerMatrix = externalWireLayer.getScreenCTM();
-    if (!edgeMatrix || !layerMatrix) return null;
+function transformInterCellRenderedPoint(edge, point, svg, externalWireLayer) {
+  const edgeMatrix = edge.getScreenCTM();
+  const layerMatrix = externalWireLayer.getScreenCTM();
+  if (!edgeMatrix || !layerMatrix) return null;
 
-    const svgPoint = svg.createSVGPoint();
-    svgPoint.x = point.x;
-    svgPoint.y = point.y;
+  const svgPoint = svg.createSVGPoint();
+  svgPoint.x = point.x;
+  svgPoint.y = point.y;
+  const transformed = svgPoint.matrixTransform(edgeMatrix).matrixTransform(layerMatrix.inverse());
+  return { x: transformed.x, y: transformed.y };
+}
 
-    const transformed = svgPoint.matrixTransform(edgeMatrix).matrixTransform(layerMatrix.inverse());
-    return { x: transformed.x, y: transformed.y };
-  }
-
+function collectInterCellRoutedSegments(svg, externalWireLayer) {
   const routedSegments = [];
 
   for (const edge of svg.querySelectorAll(".edge[data-net]")) {
     const net = String(edge.dataset.net || "").trim();
 
     for (const segment of extractWireSegmentsFromElement(edge)) {
-      const a = transformRenderedPoint(edge, segment.a);
-      const b = transformRenderedPoint(edge, segment.b);
+      const a = transformInterCellRenderedPoint(edge, segment.a, svg, externalWireLayer);
+      const b = transformInterCellRenderedPoint(edge, segment.b, svg, externalWireLayer);
       if (a && b) routedSegments.push({ a, b, net, kind: edge.dataset.kind || "" });
     }
   }
 
-  function uniqueSorted(values) {
-    return [...new Set(values.filter(Number.isFinite).map(value => Number(value.toFixed(3))))].sort((a, b) => a - b);
+  return routedSegments;
+}
+
+function uniqueSortedInterCellValues(values) {
+  return [...new Set(values.filter(Number.isFinite).map((value) => Number(value.toFixed(3))))].sort((a, b) => a - b);
+}
+
+function pointInsideInterCellObstacle(point, context) {
+  return context.componentBoxes.some((box) =>
+    point.x > box.left + context.epsilon && point.x < box.right - context.epsilon &&
+    point.y > box.top + context.epsilon && point.y < box.bottom - context.epsilon);
+}
+
+function interCellSegmentHitsObstacle(first, second, context) {
+  return context.componentBoxes.some((box) => axisAlignedSegmentHitsBox(first, second, box));
+}
+
+function interCellSegmentHitsAnotherNet(first, second, net, gap, context) {
+  const candidate = { a: first, b: second };
+
+  return context.routedSegments.some((existing) => {
+    if (!existing?.a || !existing?.b || existing.net === net) return false;
+    return axisAlignedSegmentsIntersect(candidate, existing) || segmentsWithinClearance(candidate, existing, gap);
+  });
+}
+
+function addInterCellObstacleCoordinates(xValues, yValues, gap, context) {
+  for (const box of context.componentBoxes) {
+    xValues.push(box.left - gap, box.right + gap);
+    yValues.push(box.top - gap, box.bottom + gap);
   }
+}
 
-  function pointInsideObstacle(point) {
-    return componentBoxes.some(box =>
-      point.x > box.left + epsilon &&
-      point.x < box.right - epsilon &&
-      point.y > box.top + epsilon &&
-      point.y < box.bottom - epsilon
-    );
+function addInterCellSegmentCoordinates(xValues, yValues, gap, context) {
+  for (const segment of context.routedSegments) {
+    const horizontal = Math.abs(segment.a.y - segment.b.y) <= context.epsilon;
+
+    if (horizontal) {
+      xValues.push(segment.a.x, segment.b.x, segment.a.x - gap, segment.b.x + gap);
+      yValues.push(segment.a.y - gap, segment.a.y + gap);
+    } else {
+      xValues.push(segment.a.x - gap, segment.a.x + gap);
+      yValues.push(segment.a.y, segment.b.y, segment.a.y - gap, segment.b.y + gap);
+    }
   }
+}
 
-  function segmentHitsObstacle(first, second) {
-    return componentBoxes.some(box => axisAlignedSegmentHitsBox(first, second, box));
-  }
+function buildInterCellRouteGrid(start, end, gap, context) {
+  const xValues = [start.x, end.x];
+  const yValues = [start.y, end.y];
 
-  function segmentHitsAnotherNet(first, second, net, gap) {
-    const candidate = { a: first, b: second };
+  addInterCellObstacleCoordinates(xValues, yValues, gap, context);
+  addInterCellSegmentCoordinates(xValues, yValues, gap, context);
 
-    return routedSegments.some(existing => {
-      if (!existing?.a || !existing?.b || existing.net === net) return false;
+  const allX = [...xValues];
+  const allY = [...yValues];
+  const minimumX = Math.min(...allX) - gap * 4;
+  const maximumX = Math.max(...allX) + gap * 4;
+  const minimumY = Math.min(...allY) - gap * 4;
+  const maximumY = Math.max(...allY) + gap * 4;
 
-      return axisAlignedSegmentsIntersect(candidate, existing) ||
-        segmentsWithinClearance(candidate, existing, gap);
-    });
-  }
+  xValues.push(minimumX, maximumX);
+  yValues.push(minimumY, maximumY);
+  return { xs: uniqueSortedInterCellValues(xValues), ys: uniqueSortedInterCellValues(yValues) };
+}
 
-  function findRoute(start, end, net, gap) {
-    const xValues = [start.x, end.x];
-    const yValues = [start.y, end.y];
+function findInterCellGridIndex(values, target) {
+  return values.findIndex((value) => Math.abs(value - target) <= 0.001);
+}
 
-    for (const box of componentBoxes) {
-      xValues.push(box.left - gap, box.right + gap);
-      yValues.push(box.top - gap, box.bottom + gap);
-    }
+function getInterCellRouteIndexes(start, end, grid) {
+  return {
+    startX: findInterCellGridIndex(grid.xs, start.x), startY: findInterCellGridIndex(grid.ys, start.y),
+    endX: findInterCellGridIndex(grid.xs, end.x), endY: findInterCellGridIndex(grid.ys, end.y)
+  };
+}
 
-    for (const segment of routedSegments) {
-      const horizontal = Math.abs(segment.a.y - segment.b.y) <= epsilon;
+function interCellRouteIndexesValid(indexes) {
+  return indexes.startX >= 0 && indexes.startY >= 0 && indexes.endX >= 0 && indexes.endY >= 0;
+}
 
-      if (horizontal) {
-        xValues.push(segment.a.x, segment.b.x, segment.a.x - gap, segment.b.x + gap);
-        yValues.push(segment.a.y - gap, segment.a.y + gap);
-      } else {
-        xValues.push(segment.a.x - gap, segment.a.x + gap);
-        yValues.push(segment.a.y, segment.b.y, segment.a.y - gap, segment.b.y + gap);
-      }
-    }
+function interCellPointAt(grid, xIndex, yIndex) {
+  return { x: grid.xs[xIndex], y: grid.ys[yIndex] };
+}
 
-    const allX = [...xValues];
-    const allY = [...yValues];
+function interCellStateKey(xIndex, yIndex, direction) {
+  return `${xIndex},${yIndex},${direction}`;
+}
 
-    const minimumX = Math.min(...allX) - gap * 4;
-    const maximumX = Math.max(...allX) + gap * 4;
-    const minimumY = Math.min(...allY) - gap * 4;
-    const maximumY = Math.max(...allY) + gap * 4;
+function interCellSegmentAllowed(first, second, routeContext) {
+  if (interCellSegmentHitsObstacle(first, second, routeContext.routingContext)) return false;
+  if (interCellSegmentHitsAnotherNet(first, second, routeContext.net, routeContext.gap, routeContext.routingContext)) return false;
+  return true;
+}
 
-    xValues.push(minimumX, maximumX);
-    yValues.push(minimumY, maximumY);
+function getInterCellNeighbors(current) {
+  return [
+    [current.xIndex - 1, current.yIndex, "H"], [current.xIndex + 1, current.yIndex, "H"],
+    [current.xIndex, current.yIndex - 1, "V"], [current.xIndex, current.yIndex + 1, "V"]
+  ];
+}
 
-    const xs = uniqueSorted(xValues);
-    const ys = uniqueSorted(yValues);
+function interCellNeighborInBounds(nextX, nextY, grid) {
+  return nextX >= 0 && nextY >= 0 && nextX < grid.xs.length && nextY < grid.ys.length;
+}
 
-    const findIndex = (values, target) => values.findIndex(value => Math.abs(value - target) <= 0.001);
-    const startX = findIndex(xs, start.x);
-    const startY = findIndex(ys, start.y);
-    const endX = findIndex(xs, end.x);
-    const endY = findIndex(ys, end.y);
+function processInterCellRouteNeighbor(current, neighbor, currentKey, currentDistance, context) {
+  const [nextX, nextY, nextDirection] = neighbor;
+  if (!interCellNeighborInBounds(nextX, nextY, context.grid)) return;
 
-    if (startX < 0 || startY < 0 || endX < 0 || endY < 0) return null;
+  const nextPoint = interCellPointAt(context.grid, nextX, nextY);
+  const isEndpoint = nextX === context.indexes.endX && nextY === context.indexes.endY;
+  if ((!isEndpoint && pointInsideInterCellObstacle(nextPoint, context.routingContext)) ||
+    !interCellSegmentAllowed(context.currentPoint, nextPoint, context)) return;
 
-    const pointAt = (xIndex, yIndex) => ({ x: xs[xIndex], y: ys[yIndex] });
-    const stateKey = (xIndex, yIndex, direction) => `${xIndex},${yIndex},${direction}`;
+  const length = Math.abs(context.currentPoint.x - nextPoint.x) + Math.abs(context.currentPoint.y - nextPoint.y);
+  const bendPenalty = current.direction !== "N" && current.direction !== nextDirection ? 18 : 0;
+  const nextDistance = currentDistance + length + bendPenalty;
+  const nextKey = interCellStateKey(nextX, nextY, nextDirection);
+  if (nextDistance >= (context.distances.get(nextKey) ?? Infinity)) return;
 
-    function segmentAllowed(first, second) {
-      if (segmentHitsObstacle(first, second)) return false;
-      if (segmentHitsAnotherNet(first, second, net, gap)) return false;
-      return true;
-    }
+  context.distances.set(nextKey, nextDistance);
+  context.previous.set(nextKey, currentKey);
 
-    const queue = new RoutingMinHeap();
-    const distances = new Map();
-    const previous = new Map();
-    const startKey = stateKey(startX, startY, "N");
+  const heuristic = Math.abs(nextPoint.x - context.end.x) + Math.abs(nextPoint.y - context.end.y);
+  context.queue.push({ xIndex: nextX, yIndex: nextY, direction: nextDirection, priority: nextDistance + heuristic });
+}
 
-    distances.set(startKey, 0);
-    queue.push({
-      xIndex: startX,
-      yIndex: startY,
-      direction: "N",
-      priority: Math.abs(start.x - end.x) + Math.abs(start.y - end.y),
-    });
+function runInterCellRouteSearch(start, end, grid, indexes, net, gap, routingContext) {
+  const queue = new RoutingMinHeap();
+  const distances = new Map();
+  const previous = new Map();
+  const startKey = interCellStateKey(indexes.startX, indexes.startY, "N");
 
-    let goalKey = null;
-
-    while (true) {
-      const current = queue.pop();
-      if (!current) break;
-
-      const currentKey = stateKey(current.xIndex, current.yIndex, current.direction);
-      const currentDistance = distances.get(currentKey);
-      if (!Number.isFinite(currentDistance)) continue;
-
-      if (current.xIndex === endX && current.yIndex === endY) {
-        goalKey = currentKey;
-        break;
-      }
-
-      const currentPoint = pointAt(current.xIndex, current.yIndex);
-      const neighbors = [
-        [current.xIndex - 1, current.yIndex, "H"],
-        [current.xIndex + 1, current.yIndex, "H"],
-        [current.xIndex, current.yIndex - 1, "V"],
-        [current.xIndex, current.yIndex + 1, "V"],
-      ];
-
-      for (const [nextX, nextY, nextDirection] of neighbors) {
-        if (nextX < 0 || nextY < 0 || nextX >= xs.length || nextY >= ys.length) continue;
-
-        const nextPoint = pointAt(nextX, nextY);
-        const isEndpoint = nextX === endX && nextY === endY;
-
-        if ((!isEndpoint && pointInsideObstacle(nextPoint)) || !segmentAllowed(currentPoint, nextPoint)) continue;
-
-        const length = Math.abs(currentPoint.x - nextPoint.x) + Math.abs(currentPoint.y - nextPoint.y);
-        const bendPenalty = current.direction !== "N" && current.direction !== nextDirection ? 18 : 0;
-        const nextDistance = currentDistance + length + bendPenalty;
-        const nextKey = stateKey(nextX, nextY, nextDirection);
-
-        if (nextDistance >= (distances.get(nextKey) ?? Infinity)) continue;
-
-        distances.set(nextKey, nextDistance);
-        previous.set(nextKey, currentKey);
-
-        const heuristic = Math.abs(nextPoint.x - end.x) + Math.abs(nextPoint.y - end.y);
-        queue.push({ xIndex: nextX, yIndex: nextY, direction: nextDirection, priority: nextDistance + heuristic });
-      }
-    }
-
-    if (!goalKey) return null;
-
-    const reversedPoints = [];
-    let currentKey = goalKey;
-
-    while (currentKey) {
-      const [xIndex, yIndex] = currentKey.split(",").map(Number);
-      reversedPoints.push(pointAt(xIndex, yIndex));
-      currentKey = previous.get(currentKey);
-    }
-
-    reversedPoints.reverse();
-    return simplifyOrthogonalPoints(reversedPoints);
-  }
-
-  const netEntries = [...terminalsByNet.entries()].sort((first, second) => {
-    const firstPair = getClosestInterCellPair(first[1]), secondPair = getClosestInterCellPair(second[1]);
-    const firstDistance = firstPair?.distance ?? Infinity, secondDistance = secondPair?.distance ?? Infinity;
-
-    if (firstDistance !== secondDistance) return firstDistance - secondDistance;
-
-    const firstY = Math.min(...first[1].map(t => t.point.y)), secondY = Math.min(...second[1].map(t => t.point.y));
-    return firstY - secondY;
+  distances.set(startKey, 0);
+  queue.push({
+    xIndex: indexes.startX, yIndex: indexes.startY, direction: "N",
+    priority: Math.abs(start.x - end.x) + Math.abs(start.y - end.y)
   });
 
+  while (true) {
+    const current = queue.pop();
+    if (!current) return { goalKey: null, previous };
+
+    const currentKey = interCellStateKey(current.xIndex, current.yIndex, current.direction);
+    const currentDistance = distances.get(currentKey);
+    if (!Number.isFinite(currentDistance)) continue;
+    if (current.xIndex === indexes.endX && current.yIndex === indexes.endY) return { goalKey: currentKey, previous };
+
+    const currentPoint = interCellPointAt(grid, current.xIndex, current.yIndex);
+    const context = { grid, indexes, net, gap, routingContext, distances, previous, queue, end, currentPoint };
+
+    for (const neighbor of getInterCellNeighbors(current)) processInterCellRouteNeighbor(current, neighbor, currentKey, currentDistance, context);
+  }
+}
+
+function reconstructInterCellRoute(goalKey, previous, grid) {
+  const reversedPoints = [];
+  let currentKey = goalKey;
+
+  while (currentKey) {
+    const [xIndex, yIndex] = currentKey.split(",").map(Number);
+    reversedPoints.push(interCellPointAt(grid, xIndex, yIndex));
+    currentKey = previous.get(currentKey);
+  }
+
+  reversedPoints.reverse();
+  return simplifyOrthogonalPoints(reversedPoints);
+}
+
+function findInterCellRoute(start, end, net, gap, routingContext) {
+  const grid = buildInterCellRouteGrid(start, end, gap, routingContext);
+  const indexes = getInterCellRouteIndexes(start, end, grid);
+  if (!interCellRouteIndexesValid(indexes)) return null;
+
+  const { goalKey, previous } = runInterCellRouteSearch(start, end, grid, indexes, net, gap, routingContext);
+  return goalKey ? reconstructInterCellRoute(goalKey, previous, grid) : null;
+}
+
+function compareInterCellNetEntries(first, second) {
+  const firstPair = getClosestInterCellPair(first[1]);
+  const secondPair = getClosestInterCellPair(second[1]);
+  const firstDistance = firstPair?.distance ?? Infinity;
+  const secondDistance = secondPair?.distance ?? Infinity;
+  if (firstDistance !== secondDistance) return firstDistance - secondDistance;
+
+  const firstY = Math.min(...first[1].map((terminal) => terminal.point.y));
+  const secondY = Math.min(...second[1].map((terminal) => terminal.point.y));
+  return firstY - secondY;
+}
+
+function groupInterCellTerminalsByCell(terminals) {
+  const terminalsByCell = new Map();
+
+  for (const terminal of terminals) {
+    if (!terminalsByCell.has(terminal.layoutInstance)) terminalsByCell.set(terminal.layoutInstance, []);
+    terminalsByCell.get(terminal.layoutInstance).push(terminal);
+  }
+
+  return terminalsByCell;
+}
+
+function initializeInterCellConnectionGroups(terminals, terminalsByCell) {
+  const remainingCells = [...terminalsByCell.entries()];
+  const closestPair = getClosestInterCellPair(terminals);
+  const seedCell = closestPair?.first.layoutInstance;
+  let seedIndex = remainingCells.findIndex(([cell]) => cell === seedCell);
+  if (seedIndex < 0) seedIndex = 0;
+
+  return { connectedCells: [remainingCells.splice(seedIndex, 1)[0]], remainingCells };
+}
+
+function buildInterCellCandidates(connectedCells, remainingCells) {
+  const candidates = [];
+
+  for (const [, connectedTerminals] of connectedCells) {
+    for (let cellIndex = 0; cellIndex < remainingCells.length; cellIndex++) {
+      const [, destinationTerminals] = remainingCells[cellIndex];
+
+      for (const first of connectedTerminals) {
+        for (const second of destinationTerminals) {
+          candidates.push({
+            first, second, cellIndex,
+            distance: Math.abs(first.point.x - second.point.x) + Math.abs(first.point.y - second.point.y)
+          });
+        }
+      }
+    }
+  }
+
+  candidates.sort((first, second) => first.distance - second.distance);
+  return candidates;
+}
+
+function selectInterCellConnection(candidates, net, clearance, routingContext) {
+  for (const candidate of candidates) {
+    const route = findInterCellRoute(candidate.first.point, candidate.second.point, net, clearance, routingContext) ||
+      findInterCellRoute(candidate.first.point, candidate.second.point, net, Math.max(5, clearance / 2), routingContext);
+
+    if (route?.length >= 2) return { ...candidate, route };
+  }
+
+  return null;
+}
+
+function storeInterCellRouteSegments(route, net, routedSegments) {
+  for (const segment of routePointsToSegments(route)) {
+    routedSegments.push({
+      a: { ...segment.a }, b: { ...segment.b }, net, kind: "inter-cell-terminal-connection"
+    });
+  }
+}
+
+function drawSelectedInterCellConnection(selected, net, context) {
+  drawPath(context.externalWireLayer, selected.route[0], selected.route.at(-1), {
+    pathData: routePointsToPathData(selected.route), net, kind: "inter-cell-terminal-connection",
+    stroke: drawConfig.wireStroke, strokeWidth: drawConfig.wireStrokeWidth
+  });
+
+  storeInterCellRouteSegments(selected.route, net, context.routedSegments);
+}
+
+function reportMissingInterCellRoute(net, connectedCells, remainingCells) {
+  console.error(`[NO LEGAL INTER-CELL ROUTE] ${net}`, {
+    connectedCells: connectedCells.map(([cell]) => cell),
+    remainingCells: remainingCells.map(([cell]) => cell)
+  });
+}
+
+function connectInterCellNet(net, terminals, context) {
+  const terminalsByCell = groupInterCellTerminalsByCell(terminals);
+  if (terminalsByCell.size < 2) return null;
+
+  const { connectedCells, remainingCells } = initializeInterCellConnectionGroups(terminals, terminalsByCell);
+  let connectionCount = 0;
+
+  while (remainingCells.length) {
+    const candidates = buildInterCellCandidates(connectedCells, remainingCells);
+    const selected = selectInterCellConnection(candidates, net, context.clearance, context.routingContext);
+
+    if (!selected) {
+      reportMissingInterCellRoute(net, connectedCells, remainingCells);
+      break;
+    }
+
+    drawSelectedInterCellConnection(selected, net, context);
+    connectedCells.push(remainingCells.splice(selected.cellIndex, 1)[0]);
+    connectionCount++;
+
+    console.log(`[INTER-CELL CONNECTION DRAWN] ${net}`, {
+      fromCell: selected.first.layoutInstance, toCell: selected.second.layoutInstance, route: selected.route
+    });
+  }
+
+  return { net, cells: [...terminalsByCell.keys()], connections: connectionCount };
+}
+
+function drawInterCellConnections(svg, externalWireLayer, placed, clearance = 14) {
+  const epsilon = 0.5;
+  const halfSize = drawConfig.imageSize / 2;
+  const terminalsByNet = collectInterCellTerminals(placed);
+  const componentBoxes = buildInterCellComponentBoxes(placed, halfSize);
+  const routedSegments = collectInterCellRoutedSegments(svg, externalWireLayer);
+  const routingContext = { epsilon, componentBoxes, routedSegments };
+  const netEntries = [...terminalsByNet.entries()].sort(compareInterCellNetEntries);
+  const context = { externalWireLayer, routedSegments, routingContext, clearance };
   const report = [];
 
   for (const [net, terminals] of netEntries) {
-    const terminalsByCell = new Map();
-
-    for (const terminal of terminals) {
-      if (!terminalsByCell.has(terminal.layoutInstance)) terminalsByCell.set(terminal.layoutInstance, []);
-      terminalsByCell.get(terminal.layoutInstance).push(terminal);
-    }
-
-    if (terminalsByCell.size < 2) continue;
-
-    const remainingCells = [...terminalsByCell.entries()];
-    const closestPair = getClosestInterCellPair(terminals);
-    const seedCell = closestPair?.first.layoutInstance;
-
-    let seedIndex = remainingCells.findIndex(([cell]) => cell === seedCell);
-    if (seedIndex < 0) seedIndex = 0;
-
-    const connectedCells = [remainingCells.splice(seedIndex, 1)[0]];
-    let connectionCount = 0;
-
-    while (remainingCells.length) {
-      const candidates = [];
-
-      for (const [, connectedTerminals] of connectedCells) {
-        for (let cellIndex = 0; cellIndex < remainingCells.length; cellIndex++) {
-          const [, destinationTerminals] = remainingCells[cellIndex];
-
-          for (const first of connectedTerminals) {
-            for (const second of destinationTerminals) {
-              candidates.push({
-                first,
-                second,
-                cellIndex,
-                distance: Math.abs(first.point.x - second.point.x) + Math.abs(first.point.y - second.point.y),
-              });
-            }
-          }
-        }
-      }
-
-      candidates.sort((first, second) => first.distance - second.distance);
-
-      let selected = null;
-
-      for (const candidate of candidates) {
-        const route =
-          findRoute(candidate.first.point, candidate.second.point, net, clearance) ||
-          findRoute(candidate.first.point, candidate.second.point, net, Math.max(5, clearance / 2));
-
-        if (route?.length >= 2) {
-          selected = { ...candidate, route };
-          break;
-        }
-      }
-
-      if (!selected) {
-        console.error(`[NO LEGAL INTER-CELL ROUTE] ${net}`, {
-          connectedCells: connectedCells.map(([cell]) => cell),
-          remainingCells: remainingCells.map(([cell]) => cell),
-        });
-        break;
-      }
-
-      drawPath(externalWireLayer, selected.route[0], selected.route.at(-1), {
-        pathData: routePointsToPathData(selected.route),
-        net,
-        kind: "inter-cell-terminal-connection",
-        stroke: drawConfig.wireStroke,
-        strokeWidth: drawConfig.wireStrokeWidth,
-      });
-
-      for (const segment of routePointsToSegments(selected.route)) {
-        routedSegments.push({
-          a: { ...segment.a },
-          b: { ...segment.b },
-          net,
-          kind: "inter-cell-terminal-connection",
-        });
-      }
-
-      connectedCells.push(remainingCells.splice(selected.cellIndex, 1)[0]);
-      connectionCount++;
-
-      console.log(`[INTER-CELL CONNECTION DRAWN] ${net}`, {
-        fromCell: selected.first.layoutInstance,
-        toCell: selected.second.layoutInstance,
-        route: selected.route,
-      });
-    }
-
-    report.push({
-      net,
-      cells: [...terminalsByCell.keys()],
-      connections: connectionCount,
-    });
+    const result = connectInterCellNet(net, terminals, context);
+    if (result) report.push(result);
   }
 
   console.table(report);
