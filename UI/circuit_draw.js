@@ -270,8 +270,8 @@ function drawCircuit(data) {
   drawBiasBasedPolaritySigns(labelLayer, placed );
   setupInterCellTerminalHighlights(svg);
   setupWireSelection(svg);
-  enableRightClickNavigation(svg);
   setupPanZoom(svg, canvasWidth, canvasHeight);
+  enableRightClickNavigation(svg);
 }
 
 

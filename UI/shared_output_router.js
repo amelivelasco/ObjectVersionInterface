@@ -209,23 +209,37 @@ function getWireRelation(first, second) {
   return wiresCross(first, second, firstHorizontal, epsilon);
 }
 
-function getWirePenalty(first, second, routedSegments) {
-  const candidate = { a: first, b: second, };
-
+function getWirePenalty(first, second, routingContext) {
+  const candidate = { a: first, b: second };
+  const bounds = getSegmentBounds(first, second, routingContext.wireClearance);
   let penalty = 0;
 
-  for (const existing of routedSegments) {
-    const relation = getWireRelation(candidate, existing);
-
-    if (relation === "cross") { penalty += 1000000000; }
+  for (const existing of routingContext.segmentIndex.query(bounds)) {
+    if (getWireRelation(candidate, existing) === "cross") penalty += 1000000000;
   }
 
   return penalty;
 }
 
 function uniqueSortedNumbers(values) {
-  return [...new Set(values.map((value) => Number(value.toFixed(3)))
-  )].sort((first, second) => first - second);
+  const unique = new Set();
+  for (const value of values) if (Number.isFinite(value)) unique.add(Math.round(value * 1000) / 1000);
+  return [...unique].sort((a, b) => a - b);
+}
+
+function findRouteInArea(start, end, obstacleBoxes, routedSegments, net, bounds = null) {
+  const wireClearance = 10, bendPenalty = 14;
+  const { obstacleIndex, segmentIndex } = createRoutingSpatialIndexes(obstacleBoxes, routedSegments, wireClearance);
+  const routingContext = { obstacleBoxes, routedSegments, obstacleIndex, segmentIndex, wireClearance, net };
+
+  const simpleRoute = trySimpleOrthogonalRoute(start, end, routingContext);
+  if (simpleRoute) return simpleRoute;
+
+  const grid = createRoutingGrid(start, end, obstacleBoxes, routedSegments, wireClearance, bounds);
+  const indexes = createRoutingIndexes(start, end, grid);
+
+  const { goalKey, previous } = searchShortestRoute(start, end, grid, indexes, routingContext, bendPenalty);
+  return goalKey ? reconstructRoute(goalKey, previous, grid) : null;
 }
 
 class RoutingMinHeap {
@@ -524,23 +538,37 @@ function uniqueSortedInterCellValues(values) {
   return [...new Set(values.filter(Number.isFinite).map((value) => Number(value.toFixed(3))))].sort((a, b) => a - b);
 }
 
+function createInterCellRoutingContext(componentBoxes, routedSegments, epsilon, clearance) {
+  const componentIndex = new RoutingSpatialHash(140), segmentIndex = new RoutingSpatialHash(140);
+
+  for (const box of componentBoxes) componentIndex.insert(box, box);
+  for (const segment of routedSegments) segmentIndex.insert(segment, getSegmentBounds(segment.a, segment.b, clearance));
+
+  return { epsilon, componentBoxes, routedSegments, componentIndex, segmentIndex, clearance };
+}
+
 function pointInsideInterCellObstacle(point, context) {
-  return context.componentBoxes.some((box) =>
-    point.x > box.left + context.epsilon && point.x < box.right - context.epsilon &&
-    point.y > box.top + context.epsilon && point.y < box.bottom - context.epsilon);
+  for (const box of context.componentIndex.query(getPointBounds(point))) {
+    if (point.x > box.left + context.epsilon && point.x < box.right - context.epsilon &&
+        point.y > box.top + context.epsilon && point.y < box.bottom - context.epsilon) return true;
+  }
+  return false;
 }
 
 function interCellSegmentHitsObstacle(first, second, context) {
-  return context.componentBoxes.some((box) => axisAlignedSegmentHitsBox(first, second, box));
+  for (const box of context.componentIndex.query(getSegmentBounds(first, second))) if (axisAlignedSegmentHitsBox(first, second, box)) return true;
+  return false;
 }
 
 function interCellSegmentHitsAnotherNet(first, second, net, gap, context) {
   const candidate = { a: first, b: second };
 
-  return context.routedSegments.some((existing) => {
-    if (!existing?.a || !existing?.b || existing.net === net) return false;
-    return axisAlignedSegmentsIntersect(candidate, existing) || segmentsWithinClearance(candidate, existing, gap);
-  });
+  for (const existing of context.segmentIndex.query(getSegmentBounds(first, second, gap))) {
+    if (!existing?.a || !existing?.b || existing.net === net) continue;
+    if (axisAlignedSegmentsIntersect(candidate, existing) || segmentsWithinClearance(candidate, existing, gap)) return true;
+  }
+
+  return false;
 }
 
 function addInterCellObstacleCoordinates(xValues, yValues, gap, context) {
@@ -762,11 +790,20 @@ function selectInterCellConnection(candidates, net, clearance, routingContext) {
   return null;
 }
 
-function storeInterCellRouteSegments(route, net, routedSegments) {
+function storeInterCellRouteSegments(route, net, context) {
   for (const segment of routePointsToSegments(route)) {
-    routedSegments.push({
-      a: { ...segment.a }, b: { ...segment.b }, net, kind: "inter-cell-terminal-connection"
-    });
+    const routedSegment = {
+      a: { ...segment.a },
+      b: { ...segment.b },
+      net,
+      kind: "inter-cell-terminal-connection"
+    };
+
+    context.routedSegments.push(routedSegment);
+    context.routingContext.segmentIndex.insert(
+      routedSegment,
+      getSegmentBounds(routedSegment.a, routedSegment.b, context.clearance)
+    );
   }
 }
 
@@ -776,7 +813,7 @@ function drawSelectedInterCellConnection(selected, net, context) {
     stroke: drawConfig.wireStroke, strokeWidth: drawConfig.wireStrokeWidth
   });
 
-  storeInterCellRouteSegments(selected.route, net, context.routedSegments);
+  storeInterCellRouteSegments(selected.route, net, context);
 }
 
 function reportMissingInterCellRoute(net, connectedCells, remainingCells) {
@@ -820,7 +857,14 @@ function drawInterCellConnections(svg, externalWireLayer, placed, clearance = 14
   const terminalsByNet = collectInterCellTerminals(placed);
   const componentBoxes = buildInterCellComponentBoxes(placed, halfSize);
   const routedSegments = collectInterCellRoutedSegments(svg, externalWireLayer);
-  const routingContext = { epsilon, componentBoxes, routedSegments };
+
+  const routingContext = createInterCellRoutingContext(
+    componentBoxes,
+    routedSegments,
+    epsilon,
+    clearance
+  );
+
   const netEntries = [...terminalsByNet.entries()].sort(compareInterCellNetEntries);
   const context = { externalWireLayer, routedSegments, routingContext, clearance };
   const report = [];

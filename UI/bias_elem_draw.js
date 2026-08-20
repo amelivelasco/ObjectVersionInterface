@@ -255,11 +255,31 @@ function connectBiasStubToInductor(bias, wireLayer, placed) {
 }
 
 function connectBiasStubsToInductors(wireLayer, labelLayer, placed) {
+  const routedSegments = getExistingRoutedSegments(wireLayer);
+  const elementsByCell = groupElementsByLayoutInstance(placed);
+
   for (const bias of placed) {
     if (!isBiasElement(bias) || !bias.biasNetJoin || !bias.net_out || bias.biasSnappedToNet) continue;
-    connectBiasStubToInductor(bias, wireLayer, placed);
+
+    const layoutInstance = getLayoutInstance(bias);
+    const cellElements = elementsByCell.get(layoutInstance) || [];
+    const targetData = getBiasTargetData(bias, cellElements, layoutInstance);
+    if (!targetData) continue;
+
+    const start = { ...bias.biasNetJoin };
+    if (pointsAreSame(start, targetData.targetPoint)) continue;
+
+    const biasTerminal = createBiasTerminal(bias, start, layoutInstance);
+    const routePoints = buildShortestFreeRoute(start, targetData.targetPoint, biasTerminal, targetData.targetTerminal, cellElements, routedSegments, bias.net_out);
+
+    if (!Array.isArray(routePoints) || routePoints.length < 2) continue;
+
+    drawBiasRoute(wireLayer, bias, routePoints);
+
+    for (const segment of routePointsToSegments(routePoints)) routedSegments.push({ ...segment, net: bias.net_out });
   }
 }
+
 function getBiasJRObstacles(bias, placed, layoutInstance) {
   const cellElements = placed.filter((element) => getLayoutInstance(element) === layoutInstance);
   return buildRoutingObstacleBoxes(cellElements, new Set([bias.id]), 8).filter((box) => box.isJRPair);

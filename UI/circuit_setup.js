@@ -137,43 +137,67 @@ function orthogonalPath(a, b) {
 
 
 function setupPanZoom(svg, fullWidth, fullHeight) {
-  let viewBox = {
-    x: 0,
-    y: 0,
-    width: fullWidth,
-    height: fullHeight,
-  };
-
-  let isPanning = false;
-  let start = null;
+  let viewBox = { x: 0, y: 0, width: fullWidth, height: fullHeight };
+  let isPanning = false, start = null;
 
   function applyViewBox() {
-    svg.setAttribute(
-      "viewBox",
-      `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`
-    );
+    svg.setAttribute("viewBox", `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`);
+  }
+
+  function setViewBox(x, y, width, height) {
+    viewBox = { x, y, width, height };
+    applyViewBox();
   }
 
   function clientToSvgPoint(event) {
     const rect = svg.getBoundingClientRect();
-
-    const x =
-      viewBox.x +
-      ((event.clientX - rect.left) / rect.width) * viewBox.width;
-
-    const y =
-      viewBox.y +
-      ((event.clientY - rect.top) / rect.height) * viewBox.height;
-
-    return { x, y };
+    return {
+      x: viewBox.x + ((event.clientX - rect.left) / rect.width) * viewBox.width,
+      y: viewBox.y + ((event.clientY - rect.top) / rect.height) * viewBox.height
+    };
   }
 
-  svg.addEventListener("wheel", (event) => {
+  function fitCircuit(zoomOut = 1.15) {
+    const centerX = fullWidth / 2, centerY = fullHeight / 2;
+    const rect = svg.getBoundingClientRect();
+
+    let width = fullWidth * zoomOut;
+    let height = fullHeight * zoomOut;
+
+    if (rect.width > 0 && rect.height > 0) {
+      const screenAspect = rect.width / rect.height;
+      const viewAspect = width / height;
+
+      if (viewAspect > screenAspect) height = width / screenAspect;
+      else width = height * screenAspect;
+    }
+
+    setViewBox(centerX - width / 2, centerY - height / 2, width, height);
+  }
+
+  function centerAt(clientX, clientY) {
+    const rect = svg.getBoundingClientRect();
+
+    const point = {
+      x: viewBox.x + ((clientX - rect.left) / rect.width) * viewBox.width,
+      y: viewBox.y + ((clientY - rect.top) / rect.height) * viewBox.height
+    };
+
+    setViewBox(
+      point.x - viewBox.width / 2,
+      point.y - viewBox.height / 2,
+      viewBox.width,
+      viewBox.height
+    );
+  }
+
+  svg.__panZoom = { fitCircuit, centerAt, setViewBox, getViewBox: () => ({ ...viewBox }) };
+
+  svg.addEventListener("wheel", event => {
     event.preventDefault();
 
     const point = clientToSvgPoint(event);
     const zoomFactor = event.deltaY < 0 ? 0.88 : 1.14;
-
     const newWidth = viewBox.width * zoomFactor;
     const newHeight = viewBox.height * zoomFactor;
 
@@ -185,34 +209,23 @@ function setupPanZoom(svg, fullWidth, fullHeight) {
     applyViewBox();
   });
 
-  svg.addEventListener("mousedown", (event) => {
+  svg.addEventListener("mousedown", event => {
+    if (event.button !== 0) return;
+
     isPanning = true;
     svg.classList.add("is-panning");
-
-    start = {
-      clientX: event.clientX,
-      clientY: event.clientY,
-      viewBoxX: viewBox.x,
-      viewBoxY: viewBox.y,
-    };
+    start = { clientX: event.clientX, clientY: event.clientY, viewBoxX: viewBox.x, viewBoxY: viewBox.y };
   });
 
-  window.addEventListener("mousemove", (event) => {
-    if (!isPanning || !start) {
-      return;
-    }
+  window.addEventListener("mousemove", event => {
+    if (!isPanning || !start) return;
 
     const rect = svg.getBoundingClientRect();
-
-    const dx =
-      ((event.clientX - start.clientX) / rect.width) * viewBox.width;
-
-    const dy =
-      ((event.clientY - start.clientY) / rect.height) * viewBox.height;
+    const dx = ((event.clientX - start.clientX) / rect.width) * viewBox.width;
+    const dy = ((event.clientY - start.clientY) / rect.height) * viewBox.height;
 
     viewBox.x = start.viewBoxX - dx;
     viewBox.y = start.viewBoxY - dy;
-
     applyViewBox();
   });
 
@@ -249,52 +262,15 @@ function applyJJPairSpacingToPlaced(placed, pairSpacing = 70) {
 function enableRightClickNavigation(svg) {
   if (!svg) return;
 
-  function getContentBBox() {
-    const content = svg.querySelector(".circuit-world, .viewport, .zoom-layer, g") || svg;
-    try { return content.getBBox(); } catch { return null; }
-  }
+  svg.addEventListener("contextmenu", event => {
+    event.preventDefault();
 
-  function getViewBox() {
-    const vb = svg.viewBox.baseVal;
-    if (vb?.width && vb?.height) return { x: vb.x, y: vb.y, width: vb.width, height: vb.height };
-
-    const r = svg.getBoundingClientRect();
-    return { x: 0, y: 0, width: r.width, height: r.height };
-  }
-
-  function screenToSvg(clientX, clientY) {
-    const p = svg.createSVGPoint();
-    p.x = clientX;
-    p.y = clientY;
-    return p.matrixTransform(svg.getScreenCTM().inverse());
-  }
-
-  function centerAt(clientX, clientY) {
-    const p = screenToSvg(clientX, clientY);
-    const vb = getViewBox();
-    svg.setAttribute("viewBox", `${p.x - vb.width / 2} ${p.y - vb.height / 2} ${vb.width} ${vb.height}`);
-  }
-
-  function fitCircuit() {
-    const box = getContentBBox();
-    if (!box?.width || !box?.height) return;
-
-    const padding = Math.max(box.width, box.height) * 0.06;
-    svg.setAttribute(
-      "viewBox",
-      `${box.x - padding} ${box.y - padding} ${box.width + padding * 2} ${box.height + padding * 2}`
-    );
-  }
-
-  svg.addEventListener("contextmenu", e => {
-    e.preventDefault();
-
-    if (e.ctrlKey) {
-      fitCircuit();        // Ctrl + right click
+    if (event.ctrlKey) {
+      svg.__panZoom?.fitCircuit(1.15);
       return;
     }
 
-    centerAt(e.clientX, e.clientY); // Right click
+    svg.__panZoom?.centerAt(event.clientX, event.clientY);
   });
 }
 

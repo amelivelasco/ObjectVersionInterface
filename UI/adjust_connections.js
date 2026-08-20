@@ -1,3 +1,25 @@
+const ROUTING_MARGINS = [80, 160, 320];
+const routingObstacleCache = new WeakMap();
+
+function getCachedRoutingObstacles(cellElements, padding = 10) {
+  let cached = routingObstacleCache.get(cellElements);
+
+  if (!cached || cached.padding !== padding) {
+    cached = { padding, boxes: buildRoutingObstacleBoxes(cellElements, new Set(), padding) };
+    routingObstacleCache.set(cellElements, cached);
+  }
+
+  return cached.boxes;
+}
+
+function getRouteObstacleBoxes(cellElements, excludedIds, padding = 10) {
+  return getCachedRoutingObstacles(cellElements, padding).filter(box => {
+    if (!box.ownerIds) return true;
+    for (const id of excludedIds) if (box.ownerIds.has(id)) return false;
+    return true;
+  });
+}
+
 function collectRoutingCoordinates(obstacleBoxes, routedSegments, xValues, yValues, wireClearance) {
   for (const box of obstacleBoxes) {
     xValues.push(box.left, box.right);
@@ -62,41 +84,23 @@ function pointAt(grid, xIndex, yIndex) {
   };
 }
 
-function pointAllowed(point, obstacleBoxes) {
-  return !obstacleBoxes.some((box) => pointInsideBox(point, box));
+function pointAllowed(point, routingContext) {
+  for (const box of routingContext.obstacleIndex.query(getPointBounds(point))) if (pointInsideBox(point, box)) return false;
+  return true;
 }
 
-function segmentIntersectsOtherNet(candidate, existing, net) {
-  if (!existing?.a || !existing?.b) {
-    return false;
-  }
-
-  if (existing.net && net && existing.net === net) {
-    return false;
-  }
-
-  return (
-    axisAlignedSegmentsIntersect(candidate, existing) ||
-    segmentsWithinClearance(candidate, existing, 10)
-  );
+function segmentIntersectsOtherNet(candidate, existing, net, clearance = 10) {
+  if (!existing?.a || !existing?.b || (existing.net && net && existing.net === net)) return false;
+  return axisAlignedSegmentsIntersect(candidate, existing) || segmentsWithinClearance(candidate, existing, clearance);
 }
 
 function segmentAllowed(first, second, routingContext) {
-  const { obstacleBoxes, routedSegments, net } = routingContext;
+  const candidate = { a: first, b: second }, bounds = getSegmentBounds(first, second, routingContext.wireClearance);
 
-  const hitsComponent = obstacleBoxes.some((box) =>
-    axisAlignedSegmentHitsBox(first, second, box)
-  );
+  for (const box of routingContext.obstacleIndex.query(bounds)) if (axisAlignedSegmentHitsBox(first, second, box)) return false;
+  for (const existing of routingContext.segmentIndex.query(bounds)) if (segmentIntersectsOtherNet(candidate, existing, routingContext.net, routingContext.wireClearance)) return false;
 
-  if (hitsComponent) {
-    return false;
-  }
-
-  const candidate = { a: first, b: second };
-
-  return !routedSegments.some((existing) =>
-    segmentIntersectsOtherNet(candidate, existing, net)
-  );
+  return true;
 }
 
 function stateKey(xIndex, yIndex, direction) {
@@ -142,10 +146,33 @@ function calculateRouteDistance(currentState, currentPoint, nextPoint, searchCon
   const wireCost = getWirePenalty(
     currentPoint,
     nextPoint,
-    searchContext.routedSegments
+    searchContext.routingContext
   );
 
   return searchContext.currentDistance + length + bendCost + wireCost;
+}
+
+function routeAllowed(points, routingContext) {
+  for (let index = 1; index < points.length - 1; index++) if (!pointAllowed(points[index], routingContext)) return false;
+  for (let index = 1; index < points.length; index++) if (!segmentAllowed(points[index - 1], points[index], routingContext)) return false;
+  return true;
+}
+
+function trySimpleOrthogonalRoute(start, end, routingContext) {
+  const candidates = [];
+
+  if (Math.abs(start.x - end.x) < 0.5 || Math.abs(start.y - end.y) < 0.5) candidates.push([start, end]);
+  else {
+    candidates.push([start, { x: end.x, y: start.y }, end]);
+    candidates.push([start, { x: start.x, y: end.y }, end]);
+  }
+
+  for (const route of candidates) {
+    const simplified = simplifyOrthogonalPoints(route);
+    if (routeAllowed(simplified, routingContext)) return simplified;
+  }
+
+  return null;
 }
 
 function processNeighbor(currentState, neighbor, searchContext) {
@@ -173,7 +200,7 @@ function processNeighbor(currentState, neighbor, searchContext) {
   const nextPoint = pointAt(grid, nextX, nextY);
 
   if (
-    !pointAllowed(nextPoint, routingContext.obstacleBoxes) ||
+    !pointAllowed(nextPoint, routingContext) ||
     !segmentAllowed(currentPoint, nextPoint, routingContext)
   ) {
     return;
@@ -186,18 +213,10 @@ function processNeighbor(currentState, neighbor, searchContext) {
   );
 
   const currentDistance = distances.get(currentKey);
-
-  const nextDistance = calculateRouteDistance(
-    currentState,
-    currentPoint,
-    nextPoint,
-    {
-      currentDistance,
-      nextDirection,
-      bendPenalty,
-      routedSegments: routingContext.routedSegments,
-    }
-  );
+  
+  const nextDistance = calculateRouteDistance(currentState, currentPoint, nextPoint, {
+    currentDistance, nextDirection, bendPenalty, routingContext
+  });
 
   const nextKey = stateKey(nextX, nextY, nextDirection);
 
@@ -216,7 +235,8 @@ function processNeighbor(currentState, neighbor, searchContext) {
     xIndex: nextX,
     yIndex: nextY,
     direction: nextDirection,
-    priority: nextDistance + heuristic,
+    distance: nextDistance,
+    priority: nextDistance + heuristic
   });
 }
 
@@ -244,41 +264,21 @@ function searchShortestRoute(start, end, grid, indexes, routingContext, bendPena
     xIndex: indexes.startX,
     yIndex: indexes.startY,
     direction: "N",
-    priority:
-      Math.abs(start.x - end.x) +
-      Math.abs(start.y - end.y),
+    distance: 0,
+    priority: Math.abs(start.x - end.x) + Math.abs(start.y - end.y)
   });
 
   while (true) {
     const currentState = queue.pop();
+    if (!currentState) return { goalKey: null, previous };
 
-    if (!currentState) {
-      return { goalKey: null, previous };
-    }
+    const currentKey = stateKey(currentState.xIndex, currentState.yIndex, currentState.direction);
+    if (currentState.distance !== distances.get(currentKey)) continue;
 
-    const currentKey = stateKey(
-      currentState.xIndex,
-      currentState.yIndex,
-      currentState.direction
-    );
-
-    if (isGoalState(currentState, indexes)) {
-      return { goalKey: currentKey, previous };
-    }
+    if (isGoalState(currentState, indexes)) return { goalKey: currentKey, previous };
 
     const neighbors = createNeighborIndexes(currentState);
-
-    for (const neighbor of neighbors) {
-      processNeighbor(currentState, neighbor, {
-        grid,
-        routingContext,
-        bendPenalty,
-        distances,
-        previous,
-        queue,
-        end,
-      });
-    }
+    for (const neighbor of neighbors) processNeighbor(currentState, neighbor, { grid, routingContext, bendPenalty, distances, previous, queue, end });
   }
 }
 
@@ -299,50 +299,31 @@ function reconstructRoute(goalKey, previous, grid) {
   return simplifyOrthogonalPoints(reversed.toReversed());
 }
 
-function findShortestOrthogonalRoute(
-  start,
-  end,
-  obstacleBoxes,
-  routedSegments,
-  net = null
-) {
-  if (start.x > end.x + 0.5) {
-    return null;
-  }
+function findShortestOrthogonalRoute(start, end, obstacleBoxes, routedSegments, net = null) {
+  if (start.x > end.x + 0.5) return null;
 
-  const wireClearance = 10;
-  const bendPenalty = 14;
-
-  const grid = createRoutingGrid(
-    start,
-    end,
-    obstacleBoxes,
-    routedSegments,
-    wireClearance
-  );
-
-  const indexes = createRoutingIndexes(start, end, grid);
+  const wireClearance = 10, bendPenalty = 14;
+  const { obstacleIndex, segmentIndex } = createRoutingSpatialIndexes(obstacleBoxes, routedSegments, wireClearance);
 
   const routingContext = {
     obstacleBoxes,
     routedSegments,
     net,
+    wireClearance,
+    obstacleIndex,
+    segmentIndex
   };
 
-  const { goalKey, previous } = searchShortestRoute(
-    start,
-    end,
-    grid,
-    indexes,
-    routingContext,
-    bendPenalty
-  );
+  const simpleRoute = trySimpleOrthogonalRoute(start, end, routingContext);
+  if (simpleRoute) return simpleRoute;
+
+  const grid = createRoutingGrid(start, end, obstacleBoxes, routedSegments, wireClearance);
+  const indexes = createRoutingIndexes(start, end, grid);
+
+  const { goalKey, previous } = searchShortestRoute(start, end, grid, indexes, routingContext, bendPenalty);
 
   if (!goalKey) {
-    console.debug(
-      `Preferred route not found for ${net}; caller may use a fallback`,
-      { start, end }
-    );
+    console.debug(`Preferred route not found for ${net}; caller may use a fallback`, { start, end });
     return null;
   }
 
@@ -399,7 +380,7 @@ function buildShortestFreeRoute(fromPoint, toPoint, fromTerminal, toTerminal, ce
 
   const endpointElements = [first.terminal?.element, second.terminal?.element].filter(Boolean);
   const excludedIds = new Set(endpointElements.map((element) => element.id).filter(Boolean));
-  const obstacleBoxes = buildRoutingObstacleBoxes(cellElements, excludedIds, 10);
+  const obstacleBoxes = getRouteObstacleBoxes(cellElements, excludedIds, 10);
 
   for (const element of endpointElements) {
     if (getElementType(element) === "L") { obstacleBoxes.push(getInductorImageObstacle(element, 1)); }

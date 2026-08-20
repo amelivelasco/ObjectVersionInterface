@@ -364,29 +364,52 @@ function drawTreeConnection(wireLayer, labelLayer, net, connection, options, lab
   return { drawn: true, labelWasDrawn };
 }
 
+function makeTreeConnection(from, to) {
+  if (from.ownerId === to.ownerId) return null;
+  const points = findBestTerminalConnection(from, to);
+  return points ? { from, to, fromPoint: points.firstPoint, toPoint: points.secondPoint, distance: points.distance } : null;
+}
+
+function initializeTreeConnections(root, remaining) {
+  const best = new Map();
+  for (const terminal of remaining) {
+    const connection = makeTreeConnection(root, terminal);
+    if (connection) best.set(terminal, connection);
+  }
+  return best;
+}
+
+function updateTreeConnections(newTerminal, remaining, best) {
+  for (const terminal of remaining) {
+    const candidate = makeTreeConnection(newTerminal, terminal);
+    if (candidate && (!best.get(terminal) || candidate.distance < best.get(terminal).distance)) best.set(terminal, candidate);
+  }
+}
+
+function getClosestCachedTreeConnection(best) {
+  let selected = null;
+  for (const connection of best.values()) if (!selected || connection.distance < selected.distance) selected = connection;
+  return selected;
+}
+
 function drawTerminalTree(wireLayer, labelLayer, net, terminals, options = {}) {
   if (!Array.isArray(terminals) || terminals.length < 2) return;
 
-  const rootIndex = terminals.findIndex((terminal) => terminal.kind === "out");
-  const root = rootIndex >= 0 ? terminals[rootIndex] : terminals[0];
-  const connected = [root];
-  const remaining = terminals.filter((terminal) => terminal !== root);
+  const root = terminals.find(terminal => terminal.kind === "out") || terminals[0];
+  const remaining = new Set(terminals.filter(terminal => terminal !== root));
+  const best = initializeTreeConnections(root, remaining);
   let labelWasDrawn = false;
 
-  while (remaining.length > 0) {
-    const bestConnection = findBestTreeConnection(connected, remaining);
-    if (!bestConnection) break;
+  while (remaining.size) {
+    const connection = getClosestCachedTreeConnection(best);
+    if (!connection) break;
 
-    const result = drawTreeConnection(wireLayer, labelLayer, net, bestConnection, options, labelWasDrawn);
+    const result = drawTreeConnection(wireLayer, labelLayer, net, connection, options, labelWasDrawn);
     labelWasDrawn = result.labelWasDrawn;
+    remaining.delete(connection.to);
+    best.delete(connection.to);
 
-    if (!result.drawn) {
-      remaining.splice(bestConnection.remainingIndex, 1);
-      continue;
-    }
-
-    connected.push(bestConnection.to);
-    remaining.splice(bestConnection.remainingIndex, 1);
+    if (result.drawn) updateTreeConnections(connection.to, remaining, best);
   }
 }
 
@@ -428,6 +451,45 @@ function collectConnectedWireChain(startWire, allWires) {
   }
 
   return result;
+}
+
+function getRoutingBounds(start, end, margin) {
+  return {
+    left: Math.min(start.x, end.x) - margin, right: Math.max(start.x, end.x) + margin,
+    top: Math.min(start.y, end.y) - margin, bottom: Math.max(start.y, end.y) + margin
+  };
+}
+
+function boxTouchesBounds(box, bounds) {
+  return !(box.right < bounds.left || box.left > bounds.right || box.bottom < bounds.top || box.top > bounds.bottom);
+}
+
+function segmentTouchesBounds(segment, bounds) {
+  const box = getSegmentBounds(segment.a, segment.b);
+  return boxTouchesBounds(box, bounds);
+}
+
+function createLocalRoutingData(start, end, obstacleBoxes, routedSegments, margin) {
+  const bounds = getRoutingBounds(start, end, margin);
+  return {
+    bounds,
+    obstacleBoxes: obstacleBoxes.filter(box => boxTouchesBounds(box, bounds)),
+    routedSegments: routedSegments.filter(segment => segment?.a && segment?.b && segmentTouchesBounds(segment, bounds))
+  };
+}
+
+function createRoutingGrid(start, end, obstacleBoxes, routedSegments, wireClearance, bounds = null) {
+  const xValues = [start.x, end.x], yValues = [start.y, end.y];
+
+  collectRoutingCoordinates(obstacleBoxes, routedSegments, xValues, yValues, wireClearance);
+  addParallelChannelMidpoints(routedSegments, xValues, yValues, wireClearance);
+
+  if (bounds) {
+    xValues.push(bounds.left, bounds.right);
+    yValues.push(bounds.top, bounds.bottom);
+  }
+
+  return { xs: uniqueSortedNumbers(xValues), ys: uniqueSortedNumbers(yValues) };
 }
 
 
@@ -484,4 +546,66 @@ function addNetTooltip(element, net) {
   const title = createSvgElement("title");
   title.textContent = net;
   element.appendChild(title);
+}
+
+class RoutingSpatialHash {
+  constructor(cellSize = 100) { this.cellSize = cellSize; this.buckets = new Map(); }
+
+  key(x, y) { return `${x},${y}`; }
+
+  getRange(bounds) {
+    return {
+      minX: Math.floor(bounds.left / this.cellSize), maxX: Math.floor(bounds.right / this.cellSize),
+      minY: Math.floor(bounds.top / this.cellSize), maxY: Math.floor(bounds.bottom / this.cellSize)
+    };
+  }
+
+  insert(item, bounds) {
+    const range = this.getRange(bounds);
+
+    for (let x = range.minX; x <= range.maxX; x++) {
+      for (let y = range.minY; y <= range.maxY; y++) {
+        const key = this.key(x, y);
+        if (!this.buckets.has(key)) this.buckets.set(key, []);
+        this.buckets.get(key).push(item);
+      }
+    }
+  }
+
+  query(bounds) {
+    const range = this.getRange(bounds), result = new Set();
+
+    for (let x = range.minX; x <= range.maxX; x++) {
+      for (let y = range.minY; y <= range.maxY; y++) {
+        const bucket = this.buckets.get(this.key(x, y));
+        if (bucket) for (const item of bucket) result.add(item);
+      }
+    }
+
+    return result;
+  }
+}
+
+function getSegmentBounds(first, second, padding = 0) {
+  return {
+    left: Math.min(first.x, second.x) - padding, right: Math.max(first.x, second.x) + padding,
+    top: Math.min(first.y, second.y) - padding, bottom: Math.max(first.y, second.y) + padding
+  };
+}
+
+function getPointBounds(point, padding = 0.01) {
+  return { left: point.x - padding, right: point.x + padding, top: point.y - padding, bottom: point.y + padding };
+}
+
+function createRoutingSpatialIndexes(obstacleBoxes, routedSegments, wireClearance) {
+  const obstacleIndex = new RoutingSpatialHash(100), segmentIndex = new RoutingSpatialHash(100);
+
+  for (const box of obstacleBoxes) obstacleIndex.insert(box, box);
+
+  for (const segment of routedSegments) {
+    if (!segment?.a || !segment?.b) continue;
+    segmentIndex.insert(segment, getSegmentBounds(segment.a, segment.b, wireClearance));
+  }
+
+  return { obstacleIndex, segmentIndex };
 }
