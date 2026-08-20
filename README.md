@@ -143,8 +143,6 @@ The `_Inductex` folder is intended to contain the files that belong together for
 
 Older `.cir` files are kept separately in `Previous_CIRs`.
 
-The program does **not** generate a `layout_mapping_audit.txt` file.
-
 ### Automatic `.sp` and `.gds` Organization
 
 When a project is first created, its Custom Compiler `.sp` and `.gds` files are placed in the project root.
@@ -266,49 +264,6 @@ Splitter_Inductex/
 `Netlist.sp` remains the original/latest Custom Compiler netlist.
 
 `Netlist_from_sol.sp` contains the same circuit with supported component values updated using the InductEx extraction results and becomes the netlist used for that execution.
-
-### Generated `.cir` Files
-
-The generated `.cir` filename is based on the Custom Compiler cell name found in the SPICE file.
-
-For example, if the SPICE header contains:
-
-```text
-* Cell             : splitter
-```
-
-the first generated file is:
-
-```text
-splitter.cir
-```
-
-Each additional version receives an incrementing version number:
-
-```text
-splitter.cir
-splitter_V1.cir
-splitter_V2.cir
-splitter_V3.cir
-...
-```
-
-For a different cell such as:
-
-```text
-* Cell             : NDROm2
-```
-
-the generated files would be:
-
-```text
-NDROm2.cir
-NDROm2_V1.cir
-NDROm2_V2.cir
-...
-```
-
-The program checks existing CIR files before selecting the next version number so that previous versions are not overwritten.
 
 ### Current and Previous `.cir` Files
 
@@ -538,7 +493,7 @@ Make sure the paths in `project_list.py` exactly match the filenames and initial
 
 ## 4. Start the Local Web Server
 
-Open a second terminal in the project root and activate the virtual environment if needed.
+Open a second terminal in the project root and activate the virtual environment.
 
 Start the server on port `8080`:
 
