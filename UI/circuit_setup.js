@@ -149,39 +149,86 @@ function setupPanZoom(svg, fullWidth, fullHeight) {
     applyViewBox();
   }
 
-  function clientToSvgPoint(event) {
-    const rect = svg.getBoundingClientRect();
-    return {
-      x: viewBox.x + ((event.clientX - rect.left) / rect.width) * viewBox.width,
-      y: viewBox.y + ((event.clientY - rect.top) / rect.height) * viewBox.height
-    };
+  function screenToSvg(clientX, clientY) {
+    const point = svg.createSVGPoint();
+    point.x = clientX;
+    point.y = clientY;
+    return point.matrixTransform(svg.getScreenCTM().inverse());
   }
 
-  function fitCircuit(zoomOut = 1.15) {
-    const centerX = fullWidth / 2, centerY = fullHeight / 2;
-    const rect = svg.getBoundingClientRect();
+  function getTopCircuitBoundary() {
+    return svg.querySelector('.layout-cell[data-layout-instance^="__top__"] .layout-cell-boundary');
+  }
 
-    let width = fullWidth * zoomOut;
-    let height = fullHeight * zoomOut;
+  function correctCircuitCenter() {
+    const topBoundary = getTopCircuitBoundary();
+    if (!topBoundary) return;
 
-    if (rect.width > 0 && rect.height > 0) {
-      const screenAspect = rect.width / rect.height;
-      const viewAspect = width / height;
+    const svgRect = svg.getBoundingClientRect();
+    const circuitRect = topBoundary.getBoundingClientRect();
 
-      if (viewAspect > screenAspect) height = width / screenAspect;
-      else width = height * screenAspect;
+    const screenCenter = screenToSvg(
+      svgRect.left + svgRect.width / 2,
+      svgRect.top + svgRect.height / 2
+    );
+
+    const circuitCenter = screenToSvg(
+      circuitRect.left + circuitRect.width / 2,
+      circuitRect.top + circuitRect.height / 2
+    );
+
+    viewBox.x += circuitCenter.x - screenCenter.x;
+    viewBox.y += circuitCenter.y - screenCenter.y;
+
+    applyViewBox();
+  }
+
+  function fitCircuit(zoomOut = 1.08) {
+    const topBoundary = getTopCircuitBoundary();
+
+    if (!topBoundary) {
+      setViewBox(0, 0, fullWidth, fullHeight);
+      return;
     }
 
-    setViewBox(centerX - width / 2, centerY - height / 2, width, height);
+    const box = topBoundary.getBBox();
+    const centerX = box.x + box.width / 2;
+    const centerY = box.y + box.height / 2;
+
+    let width = box.width * zoomOut;
+    let height = box.height * zoomOut;
+
+    const rect = svg.getBoundingClientRect();
+
+    if (rect.width > 0 && rect.height > 0) {
+      const aspect = rect.width / rect.height;
+
+      if (width / height > aspect) height = width / aspect;
+      else width = height * aspect;
+    }
+
+    setViewBox(
+      centerX - width / 2,
+      centerY - height / 2,
+      width,
+      height
+    );
+
+    requestAnimationFrame(() => {
+      correctCircuitCenter();
+
+      requestAnimationFrame(() => {
+        correctCircuitCenter();
+      });
+    });
+  }
+
+  function clientToSvgPoint(event) {
+    return screenToSvg(event.clientX, event.clientY);
   }
 
   function centerAt(clientX, clientY) {
-    const rect = svg.getBoundingClientRect();
-
-    const point = {
-      x: viewBox.x + ((clientX - rect.left) / rect.width) * viewBox.width,
-      y: viewBox.y + ((clientY - rect.top) / rect.height) * viewBox.height
-    };
+    const point = screenToSvg(clientX, clientY);
 
     setViewBox(
       point.x - viewBox.width / 2,
@@ -191,7 +238,12 @@ function setupPanZoom(svg, fullWidth, fullHeight) {
     );
   }
 
-  svg.__panZoom = { fitCircuit, centerAt, setViewBox, getViewBox: () => ({ ...viewBox }) };
+  svg.__panZoom = {
+    fitCircuit,
+    centerAt,
+    setViewBox,
+    getViewBox: () => ({ ...viewBox })
+  };
 
   svg.addEventListener("wheel", event => {
     event.preventDefault();
@@ -214,18 +266,26 @@ function setupPanZoom(svg, fullWidth, fullHeight) {
 
     isPanning = true;
     svg.classList.add("is-panning");
-    start = { clientX: event.clientX, clientY: event.clientY, viewBoxX: viewBox.x, viewBoxY: viewBox.y };
+
+    start = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      viewBoxX: viewBox.x,
+      viewBoxY: viewBox.y
+    };
   });
 
   window.addEventListener("mousemove", event => {
     if (!isPanning || !start) return;
 
     const rect = svg.getBoundingClientRect();
+
     const dx = ((event.clientX - start.clientX) / rect.width) * viewBox.width;
     const dy = ((event.clientY - start.clientY) / rect.height) * viewBox.height;
 
     viewBox.x = start.viewBoxX - dx;
     viewBox.y = start.viewBoxY - dy;
+
     applyViewBox();
   });
 
@@ -235,7 +295,7 @@ function setupPanZoom(svg, fullWidth, fullHeight) {
     start = null;
   });
 
-  applyViewBox();
+  requestAnimationFrame(() => fitCircuit());
 }
 
 function applyJJPairSpacing(jj, resistor, pairSpacing = 70) {
@@ -285,6 +345,33 @@ function restoreWire(wire) {
 function handleWireMouseDown(event) {
   event.preventDefault();
   event.stopPropagation();
+}
+
+function getWholeCircuitTopBounds(placedCells) {
+  if (!Array.isArray(placedCells) || !placedCells.length) return null;
+
+  const topMargin = 100, boundaryPadding = 25, boundaryYOffset = 20;
+
+  const minCellX = Math.min(...placedCells.map(cell => cell.x));
+  const minCellY = Math.min(...placedCells.map(cell => cell.y));
+  const maxCellX = Math.max(...placedCells.map(cell => cell.x + cell.width));
+  const maxCellY = Math.max(...placedCells.map(cell => cell.y + cell.height));
+
+  const topX = minCellX - topMargin;
+  const topY = minCellY - topMargin;
+  const topWidth = maxCellX - minCellX + topMargin * 2;
+  const topHeight = maxCellY - minCellY + topMargin * 2;
+
+  const x = topX - boundaryPadding;
+  const y = topY - boundaryPadding + boundaryYOffset;
+  const width = topWidth + boundaryPadding * 2;
+  const height = topHeight + boundaryPadding * 2;
+
+  return {
+    x, y, width, height,
+    centerX: x + width / 2,
+    centerY: y + height / 2
+  };
 }
 
 function setupWireSelection(svg, hitMargin = 3) {
