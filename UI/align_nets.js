@@ -74,9 +74,6 @@ function alignSharedRowItem(item, rightPlan, lockedRows) {
 
   if (lockedRows.has(item.targetRow)) return;
 
-  const occupyingTerminal = getRightTerminalOnRow(rightPlan, item.targetRow);
-
-
   const oldRow = rightTerminal.row;
   swapRightPlanRows(rightPlan, oldRow, item.targetRow);
   lockedRows.add(item.targetRow);
