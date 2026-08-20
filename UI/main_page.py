@@ -13,6 +13,9 @@ from pathlib import Path
 import os
 import subprocess
 
+CIR_FILE_PATTERN = "*.cir"
+EXTRACTED_NETLIST_FILENAME = "Netlist_from_sol.sp"
+
 
 class Schematic:
     def __init__(self, sp_file, map_file):
@@ -474,7 +477,7 @@ class Schematic:
             "output_dir": output_dir,
             "previous_cirs_dir": previous_cirs_dir,
             "sol": project_dir / "sol.txt",
-            "extracted_sp": output_dir / "Netlist_from_sol.sp",
+            "extracted_sp": output_dir / EXTRACTED_NETLIST_FILENAME,
             "ordered_elems": base_dir / "ordered_elems.txt",
             "circuit_data": base_dir / "UI" / "circuit_data.js",
         }
@@ -502,10 +505,10 @@ class Schematic:
         previous_cirs_dir = paths["previous_cirs_dir"]
 
         # Move an old Netlist_from_sol.sp from the project root.
-        old_extracted_sp = project_dir / "Netlist_from_sol.sp"
+        old_extracted_sp = project_dir / EXTRACTED_NETLIST_FILENAME
 
         if old_extracted_sp.exists():
-            destination = output_dir / "Netlist_from_sol.sp"
+            destination = output_dir / EXTRACTED_NETLIST_FILENAME
 
             if destination.exists():
                 destination.unlink()
@@ -514,15 +517,13 @@ class Schematic:
             print("Moved generated SP:", destination.resolve())
 
         # Move the current CIR from a previous execution into the archive.
-        for cir_file in output_dir.glob("*.cir"):
+        for cir_file in output_dir.glob(CIR_FILE_PATTERN):
             self.move_cir_to_archive(cir_file, previous_cirs_dir)
 
-        # Migrate CIRs from the old architecture:
-        # e.g. Netlist_Inductex/, LayoutDone_VFHalf_Inductex/, etc.
         legacy_dir = project_dir / f"{paths['original_netlist'].stem}_Inductex"
 
         if legacy_dir.exists() and legacy_dir != output_dir:
-            for cir_file in legacy_dir.glob("*.cir"):
+            for cir_file in legacy_dir.glob(CIR_FILE_PATTERN):
                 self.move_cir_to_archive(cir_file, previous_cirs_dir)
 
             # Remove the old directory if it became empty.
@@ -553,14 +554,14 @@ class Schematic:
         archive_dir = paths["previous_cirs_dir"]
 
         # Archive the CIR from the previous current run.
-        for cir_file in output_dir.glob("*.cir"):
+        for cir_file in output_dir.glob(CIR_FILE_PATTERN):
             self.archive_cir_file(cir_file, archive_dir)
 
         # Migrate CIRs from the old architecture.
         legacy_dir = paths["project_dir"] / f"{paths['original_netlist'].stem}_Inductex"
 
         if legacy_dir.exists() and legacy_dir != output_dir:
-            for cir_file in legacy_dir.glob("*.cir"):
+            for cir_file in legacy_dir.glob(CIR_FILE_PATTERN):
                 self.archive_cir_file(cir_file, archive_dir)
 
     def prepare_netlist(self, paths):
