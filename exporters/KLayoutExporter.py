@@ -53,125 +53,27 @@ class KLayoutExporter(BaseExporter):
         return None
     
 
-    def report_mapping_audit(self, output_path=None):
-        report_lines = []
-
+    def build_first_level_layout_mapping(self):
         first_level_cells = {}
 
-        def add_line(text=""):
-
-            report_lines.append(text)
-
-        add_line("\n=== LAYOUT MAPPING AUDIT ===")
-
-        total = 0
-        mapped = 0
-        unmapped = 0
-
         def walk(cell):
-            nonlocal total, mapped, unmapped
-
             for inst in cell.instances:
-                if (
-                    hasattr(inst, "instances")
-                    and inst.instances
-                ):
+                if hasattr(inst, "instances") and inst.instances:
                     walk(inst)
                     continue
 
-                total += 1
-
-                raw_name = getattr(
-                    inst,
-                    "raw_name",
-                    inst.name,
-                )
-
-                layout_inst = getattr(
-                    inst,
-                    "KLayoutInstance",
-                    None,
-                )
-
-                layout_path = (
-                    self._raw_name_to_layout_path(
-                        raw_name
-                    )
-                )
+                raw_name = getattr(inst, "raw_name", inst.name)
+                layout_inst = getattr(inst, "KLayoutInstance", None)
 
                 if layout_inst is None:
-                    unmapped += 1
-
-                    add_line(
-                        f"FAIL | raw={raw_name:<18} "
-                        f"path={'/'.join(layout_path):<15} "
-                        f"reason=not mapped"
-                    )
-
                     continue
 
-                first_level_cell_name = (
-                    self.get_first_level_layout_cell(
-                        raw_name
-                    )
-                )
+                first_level_cell_name = self.get_first_level_layout_cell(raw_name)
 
-                if first_level_cell_name is None:
-                    unmapped += 1
-
-                    add_line(
-                        f"FAIL | raw={raw_name:<18} "
-                        f"path={'/'.join(layout_path):<15} "
-                        f"reason=first-level cell not found"
-                    )
-
-                    continue
-
-                mapped += 1
-
-                pid = layout_inst.property(102)
-
-           
-                device_cell_name = layout_inst.cell.name
-
-                first_level_cells[raw_name] = (
-                    first_level_cell_name
-                )
-
-                add_line(
-                    f"OK   | raw={raw_name:<18} "
-                    f"path={'/'.join(layout_path):<15} "
-                    f"pid={str(pid):<6} "
-                    f"layout_cell={first_level_cell_name} "
-                    f"device_cell={device_cell_name}"
-                )
+                if first_level_cell_name is not None:
+                    first_level_cells[raw_name] = first_level_cell_name
 
         walk(self.circuit.TOP)
-
-        add_line("\n=== SUMMARY ===")
-        add_line(f"Total logical elements: {total}")
-        add_line(f"Mapped: {mapped}")
-        add_line(f"Unmapped: {unmapped}")
-
-        if output_path is None:
-            output_path = (
-                Path(self.output_dir)
-                / "layout_mapping_audit.txt"
-            )
-        else:
-            output_path = Path(output_path)
-
-        output_path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        output_path.write_text(
-            "\n".join(report_lines),
-            encoding="utf-8",
-        )
-
-
         return first_level_cells
 
 

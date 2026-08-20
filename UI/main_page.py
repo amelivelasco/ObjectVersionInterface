@@ -461,23 +461,107 @@ class Schematic:
         print("====================================\n")
         return name_map
 
-    def get_next_cir_output_path(self, output_dir):
-        version = 1
-        while (output_dir / f"BIG_Cell_inductex_V{version}.cir").exists(): version += 1
-        return output_dir / f"BIG_Cell_inductex_V{version}.cir"
+    def build_run_paths(self, base_dir, netlist_path, project_dir):
+        output_dir = project_dir / f"{project_dir.name}_Inductex"
+        previous_cirs_dir = project_dir / "Previous_CIRs"
 
-    def build_run_paths(self, base_dir, netlist_path):
-        output_dir = netlist_path.parent / f"{netlist_path.stem}_Inductex"
         output_dir.mkdir(parents=True, exist_ok=True)
+        previous_cirs_dir.mkdir(parents=True, exist_ok=True)
+
         return {
             "original_netlist": netlist_path,
+            "project_dir": project_dir,
             "output_dir": output_dir,
-            "cir_output": self.get_next_cir_output_path(output_dir),
-            "sol": netlist_path.parent / "sol.txt",
-            "extracted_sp": netlist_path.parent / "Netlist_from_sol.sp",
+            "previous_cirs_dir": previous_cirs_dir,
+            "sol": project_dir / "sol.txt",
+            "extracted_sp": output_dir / "Netlist_from_sol.sp",
             "ordered_elems": base_dir / "ordered_elems.txt",
             "circuit_data": base_dir / "UI" / "circuit_data.js",
         }
+        
+    def move_cir_to_archive(self, cir_file, archive_dir):
+        cir_file = Path(cir_file)
+        archive_dir = Path(archive_dir)
+        archive_dir.mkdir(parents=True, exist_ok=True)
+
+        destination = archive_dir / cir_file.name
+
+        if destination.exists():
+            version = 1
+            while (archive_dir / f"{cir_file.stem}_V{version}{cir_file.suffix}").exists():
+                version += 1
+            destination = archive_dir / f"{cir_file.stem}_V{version}{cir_file.suffix}"
+
+        cir_file.replace(destination)
+        print("Archived CIR:", destination.resolve())
+
+
+    def organize_existing_files(self, paths):
+        project_dir = paths["project_dir"]
+        output_dir = paths["output_dir"]
+        previous_cirs_dir = paths["previous_cirs_dir"]
+
+        # Move an old Netlist_from_sol.sp from the project root.
+        old_extracted_sp = project_dir / "Netlist_from_sol.sp"
+
+        if old_extracted_sp.exists():
+            destination = output_dir / "Netlist_from_sol.sp"
+
+            if destination.exists():
+                destination.unlink()
+
+            old_extracted_sp.replace(destination)
+            print("Moved generated SP:", destination.resolve())
+
+        # Move the current CIR from a previous execution into the archive.
+        for cir_file in output_dir.glob("*.cir"):
+            self.move_cir_to_archive(cir_file, previous_cirs_dir)
+
+        # Migrate CIRs from the old architecture:
+        # e.g. Netlist_Inductex/, LayoutDone_VFHalf_Inductex/, etc.
+        legacy_dir = project_dir / f"{paths['original_netlist'].stem}_Inductex"
+
+        if legacy_dir.exists() and legacy_dir != output_dir:
+            for cir_file in legacy_dir.glob("*.cir"):
+                self.move_cir_to_archive(cir_file, previous_cirs_dir)
+
+            # Remove the old directory if it became empty.
+            if not any(legacy_dir.iterdir()):
+                legacy_dir.rmdir()
+        
+    def archive_cir_file(self, cir_file, archive_dir):
+        cir_file = Path(cir_file)
+        archive_dir = Path(archive_dir)
+
+        if not cir_file.exists():
+            return
+
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        destination = archive_dir / cir_file.name
+
+        if destination.exists():
+            version = 1
+            while (archive_dir / f"{cir_file.stem}_V{version}{cir_file.suffix}").exists():
+                version += 1
+            destination = archive_dir / f"{cir_file.stem}_V{version}{cir_file.suffix}"
+
+        cir_file.replace(destination)
+        print("Previous CIR archived:", destination.resolve())
+        
+    def archive_previous_cirs(self, paths):
+        output_dir = paths["output_dir"]
+        archive_dir = paths["previous_cirs_dir"]
+
+        # Archive the CIR from the previous current run.
+        for cir_file in output_dir.glob("*.cir"):
+            self.archive_cir_file(cir_file, archive_dir)
+
+        # Migrate CIRs from the old architecture.
+        legacy_dir = paths["project_dir"] / f"{paths['original_netlist'].stem}_Inductex"
+
+        if legacy_dir.exists() and legacy_dir != output_dir:
+            for cir_file in legacy_dir.glob("*.cir"):
+                self.archive_cir_file(cir_file, archive_dir)
 
     def prepare_netlist(self, paths):
         original_netlist = paths["original_netlist"]
@@ -521,11 +605,38 @@ class Schematic:
         klayout_exp.output_dir = str(output_dir); inductex_exp.output_dir = str(output_dir)
         inductex_exp.list_top_nodes(circuit.TOP)
         return klayout_exp, inductex_exp
+    
+    def get_next_cir_output_path(self, top_cell_name, output_dir, previous_cirs_dir):
+        output_dir = Path(output_dir)
+        previous_cirs_dir = Path(previous_cirs_dir)
+
+        base_name = str(top_cell_name).strip()
+
+        # First-ever CIR for this cell.
+        base_file = f"{base_name}.cir"
+
+        exists_anywhere = (
+            (output_dir / base_file).exists()
+            or (previous_cirs_dir / base_file).exists()
+        )
+
+        if not exists_anywhere:
+            return output_dir / base_file
+
+        version = 1
+
+        while (
+            (output_dir / f"{base_name}_V{version}.cir").exists()
+            or (previous_cirs_dir / f"{base_name}_V{version}.cir").exists()
+        ):
+            version += 1
+
+        return output_dir / f"{base_name}_V{version}.cir"
 
 
     def prepare_layout_mapping(self, circuit, klayout_exp):
         klayout_exp.integrating_layout()
-        first_level_layout_cells = klayout_exp.report_mapping_audit()
+        first_level_layout_cells = klayout_exp.build_first_level_layout_mapping()
         klayout_exp.report_layout_mapping()
         circuit.assign_cell_ids(); circuit.define_local_names()
         self.save_original_component_names(circuit.TOP)
@@ -549,19 +660,28 @@ class Schematic:
     
     def generate_inductex_files(self, parser, klayout_exp, inductex_exp, context):
         layout_path, paths, top_cell_name = context["layout_path"], context["paths"], context["top_cell_name"]
+
         generated_cir_path = Path(inductex_exp.export_complete_cir(
-            klayout_exporter=klayout_exp, output_path=paths["cir_output"]
+            klayout_exporter=klayout_exp,
+            output_path=paths["cir_output"]
         )).resolve()
 
         parser.create_or_update_xi(
-            xi_path=paths["original_netlist"].parent / f"{top_cell_name}.xi",
-            cir_path=generated_cir_path, gds_path=layout_path, cell_name=top_cell_name
+            xi_path=paths["project_dir"] / f"{top_cell_name}.xi",
+            cir_path=generated_cir_path,
+            gds_path=layout_path,
+            cell_name=top_cell_name
         )
 
-        cir_content = self.validate_generated_cir(generated_cir_path, paths["cir_output"])
+        cir_content = self.validate_generated_cir(
+            generated_cir_path,
+            paths["cir_output"]
+        )
+
         print("New InductEx run saved at:", generated_cir_path)
         self.show_file_in_vscode(generated_cir_path)
         self.print_cir_report(generated_cir_path, cir_content)
+
         return generated_cir_path
     
 
