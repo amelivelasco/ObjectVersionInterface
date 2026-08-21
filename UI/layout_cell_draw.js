@@ -225,7 +225,7 @@ function createPositionedElement(item, cell, offsetX, offsetY, layoutOrder) {
     inputPin: { x: isInductor ? x - pinOffset : x - direction * pinOffset, y, net: element.net_in },
     outputPin: { x: isInductor ? x + pinOffset : x + direction * pinOffset, y, net: element.net_out },
     placementMode: placement.placementMode || null, parentLayoutCell: cell.layout_instance || cell.id,
-    parentLayoutCellType: cell.layout_cell, instancePath: cell.instance_path, rowFlipped180
+    parentLayoutCellType: cell.layout_cell, instancePath: cell.instance_path, rowFlipped180,
   };
 }
 
@@ -272,46 +272,90 @@ function placeLayoutItems(layout, cell, offsetX, offsetY, half) {
   return placed;
 }
 
-function findNormalPreviousInductorElement(element, placed) {
-  return placed.filter((candidate) => candidate !== element && candidate.row === element.row && candidate.x < element.x)
-    .sort((a, b) => b.x - a.x)[0] || null;
+function isDirectionalLineComponent(element) {
+  return getElementType(element) === "L" || isStandaloneResistor(element);
 }
 
-function findFlippedPreviousInductorElement(element, placed) {
-  return placed.filter((candidate) => candidate !== element && candidate.row === element.row && candidate.x > element.x)
-    .sort((a, b) => a.x - b.x)[0] || null;
+function normalizeConnectionNet(net) {
+  return String(net ?? "").trim().toUpperCase();
 }
 
-function setInductorDirection(element, direction, pinOffset, layoutReversed) {
+function getSharedConnectionNets(first, second) {
+  const firstNets = [first.net_in, first.net_out].map(normalizeConnectionNet).filter(Boolean);
+  const secondNets = new Set([second.net_in, second.net_out].map(normalizeConnectionNet).filter(Boolean));
+  return [...new Set(firstNets.filter(net => secondNets.has(net)))];
+}
+
+function getNetSideForDirection(element, net, direction) {
+  const key = normalizeConnectionNet(net);
+
+  if (normalizeConnectionNet(element.net_in) === key) return -direction;
+  if (normalizeConnectionNet(element.net_out) === key) return direction;
+
+  return 0;
+}
+
+function scoreComponentDirection(element, direction, placed) {
+  let score = 0;
+  let connections = 0;
+
+  for (const neighbor of placed) {
+    if (neighbor === element || neighbor.row !== element.row) continue;
+
+    const sharedNets = getSharedConnectionNets(element, neighbor);
+    if (!sharedNets.length) continue;
+
+    const dx = neighbor.x - element.x;
+    if (Math.abs(dx) < 0.5) continue;
+
+    const desiredSide = Math.sign(dx);
+
+    for (const net of sharedNets) {
+      const actualSide = getNetSideForDirection(element, net, direction);
+      if (!actualSide) continue;
+
+      score += actualSide === desiredSide ? 1 : -1;
+      connections++;
+    }
+  }
+
+  return { score, connections };
+}
+
+function setLineComponentDirection(element, direction) {
+  const pinOffset = getPinOffsetForElement(element);
+  direction = direction < 0 ? -1 : 1;
+
   element.direction = direction;
+  element.electricalDirection = direction;
+  element.layoutReversed = direction < 0;
   element.inputPin = { x: element.x - direction * pinOffset, y: element.y, net: element.net_in };
   element.outputPin = { x: element.x + direction * pinOffset, y: element.y, net: element.net_out };
-  element.electricalDirection = direction;
-  element.layoutReversed = layoutReversed;
+
+  if (!isGroundNet(element.net_in) && !isGroundNet(element.net_out)) {
+    element.forcedRotation = direction < 0 ? 180 : 0;
+  }
 }
 
-function positionNormalInductor(element, placed, pinOffset) {
-  const previous = findNormalPreviousInductorElement(element, placed);
-  const reversed = Boolean(previous && element.net_out && previous.net_out === element.net_out);
-  const direction = reversed ? -1 : 1;
-  setInductorDirection(element, direction, pinOffset, reversed);
+function getBestLineComponentDirection(element, placed) {
+  const forward = scoreComponentDirection(element, 1, placed);
+  const reversed = scoreComponentDirection(element, -1, placed);
+
+  if (!forward.connections && !reversed.connections) {
+    return Number(element.electricalDirection ?? element.direction ?? 1) < 0 ? -1 : 1;
+  }
+
+  if (forward.score === reversed.score) {
+    return Number(element.electricalDirection ?? element.direction ?? 1) < 0 ? -1 : 1;
+  }
+
+  return reversed.score > forward.score ? -1 : 1;
 }
 
-function positionFlippedInductor(element, placed, pinOffset) {
-  const originalPrevious = findFlippedPreviousInductorElement(element, placed);
-  const originallyReversed = Boolean(originalPrevious && element.net_out && originalPrevious.net_out === element.net_out);
-  const originalDirection = originallyReversed ? -1 : 1;
-  const direction = -originalDirection;
-  setInductorDirection(element, direction, pinOffset, direction < 0);
-}
-
-function adjustInductorDirections(placed) {
+function adjustLineComponentDirections(placed) {
   for (const element of placed) {
-    if (getElementType(element) !== "L") continue;
-
-    const pinOffset = getPinOffsetForElement(element);
-    if (!element.rowFlipped180) positionNormalInductor(element, placed, pinOffset);
-    else positionFlippedInductor(element, placed, pinOffset);
+    if (!isDirectionalLineComponent(element)) continue;
+    setLineComponentDirection(element, getBestLineComponentDirection(element, placed));
   }
 }
 
@@ -330,7 +374,7 @@ function placeElementsInsideLayoutCell(cell) {
   const offsetY = cell.y + padding - layout.anchorMinY;
 
   const placed = placeLayoutItems(layout, cell, offsetX, offsetY, half);
-  adjustInductorDirections(placed);
+  adjustLineComponentDirections(placed);
   logFinalTerminalElements(placed);
   return placed;
 }
