@@ -128,7 +128,7 @@ function drawComponentValueText(parent, text, x, y, options = {}) {
   return valueText;
 }
 
-function drawComponent(layer, element) {
+function drawComponent(layer, element, options = {}) {
   const halfSize = drawConfig.imageSize / 2;
   const g = createSvgElement("g", { class: `component component-${element.type}`,});
 
@@ -186,7 +186,7 @@ function drawComponent(layer, element) {
 
   g.appendChild(image);
 
-  if (componentType === "R" && isStandaloneResistor(element)) {
+  if (componentType === "R" && isStandaloneResistor(element) && !options.suppressResistorLabels) {
     if (element.cir_name) {
       drawComponentValueText(g, element.cir_name, element.x, element.y + 15, drawConfig.nameFormat);
     }
@@ -312,7 +312,7 @@ function drawJRpairs(current, next, componentLayer, wireLayer, labelLayer) {
   next.forcedRotation = nextRotation;
 
   drawComponent(componentLayer, current);
-  drawComponent(componentLayer, next);
+  drawComponent(componentLayer, next, { suppressResistorLabels: true });
 
   const value = formatComponentValue(current);
 
