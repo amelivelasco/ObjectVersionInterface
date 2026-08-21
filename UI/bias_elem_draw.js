@@ -280,6 +280,24 @@ function connectBiasStubsToInductors(wireLayer, labelLayer, placed) {
   }
 }
 
+function drawPolarityText(labelLayer, text, x, y, element) {
+  const sign = createSvgElement("text", {
+    x, y,
+    "text-anchor": "middle",
+    "dominant-baseline": "middle",
+    "font-family": drawConfig.fontFamily,
+    "font-size": "15px",
+    "font-weight": "700",
+    fill: "#111827",
+    class: "polarity-sign",
+    "pointer-events": "none",
+    "data-component": element.id || ""
+  });
+
+  sign.textContent = text;
+  labelLayer.appendChild(sign);
+}
+
 function getBiasJRObstacles(bias, placed, layoutInstance) {
   const cellElements = placed.filter((element) => getLayoutInstance(element) === layoutInstance);
   return buildRoutingObstacleBoxes(cellElements, new Set([bias.id]), 8).filter((box) => box.isJRPair);

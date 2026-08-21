@@ -186,6 +186,18 @@ function drawComponent(layer, element) {
 
   g.appendChild(image);
 
+  if (componentType === "R" && isStandaloneResistor(element)) {
+    if (element.cir_name) {
+      drawComponentValueText(g, element.cir_name, element.x, element.y + 15, drawConfig.nameFormat);
+    }
+
+    drawComponentValueText(g, formatComponentValue(element), element.x, element.y - 12, {
+      size: drawConfig.componentValueFontSize,
+      fill: "#7c2d12",
+      className: "resistor-value"
+    });
+  }
+
   if (componentType === "IB") {
     drawComponentValueText(g, element.cir_name, element.x, element.y - halfSize - 8, drawConfig.nameFormat);
     drawComponentValueText(g, formatComponentValue(element), element.x, element.y - 18, { size: drawConfig.componentValueFontSize, fill: "#7c2d12", className: "bias-value" });
@@ -409,7 +421,7 @@ function getNetKey(component, net) {
 function buildNetUseCounts(placed) {
   const counts = new Map();
   for (const component of placed) {
-    if (isBiasElement(component) || getElementType(component) === "R") continue;
+    if (isBiasElement(component) || isGeneratedResistor(component)) continue;
     for (const net of [component.net_in, component.net_out]) {
       if (!net || isGroundNet(net)) continue;
       const key = getNetKey(component, net);
@@ -586,7 +598,7 @@ function drawTerminalSide(component, side, context) {
 
 function drawInductorTerminalStubs(placed, context) {
   for (const component of placed) {
-    if (getElementType(component) !== "L") continue;
+    if (!supportsTerminalStubs(component)) continue;
     drawTerminalSide(component, "input", context);
     drawTerminalSide(component, "output", context);
   }

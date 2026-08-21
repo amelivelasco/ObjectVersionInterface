@@ -504,7 +504,6 @@ class Schematic:
         output_dir = paths["output_dir"]
         previous_cirs_dir = paths["previous_cirs_dir"]
 
-        # Move an old Netlist_from_sol.sp from the project root.
         old_extracted_sp = project_dir / EXTRACTED_NETLIST_FILENAME
 
         if old_extracted_sp.exists():
@@ -516,7 +515,6 @@ class Schematic:
             old_extracted_sp.replace(destination)
             print("Moved generated SP:", destination.resolve())
 
-        # Move the current CIR from a previous execution into the archive.
         for cir_file in output_dir.glob(CIR_FILE_PATTERN):
             self.move_cir_to_archive(cir_file, previous_cirs_dir)
 
@@ -526,7 +524,6 @@ class Schematic:
             for cir_file in legacy_dir.glob(CIR_FILE_PATTERN):
                 self.move_cir_to_archive(cir_file, previous_cirs_dir)
 
-            # Remove the old directory if it became empty.
             if not any(legacy_dir.iterdir()):
                 legacy_dir.rmdir()
         
@@ -553,11 +550,9 @@ class Schematic:
         output_dir = paths["output_dir"]
         archive_dir = paths["previous_cirs_dir"]
 
-        # Archive the CIR from the previous current run.
         for cir_file in output_dir.glob(CIR_FILE_PATTERN):
             self.archive_cir_file(cir_file, archive_dir)
 
-        # Migrate CIRs from the old architecture.
         legacy_dir = paths["project_dir"] / f"{paths['original_netlist'].stem}_Inductex"
 
         if legacy_dir.exists() and legacy_dir != output_dir:
@@ -613,7 +608,6 @@ class Schematic:
 
         base_name = str(top_cell_name).strip()
 
-        # First-ever CIR for this cell.
         base_file = f"{base_name}.cir"
 
         exists_anywhere = (
@@ -750,6 +744,8 @@ class Schematic:
                 "net_in": component.net_in, "net_out": component.net_out, 
                 "target_value": component.target_value, "extracted_value": component.extracted_value,
                 "image": self.get_component_image(component),
+                "generated_from_jj": False,
+                "source_component": None,
             })
 
             if component_type1 == "JJ":
@@ -762,6 +758,9 @@ class Schematic:
                     "net_out": component.net_out, 
                     "target_value": component.target_value, "extracted_value": component.extracted_value,
                     "image": "../img/res_draw.png",
+                    "generated_from_jj": True,
+                    "source_component": component.raw,
+                    "companion_of": component.raw,
                 })
 
         data = {

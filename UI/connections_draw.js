@@ -15,23 +15,57 @@ function isJJResistorPair(first, second) {
 
 function createPlacementBlocks(elements) {
   const blocks = [];
+  const consumed = new Set();
 
   for (let index = 0; index < elements.length; index++) {
-    const current = elements[index];
-    const next = elements[index + 1];
+    const element = elements[index];
+    if (!element || consumed.has(element.id)) continue;
 
-    if (isJJResistorPair(current, next)) {
-      blocks.push({ id: `pair:${current.id}`, elements: [current, next], originalIndex: index,
-      });
+    if (getElementType(element) === "JJ") {
+      const resistor = elements.find(candidate =>
+        candidate &&
+        !consumed.has(candidate.id) &&
+        isJJResistorPair(element, candidate)
+      );
 
-      index++;
-      continue;
+      if (resistor) {
+        blocks.push({
+          id: element.id,
+          elements: [element, resistor],
+          originalIndex: index
+        });
+
+        consumed.add(element.id);
+        consumed.add(resistor.id);
+        continue;
+      }
     }
 
-    blocks.push({id: `element:${current.id}`, elements: [current], originalIndex: index, });
+    blocks.push({
+      id: element.id || element.raw || `element-${index}`,
+      elements: [element],
+      originalIndex: index
+    });
+
+    consumed.add(element.id);
   }
 
   return blocks;
+}
+
+function getComponentObstacleBox(element, padding = 10) {
+  const half = drawConfig.imageSize / 2;
+  const extra = getElementType(element) === "L" ? Math.max(padding, drawConfig.wireStrokeWidth + 14) : padding;
+
+  return {
+    left: element.x - half - extra,
+    right: element.x + half + extra,
+    top: element.y - half - extra,
+    bottom: element.y + half + extra,
+    ownerIds: new Set([element.id]),
+    ownerId: element.id || element.raw || "",
+    kind: isStandaloneResistor(element) ? "standalone-resistor" : "component"
+  };
 }
 
 function getBlockTerminals(block) {
@@ -269,4 +303,9 @@ function axisAlignedSegmentsIntersect(first, second, epsilon = 0.5) {
     vertical.a.x <= Math.max(horizontal.a.x, horizontal.b.x) + epsilon &&
     horizontal.a.y >= Math.min(vertical.a.y, vertical.b.y) - epsilon &&
     horizontal.a.y <= Math.max(vertical.a.y, vertical.b.y) + epsilon;
+}
+
+function supportsTerminalStubs(component) {
+  const type = getElementType(component);
+  return type === "L" || isStandaloneResistor(component);
 }

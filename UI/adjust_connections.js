@@ -4,7 +4,7 @@ const routingObstacleCache = new WeakMap();
 function getCachedRoutingObstacles(cellElements, padding = 10) {
   let cached = routingObstacleCache.get(cellElements);
 
-  if (!cached || cached.padding !== padding) {
+  if (cached?.padding !== padding) {
     cached = { padding, boxes: buildRoutingObstacleBoxes(cellElements, new Set(), padding) };
     routingObstacleCache.set(cellElements, cached);
   }
@@ -163,8 +163,10 @@ function trySimpleOrthogonalRoute(start, end, routingContext) {
 
   if (Math.abs(start.x - end.x) < 0.5 || Math.abs(start.y - end.y) < 0.5) candidates.push([start, end]);
   else {
-    candidates.push([start, { x: end.x, y: start.y }, end]);
-    candidates.push([start, { x: start.x, y: end.y }, end]);
+    candidates.push(
+      [start, { x: end.x, y: start.y }, end],
+      [start, { x: start.x, y: end.y }, end]
+    );
   }
 
   for (const route of candidates) {
@@ -330,42 +332,27 @@ function findShortestOrthogonalRoute(start, end, obstacleBoxes, routedSegments, 
   return reconstructRoute(goalKey, previous, grid);
 }
 
-function getInductorApproachPoint(terminal, point, clearance = 18) {
+function needsSideApproach(element) {
+  return getElementType(element) === "L" || isStandaloneResistor(element);
+}
+
+function getComponentApproachPoint(terminal, point, clearance = 18) {
   const element = terminal?.element;
+  if (!element || !needsSideApproach(element)) return { ...point };
 
-  if (!element || getElementType(element) !== "L"
-  ) {return {...point,};}
+  const pin = terminal.kind === "in" ? element.inputPin : terminal.kind === "out" ? element.outputPin : null;
+  let sideDirection = pin && Number.isFinite(pin.x) ? Math.sign(pin.x - element.x) : 0;
 
-  let pin = null;
-  let leadPoint = null;
-
-  if (terminal.kind === "in") {
-    pin = element.inputPin;
-    leadPoint = element.inputLeadPoint;
-  } else if (
-    terminal.kind === "out"
-  ) {
-    pin = element.outputPin;
-    leadPoint = element.outputLeadPoint;
-  }
-
-  let sideDirection = 0;
-  if (pin && leadPoint && Math.abs(leadPoint.x - pin.x) > 0.5) {
-    sideDirection = Math.sign(leadPoint.x - pin.x);
-  }
-
-  if (sideDirection === 0) {
+  if (!sideDirection) {
     const horizontalOffset = point.x - element.x;
-
-    if (Math.abs(horizontalOffset) > 0.5) {
-      sideDirection = Math.sign(horizontalOffset);
-    }
+    if (Math.abs(horizontalOffset) > 0.5) sideDirection = Math.sign(horizontalOffset);
   }
-  if (sideDirection === 0) {sideDirection = terminal.kind === "in" ? -1 : 1;}
+
+  if (!sideDirection) sideDirection = terminal.kind === "in" ? -1 : 1;
 
   return {
     x: point.x + sideDirection * clearance,
-    y: point.y,
+    y: point.y
   };
 }
 
@@ -373,8 +360,8 @@ function buildShortestFreeRoute(fromPoint, toPoint, fromTerminal, toTerminal, ce
   let first = { terminal: fromTerminal, point: getTerminalRoutingPoint(fromTerminal, fromPoint) };
   let second = { terminal: toTerminal, point: getTerminalRoutingPoint(toTerminal, toPoint) };
 
-  first.approach = getInductorApproachPoint(first.terminal, first.point);
-  second.approach = getInductorApproachPoint(second.terminal, second.point);
+  first.approach = getComponentApproachPoint(first.terminal, first.point);
+  second.approach = getComponentApproachPoint(second.terminal, second.point);
 
   if (first.approach.x > second.approach.x) { [first, second] = [second, first]; }
 
@@ -383,7 +370,16 @@ function buildShortestFreeRoute(fromPoint, toPoint, fromTerminal, toTerminal, ce
   const obstacleBoxes = getRouteObstacleBoxes(cellElements, excludedIds, 10);
 
   for (const element of endpointElements) {
-    if (getElementType(element) === "L") { obstacleBoxes.push(getInductorImageObstacle(element, 1)); }
+    if (!needsSideApproach(element)) continue;
+
+    obstacleBoxes.push({
+      left: element.x - drawConfig.imageSize / 2 - 1,
+      right: element.x + drawConfig.imageSize / 2 + 1,
+      top: element.y - drawConfig.imageSize / 2 - 1,
+      bottom: element.y + drawConfig.imageSize / 2 + 1,
+      ownerIds: new Set([element.id]),
+      kind: isStandaloneResistor(element) ? "endpoint-resistor" : "endpoint-inductor"
+    });
   }
 
   let coreRoute = findShortestOrthogonalRoute(first.approach, second.approach, obstacleBoxes, routedSegments, net);
@@ -728,7 +724,7 @@ function collectJRRails(cellElements) {
 
 function addInductorLeadSegments(cellElements, routedSegments) {
   for (const element of cellElements) {
-    if (getElementType(element) !== "L") continue;
+    if (!needsSideApproach(element)) continue;
 
     if (element.inputNeedsLead && element.net_in && element.inputPin && element.inputLeadPoint) {
       routedSegments.push({ a: element.inputPin, b: element.inputLeadPoint, net: element.net_in, protectedInductorLead: true });

@@ -115,15 +115,7 @@ function buildRoutingObstacleBoxes(elements, excludedIds = new Set(), padding = 
       continue;
     }
 
-    const elementPadding = getElementType(element) === "L" ? Math.max(padding, drawConfig.wireStrokeWidth + 14 ) : padding;
-
-    boxes.push({
-      left: element.x - halfSize - elementPadding,
-      right: element.x + halfSize + elementPadding,
-      top: element.y - halfSize - elementPadding,
-      bottom: element.y + halfSize + elementPadding,
-      ownerIds: new Set([element.id,]),
-    });
+    boxes.push(getComponentObstacleBox(element, padding));
   }
 
   return boxes;
@@ -498,12 +490,8 @@ function collectInterCellTerminals(placed) {
   return context.terminalsByNet;
 }
 
-function buildInterCellComponentBoxes(placed, halfSize) {
-  return placed.map((element) => ({
-    left: element.x - halfSize - 4, right: element.x + halfSize + 4,
-    top: element.y - halfSize - 4, bottom: element.y + halfSize + 4,
-    ownerId: element.id || element.raw || ""
-  }));
+function buildInterCellComponentBoxes(placed) {
+  return placed.map(element => getComponentObstacleBox(element, 4));
 }
 
 function transformInterCellRenderedPoint(edge, point, svg, externalWireLayer) {
@@ -855,7 +843,7 @@ function drawInterCellConnections(svg, externalWireLayer, placed, clearance = 14
   const epsilon = 0.5;
   const halfSize = drawConfig.imageSize / 2;
   const terminalsByNet = collectInterCellTerminals(placed);
-  const componentBoxes = buildInterCellComponentBoxes(placed, halfSize);
+  const componentBoxes = buildInterCellComponentBoxes(placed);
   const routedSegments = collectInterCellRoutedSegments(svg, externalWireLayer);
 
   const routingContext = createInterCellRoutingContext(

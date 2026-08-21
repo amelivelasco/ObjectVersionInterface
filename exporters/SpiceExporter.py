@@ -2,6 +2,8 @@ import datetime
 import os
 from exporters.BaseExporter import BaseExporter
 
+EXTRACTED_NETLIST_FILENAME = "Netlist_from_sol.sp"
+
 class SpiceExporter(BaseExporter):
     def __init__(self, circuit):
         super().__init__(circuit)
@@ -40,7 +42,7 @@ class SpiceExporter(BaseExporter):
 
         lines.append(f".ends {self.circuit.TOP.name}")
 
-        output_path = Path(output_path) if output_path else Path(self.circuit.output_dir) / "Netlist_from_sol.sp"
+        output_path = Path(output_path) if output_path else Path(self.circuit.output_dir) / EXTRACTED_NETLIST_FILENAME
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

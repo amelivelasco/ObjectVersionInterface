@@ -40,79 +40,77 @@ function createPolarityComponent(element, options = {}) {
   const halfSize = drawConfig.imageSize / 2;
   const type = getElementType(element);
 
-  if (type === "IB") { return null; }
+  if (type === "IB") return null;
 
-  if (type === "L") {
-    const inputPoint = element.inputPin || {
-        x: element.x - halfSize,
-        y: element.y,
-      };
-
-    const outputPoint =
-      element.outputPin || {x: element.x + halfSize, y: element.y,};
+  if (type === "L" || type === "R") {
+    const inputPoint = element.inputPin || { x: element.x - halfSize, y: element.y };
+    const outputPoint = element.outputPin || { x: element.x + halfSize, y: element.y };
 
     return {
       id: element.id,
-      kind: "inductor",
-      elements: [element,],
-      center: { x:  element.x, y: element.y, },
-      sideA: {name: "input", net:element.net_in, netKey: normalizePolarityNet(element.net_in), point: inputPoint,},
-      sideB: { name: "output", net: element.net_out, netKey: normalizePolarityNet(element.net_out), point: outputPoint,},
-    };
-  }
-
-  if (type === "R" || type === "JJ") {
-    return {
-      id: element.id,
-      kind: type === "R" ? "resistor" : "jj",
-      elements: [ element, ],
-      center: { x: element.x, y: element.y,},
-      sideA: {
-        name: "top",
-        net: element.net_in,
-        netKey: normalizePolarityNet(element.net_in),
-        point: {
-          x: element.x,
-          y: element.y -  halfSize,
-        },
-      },
-
-      sideB: {
-        name: "bottom",
-        net: element.net_out,
-        netKey: normalizePolarityNet(element.net_out),
-        point: {x: element.x, y: element.y + halfSize,},
-      },
-    };
-  }
-
-
-  if (element.net_in && element.net_out) {
-    const inputPoint = element.inputPin || { x: element.x - halfSize, y: element.y,};
-
-    const outputPoint =
-      element.outputPin || { x: element.x + halfSize, y: element.y, };
-
-    return {
-      id: element.id,
-      kind: "generic",
-      elements: [element,],
-      center: { x: element.x, y: element.y, },
+      kind: type === "L" ? "inductor" : "resistor",
+      elements: [element],
+      center: { x: element.x, y: element.y },
       sideA: {
         name: "input",
         net: element.net_in,
         netKey: normalizePolarityNet(element.net_in),
         point: inputPoint,
       },
-
       sideB: {
         name: "output",
-        net:  element.net_out,
+        net: element.net_out,
         netKey: normalizePolarityNet(element.net_out),
         point: outputPoint,
       },
     };
   }
+
+  if (type === "JJ") {
+    return {
+      id: element.id,
+      kind: "jj",
+      elements: [element],
+      center: { x: element.x, y: element.y },
+      sideA: {
+        name: "top",
+        net: element.net_in,
+        netKey: normalizePolarityNet(element.net_in),
+        point: { x: element.x, y: element.y - halfSize },
+      },
+      sideB: {
+        name: "bottom",
+        net: element.net_out,
+        netKey: normalizePolarityNet(element.net_out),
+        point: { x: element.x, y: element.y + halfSize },
+      },
+    };
+  }
+
+  if (element.net_in && element.net_out) {
+    const inputPoint = element.inputPin || { x: element.x - halfSize, y: element.y };
+    const outputPoint = element.outputPin || { x: element.x + halfSize, y: element.y };
+
+    return {
+      id: element.id,
+      kind: "generic",
+      elements: [element],
+      center: { x: element.x, y: element.y },
+      sideA: {
+        name: "input",
+        net: element.net_in,
+        netKey: normalizePolarityNet(element.net_in),
+        point: inputPoint,
+      },
+      sideB: {
+        name: "output",
+        net: element.net_out,
+        netKey: normalizePolarityNet(element.net_out),
+        point: outputPoint,
+      },
+    };
+  }
+
   return null;
 }
 

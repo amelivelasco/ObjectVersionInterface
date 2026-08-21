@@ -1,5 +1,10 @@
 function getPinOffsetForElement(element) {
-  return (getElementType(element) === "L" ? drawConfig.inductorPinOffset + 10 : drawConfig.pinOffset + 10);
+  const type = getElementType(element);
+
+  if (type === "L") return drawConfig.inductorPinOffset + 10;
+  if (type === "R") return drawConfig.imageSize / 2;
+
+  return drawConfig.pinOffset + 10;
 }
 
 function isBiasElement(element) {
@@ -11,7 +16,12 @@ function getLayoutInstance(element) {
 }
 
 function isGeneratedResistor(element) {
-  return getElementType(element) === "R";
+  return getElementType(element) === "R" && 
+    (element.generated_from_jj === true || Boolean(element.source_component) || Boolean(element.companion_of));
+}
+
+function isStandaloneResistor(element) {
+  return getElementType(element) === "R" && !isGeneratedResistor(element);
 }
 
 function getManhattanDistance(first, second) {
@@ -163,7 +173,7 @@ function addElementOutputTerminal(element, layoutInstance, terminalsByNet) {
 }
 
 function shouldSkipNetTerminalElement(element, elementsInPairs) {
-  return elementsInPairs.has(element.id) || getElementType(element) === "R" || isBiasElement(element);
+  return elementsInPairs.has(element.id) || isBiasElement(element);
 }
 
 function addRegularElementTerminals(element, elementsInPairs, terminalsByNet) {

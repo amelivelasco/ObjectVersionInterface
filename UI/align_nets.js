@@ -120,7 +120,7 @@ function countCellNets(cell) {
   const counts = new Map();
 
   for (const element of cell.elements) {
-    if (isBiasElement(element) || getElementType(element) === "R") continue;
+    if (isBiasElement(element) || isGeneratedResistor(element)) continue;
 
     for (const rawNet of [element.net_in, element.net_out]) {
       const net = String(rawNet || "").trim();
@@ -149,7 +149,7 @@ function getCellTerminals(cell) {
   const result = [];
 
   for (const element of cell.elements) {
-    if (isBiasElement(element) || getElementType(element) === "R") continue;
+    if (isBiasElement(element) || isGeneratedResistor(element)) continue;
 
     const info = placementByElement.get(element) || placementByElement.get(element.id) || placementByElement.get(element.raw);
     if (!info) continue;
