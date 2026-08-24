@@ -1,7 +1,7 @@
 * IXI File for InductEx example - resistance:rsfq_dcsfq_res
 * RSFQ DC-SFQ circuit with resistance
 * Authors: L Schindler
-* Last mod: 20 August 2026
+* Last mod: 24 August 2026
 *******************************************************
 * ----------------------------------------------
 * COMMAND FOR MODEL/SIMULATION CONTROL
@@ -10,7 +10,7 @@ $COMMAND
   MeshFile     "BIG_Cell.msh"
   MeshType     Tetra
   Mode         MQS
-  Netlist      "NDROMDrivers_V2.cir"
+  Netlist      "NDROMDrivers_V1.cir"
   Plot         [ J ]
   Process      "..\seeqc_v8.ldf"
   Fidelity     High
