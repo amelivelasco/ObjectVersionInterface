@@ -128,9 +128,91 @@ function drawComponentValueText(parent, text, x, y, options = {}) {
   return valueText;
 }
 
+function getComponentRotation(element, componentType) {
+  if (Number.isFinite(element.forcedRotation)) return element.forcedRotation;
+  if (componentType === "IB" && Number.isFinite(element.biasRotation)) return element.biasRotation;
+  if (componentType === "R" && element.net_out === "GND!") return 90;
+  if (componentType === "JJ" && element.net_out !== "GND!") return 90;
+  return 0;
+}
+
+function getResistorPath(element) {
+  const resistorNumber = (element.pid || "").match(/\d+/)?.[0] || "";
+  const resistorBasePath = (element.path || "").split("|")[0].replace(/\/J\d+$/, "");
+  return `${resistorBasePath}/R${resistorNumber}`;
+}
+
+function createComponentTitle(element, componentType) {
+  const title = createSvgElement("title");
+  title.textContent = [
+    `cir_name=${element.cir_name || ""}`,
+    `path=${componentType === "R" ? getResistorPath(element) : element.path || ""}`,
+    `net_in=${element.net_in || ""}`,
+    `net_out=${element.net_out || ""}`,
+    `target_val=${formatComponentValue(element, "target")}`,
+    `extracted_val=${formatComponentValue(element, "extracted")}`,
+  ].join("\n");
+  return title;
+}
+
+function drawInductorUnderlay(g, element) {
+  g.appendChild(createSvgElement("line", {
+    x1: element.inputPin.x,
+    y1: element.y,
+    x2: element.outputPin.x,
+    y2: element.y,
+    stroke: drawConfig.wireStroke,
+    "stroke-width": drawConfig.wireStrokeWidth,
+    "stroke-linecap": "round",
+    class: "inductor-wire-underlay",
+  }));
+}
+
+function drawStandaloneResistorLabels(g, element, options) {
+  if (!isStandaloneResistor(element) || options.suppressResistorLabels) return;
+
+  if (element.cir_name) {
+    drawComponentValueText(g, element.cir_name, element.x, element.y + 15, drawConfig.nameFormat);
+  }
+
+  drawComponentValueText(g, formatComponentValue(element), element.x, element.y - 12, {
+    size: drawConfig.componentValueFontSize,
+    fill: "#7c2d12",
+    className: "resistor-value",
+  });
+}
+
+function drawBiasLabels(g, element, halfSize) {
+  drawComponentValueText(g, element.cir_name, element.x, element.y - halfSize - 8, drawConfig.nameFormat);
+  drawComponentValueText(g, formatComponentValue(element), element.x, element.y - 18, {
+    size: drawConfig.componentValueFontSize,
+    fill: "#7c2d12",
+    className: "bias-value",
+  });
+}
+
+function drawInductorLabels(g, element) {
+  drawComponentValueText(g, formatComponentValue(element), element.x, element.y - 10, {
+    size: drawConfig.componentValueFontSize,
+    fill: "#7c2d12",
+    className: "inductor-value",
+  });
+
+  if (element.cir_name) {
+    drawComponentValueText(g, element.cir_name, element.x, element.y + 12, drawConfig.nameFormat);
+  }
+}
+
+function drawComponentLabels(g, element, componentType, options, halfSize) {
+  if (componentType === "R") drawStandaloneResistorLabels(g, element, options);
+  else if (componentType === "IB") drawBiasLabels(g, element, halfSize);
+  else if (componentType === "L") drawInductorLabels(g, element);
+}
+
 function drawComponent(layer, element, options = {}) {
   const halfSize = drawConfig.imageSize / 2;
-  const g = createSvgElement("g", { class: `component component-${element.type}`,});
+  const componentType = getElementType(element);
+  const g = createSvgElement("g", { class: `component component-${element.type}` });
 
   const image = createSvgElement("image", {
     href: element.image,
@@ -141,94 +223,26 @@ function drawComponent(layer, element, options = {}) {
     class: "component-image",
   });
 
-  const componentType = getElementType(element);
-  let rotation = 0;
-
-  if (componentType === "R" && element.net_out === "GND!") rotation = 90;
-  if (componentType === "JJ" && element.net_out !== "GND!") rotation = 90;
-  if (componentType === "IB" && Number.isFinite(element.biasRotation)) rotation = element.biasRotation;
-  if (Number.isFinite(element.forcedRotation)) rotation = element.forcedRotation;
-
+  const rotation = getComponentRotation(element, componentType);
   if (rotation) image.setAttribute("transform", `rotate(${rotation} ${element.x} ${element.y})`);
 
-  const title = createSvgElement("title");
-  const isResistor = componentType === "R";
-  const resistorNumber = (element.pid || "").match(/\d+/)?.[0] || "";
-  const resistorBasePath = (element.path || "").split("|")[0].replace(/\/J\d+$/, "");
-  const resistorPath = `${resistorBasePath}/R${resistorNumber}`;
+  g.appendChild(createComponentTitle(element, componentType));
 
-  title.textContent = [
-    `cir_name=${element.cir_name || ""}`,
-    `path=${isResistor ? resistorPath : element.path || ""}`,
-    `net_in=${element.net_in || ""}`,
-    `net_out=${element.net_out || ""}`,
-    `target_val=${formatComponentValue(element, "target")}`,
-    `extracted_val=${formatComponentValue(element, "extracted")}`,
-  ].join("\n");
-
-  g.appendChild(title);
-
-  if (componentType === "L") {
-    const baseline =
-      createSvgElement("line", {
-        x1: element.inputPin.x,
-        y1: element.y,
-        x2: element.outputPin.x,
-        y2: element.y,
-        stroke: drawConfig.wireStroke,
-        "stroke-width": drawConfig.wireStrokeWidth,
-        "stroke-linecap": "round",
-        class: "inductor-wire-underlay",
-      });
-
-    g.appendChild(baseline);
-  }
+  if (componentType === "L") drawInductorUnderlay(g, element);
 
   g.appendChild(image);
-
-  if (componentType === "R" && isStandaloneResistor(element) && !options.suppressResistorLabels) {
-    if (element.cir_name) {
-      drawComponentValueText(g, element.cir_name, element.x, element.y + 15, drawConfig.nameFormat);
-    }
-
-    drawComponentValueText(g, formatComponentValue(element), element.x, element.y - 12, {
-      size: drawConfig.componentValueFontSize,
-      fill: "#7c2d12",
-      className: "resistor-value"
-    });
-  }
-
-  if (componentType === "IB") {
-    drawComponentValueText(g, element.cir_name, element.x, element.y - halfSize - 8, drawConfig.nameFormat);
-    drawComponentValueText(g, formatComponentValue(element), element.x, element.y - 18, { size: drawConfig.componentValueFontSize, fill: "#7c2d12", className: "bias-value" });
-  }
-
-  if (
-    componentType === "L"
-  ) {
-    drawComponentValueText(g, formatComponentValue(element), element.x, element.y - 10,
-      {
-        size: drawConfig.componentValueFontSize,
-        fill: "#7c2d12",
-        className: "inductor-value",
-      }
-    );
-
-    if (element.cir_name) {
-      drawComponentValueText(g, element.cir_name, element.x, element.y + 12, drawConfig.nameFormat);
-    }
-
-  }
+  drawComponentLabels(g, element, componentType, options, halfSize);
 
   layer.appendChild(g);
+
   return {
     group: g,
     image,
-    center: {x: element.x, y: element.y,},
-    top: {x: element.x, y: element.y - halfSize,},
-    bottom: {x: element.x, y: element.y + halfSize,},
-    left: {x: element.x - halfSize, y: element.y,},
-    right: {x: element.x + halfSize, y: element.y,},
+    center: { x: element.x, y: element.y },
+    top: { x: element.x, y: element.y - halfSize },
+    bottom: { x: element.x, y: element.y + halfSize },
+    left: { x: element.x - halfSize, y: element.y },
+    right: { x: element.x + halfSize, y: element.y },
   };
 }
 

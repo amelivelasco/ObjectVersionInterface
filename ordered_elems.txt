@@ -1,4 +1,4 @@
-generated_at: 2026-08-24T14:20:36.783010+00:00
+generated_at: 2026-08-25T13:31:46.317312+00:00
 cell_name: VFHalf
 CircuitComponent(raw=XsjI122|X316, cir_name=J1, path=I122/X316, pid=X316, layout_cell=DC_SFQ, net_in=I122|net2, net_out=GND!, target_value=150.0, extracted_value=None)
 CircuitComponent(raw=RI122|R316, cir_name=R2, path=I122/R316, pid=R316, layout_cell=DC_SFQ, net_in=Src26, net_out=I122|net2, target_value=14.857142857142856, extracted_value=None)
