@@ -38,7 +38,28 @@ UI/main_page.html
 
 ## 1. Create the Virtual Environment
 
-Run these commands from the project root.
+If the you must add your own virtual environment, do this to install your own venv and all the requirements:
+
+For Windows:
+
+```bash
+rmdir /s /q venv
+python -m venv venv
+venv\Scripts\activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+For macOS, Linux:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+If you clone this repository, run these commands from the project root.
 
 ### Linux
 
