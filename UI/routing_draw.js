@@ -619,3 +619,82 @@ function createRoutingSpatialIndexes(obstacleBoxes, routedSegments, wireClearanc
 
   return { obstacleIndex, segmentIndex };
 }
+
+function orientStandaloneResistorsByInstance(placed) {
+  const elementsByInstance = new Map();
+
+  for (const element of placed) {
+    const instance = getLayoutInstance(element);
+
+    if (!elementsByInstance.has(instance)) {
+      elementsByInstance.set(instance, []);
+    }
+
+    elementsByInstance.get(instance).push(element);
+  }
+
+  for (const instanceElements of elementsByInstance.values()) {
+    orientStandaloneResistorsGlobally(instanceElements);
+  }
+}
+
+
+function scoreGlobalResistorDirection(resistor, direction, placed) {
+  let score = 0;
+  let connections = 0;
+
+  for (const neighbor of placed) {
+    if (neighbor === resistor) continue;
+
+    const sharedNets = getSharedConnectionNets(resistor, neighbor)
+      .filter(net => !isPowerNet(net));
+
+    if (!sharedNets.length) continue;
+
+    const dx = neighbor.x - resistor.x;
+    if (Math.abs(dx) < 0.5) continue;
+
+    // Neighbor can be on EITHER side.
+    const neighborSide = dx > 0 ? 1 : -1;
+
+    const distance =
+      Math.abs(neighbor.x - resistor.x) +
+      Math.abs(neighbor.y - resistor.y);
+
+    const weight = 1 / Math.max(1, distance);
+
+    for (const net of sharedNets) {
+      const resistorNetSide =
+        getNetSideForDirection(resistor, net, direction);
+
+      if (!resistorNetSide) continue;
+
+      if (resistorNetSide === neighborSide) {
+        score += weight;
+      } else {
+        score -= weight;
+      }
+
+      connections++;
+    }
+  }
+
+  return { score, connections };
+}
+
+function orientStandaloneResistorsGlobally(placed) {
+  for (const resistor of placed) {
+    if (!isStandaloneResistor(resistor)) continue;
+
+    const forward = scoreGlobalResistorDirection(resistor, 1, placed);
+    const reversed = scoreGlobalResistorDirection(resistor, -1, placed);
+
+    if (!forward.connections && !reversed.connections) continue;
+    if (Math.abs(forward.score - reversed.score) < 0.000001) continue;
+
+    setLineComponentDirection(
+      resistor,
+      reversed.score > forward.score ? -1 : 1
+    );
+  }
+}

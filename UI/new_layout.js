@@ -562,6 +562,79 @@ function finalizeSequentialPlan(context) {
   };
 }
 
+function getStandaloneResistorFromBlock(block) {
+  if (block.elements.length !== 1) return null;
+  const element = block.elements[0];
+  return isStandaloneResistor(element) ? element : null;
+}
+
+function getPlacementCenterColumn(placement) {
+  return placement.col + (Math.max(1, placement.span) - 1) / 2;
+}
+
+function getResistorPinSide(resistor, net, direction) {
+  if (resistor.net_in === net) return -direction;
+  if (resistor.net_out === net) return direction;
+  return 0;
+}
+
+function scoreResistorDirection(resistor, block, placement, direction, context) {
+  const resistorColumn = getPlacementCenterColumn(placement);
+  let score = 0;
+
+  for (const otherBlock of context.blocks) {
+    if (otherBlock.id === block.id) continue;
+
+    const otherPlacement = context.placements.get(otherBlock.id);
+    if (!otherPlacement) continue;
+
+    const otherColumn = getPlacementCenterColumn(otherPlacement);
+    const columnDifference = otherColumn - resistorColumn;
+
+    if (Math.abs(columnDifference) < 0.01) continue;
+
+    const neighborSide = columnDifference > 0 ? 1 : -1;
+    const otherTerminals = getBlockTerminals(otherBlock);
+
+    for (const net of [resistor.net_in, resistor.net_out]) {
+      if (!net || isPowerNet(net) || !otherTerminals.all.has(net)) continue;
+
+      const resistorPinSide = getResistorPinSide(resistor, net, direction);
+      const distanceWeight = 1 / Math.max(1, Math.abs(columnDifference));
+
+      score += resistorPinSide === neighborSide ? distanceWeight : -distanceWeight;
+    }
+  }
+
+  return score;
+}
+
+function orientStandaloneResistorsTowardSharedNets(context) {
+  for (const block of context.blocks) {
+    const resistor = getStandaloneResistorFromBlock(block);
+    if (!resistor) continue;
+
+    const placement = context.placements.get(block.id);
+    if (!placement) continue;
+
+    const normalScore = scoreResistorDirection(resistor, block, placement, 1, context);
+    const reversedScore = scoreResistorDirection(resistor, block, placement, -1, context);
+
+    if (normalScore === 0 && reversedScore === 0) continue;
+
+    const direction = reversedScore > normalScore ? -1 : 1;
+
+    resistor.electricalDirection = direction;
+    resistor.layoutReversed = direction < 0;
+    resistor.forcedRotation = direction < 0 ? 180 : 0;
+
+    block.forcedTerminalDirection = direction;
+
+    placement.terminalForcedDirection = direction;
+    placement.terminalDirectionForced = true;
+  }
+}
+
 function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
   const explicitInputNets = new Set(normalizeTerminalNets(terminalInfo.net_in)), explicitOutputNets = new Set(normalizeTerminalNets(terminalInfo.net_out));
   const blocks = createSequentialBlocks(elements, explicitInputNets, explicitOutputNets);
@@ -579,6 +652,9 @@ function buildSequentialTerminalPlan(elements, terminalInfo = {}) {
   forceGroundedJRsInlineOnExistingChains(context);
   placeBiasBlocks(context);
   placeUnassignedBlocks(context);
+
+  orientStandaloneResistorsTowardSharedNets(context);
+
   syncExplicitTerminals(context);
 
   return finalizeSequentialPlan(context);

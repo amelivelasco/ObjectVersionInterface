@@ -246,6 +246,15 @@ function drawComponent(layer, element, options = {}) {
   };
 }
 
+function resetTerminalLeadState(placed) {
+  for (const element of placed) {
+    element.inputLeadPoint = null;
+    element.outputLeadPoint = null;
+    element.inputNeedsLead = false;
+    element.outputNeedsLead = false;
+  }
+}
+
 function drawCircuit(data) {
   const board = document.getElementById("drawing_board");
   board.innerHTML = "";
@@ -286,14 +295,24 @@ function drawCircuit(data) {
   placeBiasElementsAboveNetOut(placed);
   drawLayoutCellBoundaries(layoutCellLayer, placedCells);
   drawTerminalStubs(internalWireLayer, labelLayer, dotLayer, placed, 25);
+  autoOrientCellsTowardSharedTerminals(placed, placedCells, svg);
+
+
+  internalWireLayer.replaceChildren();
+  dotLayer.replaceChildren();
+  labelLayer.replaceChildren();
+
+  for (const element of placed) { element.inputLeadPoint = null; element.outputLeadPoint = null; element.inputNeedsLead = false; element.outputNeedsLead = false; }
+
+  orientStandaloneResistorsGlobally(placed);
+  drawTerminalStubs(internalWireLayer, labelLayer, dotLayer, placed, 25);
   drawConnectionsInsideLayoutCells(internalWireLayer, labelLayer, placed);
   snapBiasElementsToNearestNet(internalWireLayer, placed);
   drawBiasLocalConnections(internalWireLayer, labelLayer, placed);
   connectBiasStubsToInductors(internalWireLayer, labelLayer, placed);
-  drawSubcircuits(placed, componentLayer, internalWireLayer, labelLayer)
-  autoOrientCellsTowardSharedTerminals(placed, placedCells, svg);
+  drawSubcircuits(placed, componentLayer, internalWireLayer, labelLayer);
   drawInterCellConnections(svg, externalWireLayer, placed, 14);
-  drawBiasBasedPolaritySigns(labelLayer, placed );
+  drawBiasBasedPolaritySigns(labelLayer, placed);
   setupInterCellTerminalHighlights(svg);
   setupWireSelection(svg);
   setupPanZoom(svg, canvasWidth, canvasHeight);

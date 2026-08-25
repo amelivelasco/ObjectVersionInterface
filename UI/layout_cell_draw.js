@@ -387,14 +387,18 @@ function buildPlacedElements(data, placedCells) {
 
     for (const element of cellElements) {
       positionById.set(element.id, element);
-      if (element.raw) { positionById.set(element.raw, element);}
+      if (element.raw) {
+        positionById.set(element.raw, element);
+      }
     }
   }
 
   const placed = [];
 
   for (const originalElement of data.elements || []) {
-    const positionedElement = positionById.get(originalElement.id) || positionById.get(originalElement.raw);
+    const positionedElement =
+      positionById.get(originalElement.id) ||
+      positionById.get(originalElement.raw);
 
     if (!positionedElement) {
       console.warn(
@@ -406,6 +410,8 @@ function buildPlacedElements(data, placedCells) {
 
     placed.push(positionedElement);
   }
+
+  orientStandaloneResistorsGlobally(placed);
 
   return placed;
 }
